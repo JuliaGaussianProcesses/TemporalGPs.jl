@@ -111,18 +111,18 @@ end
         # construct an LGSSM with either dense storage or static storage.
         storages = (
             (name="dense storage", val=DenseStorage()),
-            # (name="static storage", val=StaticStorage()),
+            (name="static storage", val=StaticStorage()),
         )
 
         # Either regular spacing or irregular spacing in time.
         ts = (
             (name="regular spacing", val=range(0.0; step=0.3, length=N)),
-            # (name="irregular spacing", val=sort(rand(rng, N))),
+            (name="irregular spacing", val=sort(rand(rng, N))),
         )
 
         σ²s = (
             (name="homoscedastic noise", val=0.1),
-            # (name="heteroscedastic noise", val=1 ./ (1 .+ exp.(.-randn(rng, N))) .+ 1e-1),
+            (name="heteroscedastic noise", val=1 ./ (1 .+ exp.(.-randn(rng, N))) .+ 1e-1),
         )
 
         @testset "$(kernel_info.name), $(storage.name), $(t.name), $(σ².name)" for
