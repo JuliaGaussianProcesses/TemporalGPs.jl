@@ -45,7 +45,7 @@ See the benchmarking results below for the effect that this can have.
 
 # Preliminary Benchmarking Results
 
-![](examples/preliminary-benchmarks.png)
+![](/examples/preliminary-benchmarks.png)
 
 "naive" timings are with the usual [Stheno.jl](https://github.com/willtebbutt/Stheno.jl/) inference routines, and is the default implementation for GPs. "lgssm" timings are conducted using `ssm` with no additional arguments. "static-lgssm" uses the `TemporalGPs.StaticStorage()` option discussed above.
 
