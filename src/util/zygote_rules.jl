@@ -1,17 +1,5 @@
 using Zygote: @adjoint, accum
 
-# getfield with a fallback to nothing.
-@generated function maybegetfield(x, name::Val{s}) where {s}
-    if hasfield(x, s)
-        return :(getfield(x, s))
-    else
-        return nothing
-    end
-end
-
-my_I(N::Int) = Diagonal(Ones(N))
-Zygote.@nograd my_I
-
 @adjoint function SVector{D}(x::AbstractVector) where {D}
     return SVector{D}(x), Δ::AbstractVector -> (convert(typeof(x), Δ),)
 end
@@ -64,3 +52,28 @@ end
     end
     return reinterpret(V, x), reinterpret_back
 end
+
+# @adjoint function *(x::Base.TwicePrecision, v::Number)
+#     function mul_TwicePrecision_Number(Δ::NamedTuple)
+#         Δ_num = TwicePrecision
+#     end
+#     return x * v, Δ -> (Δ * v, Δ * x)
+# end
+
+# @adjoint function *(x::Real, r::StepRangeLen{<:Real, <:Base.TwicePrecision})
+#     function mul_Real_StepRangeLen_adjoint(Δ::NamedTuple)
+#         @show typeof(Δ.ref), typeof(r.ref), typeof(Δ.step), typeof(r.step)
+#         # SOMETHING HERE TO DO WITH HANDLING TWICE-PRECISION PROPERLY.
+#         return (
+#             accum(
+#                 Δ.ref === nothing ? nothing : Δ.ref * r.ref,
+#                 Δ.step === nothing ? nothing : Δ.step * r.step,
+#             ),
+#             (
+#                 ref = Δ.ref === nothing ? nothing : x * Δ.ref,
+#                 step = Δ.step === nothing ? nothing : x * Δ.step,
+#             ),
+#         )
+#     end
+#     return x * r, mul_Real_StepRangeLen_adjoint
+# end

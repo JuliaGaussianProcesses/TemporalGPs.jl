@@ -1,3 +1,5 @@
+using TemporalGPs: Gaussian
+
 create_psd_matrix(A::AbstractMatrix) = A * A' + I
 
 function create_psd_stable_matrix(A::AbstractMatrix)
@@ -15,23 +17,15 @@ end
 
 import FiniteDifferences: to_vec
 
-# Make FiniteDifferences work for any user-defined type that has fields. This assumes that
-# the type passed in admits a constructor that just takes all of the fields and produces a
-# new object. As such, this won't work in the general case, but should work for all of the
-# stuff in this package.
-function to_vec(x::T) where {T}
-    isempty(fieldnames(T)) && throw(error("Expected some fields. None found."))
-    vecs_and_backs = map(name->to_vec(getfield(x, name)), fieldnames(T))
-    vecs, backs = first.(vecs_and_backs), last.(vecs_and_backs)
-    x_vec, back = to_vec(vecs)
-    function struct_to_vec(x′_vec)
-        vecs′ = back(x′_vec)
-        return T(map((back, vec)->back(vec), backs, vecs′)...)
+function to_vec(x::Fill)
+    x_vec, back_vec = to_vec(FillArrays.getindex_value(x))
+    function Fill_from_vec(x_vec)
+        return Fill(back_vec(x_vec), length(x))
     end
-    return x_vec, struct_to_vec
+    return x_vec, Fill_from_vec
 end
 
-function to_vec(x::Base.ReinterpretArray{<:Real})
+function to_vec(x::Base.ReinterpretArray)
     return to_vec(collect(x))
 end
 
@@ -48,20 +42,139 @@ function to_vec(x::T) where {T<:NamedTuple}
     return x_vec, namedtuple_to_vec
 end
 
+function to_vec(x::T) where {T<:StaticArray}
+    x_dense = collect(x)
+    x_vec, back_vec = to_vec(x_dense)
+    function StaticArray_to_vec(x_vec)
+        return T(back_vec(x_vec))
+    end
+    return x_vec, StaticArray_to_vec
+end
+
+function to_vec(x::TemporalGPs.Gaussian)
+    m_vec, m_from_vec = to_vec(x.m)
+    P_vec, P_from_vec = to_vec(x.P)
+
+    x_vec, x_back = to_vec((m_vec, P_vec))
+
+    function Gaussian_from_vec(x_vec)
+        mP_vec = x_back(x_vec)
+
+        m = m_from_vec(mP_vec[1])
+        P = P_from_vec(mP_vec[2])
+
+        return TemporalGPs.Gaussian(m, P)
+    end
+
+    return x_vec, Gaussian_from_vec
+end
+
+function to_vec(gmm::TemporalGPs.GaussMarkovModel)
+    A_vec, A_back = to_vec(gmm.A)
+    a_vec, a_back = to_vec(gmm.a)
+    Q_vec, Q_back = to_vec(gmm.Q)
+    H_vec, H_back = to_vec(gmm.H)
+    h_vec, h_back = to_vec(gmm.h)
+    x0_vec, x0_back = to_vec(gmm.x0)
+
+    gmm_vec, gmm_back = to_vec((A_vec, a_vec, Q_vec, H_vec, h_vec, x0_vec))
+
+    function GaussMarkovModel_from_vec(gmm_vec)
+        vecs = gmm_back(gmm_vec)
+        A = A_back(vecs[1])
+        a = a_back(vecs[2])
+        Q = Q_back(vecs[3])
+        H = H_back(vecs[4])
+        h = h_back(vecs[5])
+        x0 = x0_back(vecs[6])
+        return TemporalGPs.GaussMarkovModel(A, a, Q, H, h, x0)
+    end
+
+    return gmm_vec, GaussMarkovModel_from_vec
+end
+
+function to_vec(model::TemporalGPs.LGSSM)
+    gmm_vec, gmm_from_vec = to_vec(model.gmm)
+    Σ_vec, Σ_from_vec = to_vec(model.Σ)
+
+    model_vec, back = to_vec((gmm_vec, Σ_vec))
+
+    function LGSSM_from_vec(model_vec)
+        tmp = back(model_vec)
+        gmm = gmm_from_vec(tmp[1])
+        Σ = Σ_from_vec(tmp[2])
+        return TemporalGPs.LGSSM(gmm, Σ)
+    end
+
+    return model_vec, LGSSM_from_vec
+end
+
 # Ensure that to_vec works for the types that we care about in this package.
 @testset "custom FiniteDifferences stuff" begin
     @testset "NamedTuple" begin
         a, b = 5.0, randn(2)
         t = (a=a, b=b)
         nt_vec, back = to_vec(t)
-        @test nt_vec isa Vector
+        @test nt_vec isa Vector{Float64}
         @test back(nt_vec) == t
+    end
+    @testset "Fill" begin
+        @testset "$(typeof(val))" for val in [5.0, randn(3)]
+            x = Fill(val, 5)
+            x_vec, back = to_vec(x)
+            @test x_vec isa Vector{Float64}
+            @test back(x_vec) == x
+        end
+    end
+    @testset "gaussian" begin
+        @testset "Gaussian" begin
+            x = TemporalGPs.Gaussian(randn(3), randn(3, 3))
+            x_vec, back = to_vec(x)
+            @test back(x_vec) == x
+        end
+    end
+    @testset "to_vec(::GaussMarkovModel)" begin
+        N = 11
+        A = [randn(2, 2) for _ in 1:N]
+        a = [randn(2) for _ in 1:N]
+        Q = [randn(2, 2) for _ in 1:N]
+        H = [randn(3, 2) for _ in 1:N]
+        h = [randn(3) for _ in 1:N]
+        x0 = TemporalGPs.Gaussian(randn(2), randn(2, 2))
+        gmm = TemporalGPs.GaussMarkovModel(A, a, Q, H, h, x0)
+
+        gmm_vec, gmm_from_vec = to_vec(gmm)
+        @test gmm_vec isa Vector{<:Real}
+        @test gmm_from_vec(gmm_vec) == gmm
+    end
+    @testset "to_vec(::LGSSM)" begin
+        N = 11
+
+        A = [randn(2, 2) for _ in 1:N]
+        a = [randn(2) for _ in 1:N]
+        Q = [randn(2, 2) for _ in 1:N]
+        H = [randn(3, 2) for _ in 1:N]
+        h = [randn(3) for _ in 1:N]
+        x0 = TemporalGPs.Gaussian(randn(2), randn(2, 2))
+        gmm = TemporalGPs.GaussMarkovModel(A, a, Q, H, h, x0)
+
+        Σ = [randn(3, 3) for _ in 1:N]
+
+        model = TemporalGPs.LGSSM(gmm, Σ)
+
+        model_vec, model_from_vec = to_vec(model)
+        @test model_from_vec(model_vec) == model
     end
 end
 
+my_zero(x) = zero(x)
+my_zero(x::AbstractArray{<:Real}) = zero(x)
+my_zero(x::AbstractArray) = map(my_zero, x)
+my_zero(x::Tuple) = map(my_zero, x)
+
 # My version of isapprox
 function fd_isapprox(x_ad::Nothing, x_fd, rtol, atol)
-    return fd_isapprox(x_fd, zero(x_fd), rtol, atol)
+    return fd_isapprox(x_fd, my_zero(x_fd), rtol, atol)
 end
 function fd_isapprox(x_ad::AbstractArray, x_fd::AbstractArray, rtol, atol)
     return all(fd_isapprox.(x_ad, x_fd, rtol, atol))
@@ -80,6 +193,10 @@ function fd_isapprox(x_ad::Dict, x_fd::Dict, rtol, atol)
     return all([fd_isapprox(get(()->nothing, x_ad, key), x_fd[key], rtol, atol) for
         key in keys(x_fd)])
 end
+function fd_isapprox(x::Gaussian, y::Gaussian, rtol, atol)
+    return isapprox(x.m, y.m; rtol=rtol, atol=atol) &&
+        isapprox(x.P, y.P; rtol=rtol, atol=atol)
+end
 
 function adjoint_test(
     f, ȳ, x...;
@@ -90,9 +207,9 @@ function adjoint_test(
     test=true,
 )
     # Compute forwards-pass and j′vp.
+    adj_fd = j′vp(fdm, f, ȳ, x...)
     y, back = Zygote.pullback(f, x...)
     adj_ad = back(ȳ)
-    adj_fd = j′vp(fdm, f, ȳ, x...)
 
     # Check that forwards-pass agrees with plain forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)
@@ -106,13 +223,22 @@ end
 
 function print_adjoints(adjoint_ad, adjoint_fd, rtol, atol)
     @show typeof(adjoint_ad), typeof(adjoint_fd)
-    adjoint_ad, adjoint_fd = to_vec(adjoint_ad)[1], to_vec(adjoint_fd)[1]
-    println("atol is $atol, rtol is $rtol")
-    println("ad, fd, abs, rel")
-    abs_err = abs.(adjoint_ad .- adjoint_fd)
-    rel_err = abs_err ./ adjoint_ad
-    display([adjoint_ad adjoint_fd abs_err rel_err])
+
+    println("ad")
+    display(adjoint_ad)
     println()
+
+    println("fd")
+    display(adjoint_fd)
+    println()
+
+    # adjoint_ad, adjoint_fd = to_vec(adjoint_ad)[1], to_vec(adjoint_fd)[1]
+    # println("atol is $atol, rtol is $rtol")
+    # println("ad, fd, abs, rel")
+    # abs_err = abs.(adjoint_ad .- adjoint_fd)
+    # rel_err = abs_err ./ adjoint_ad
+    # display([adjoint_ad adjoint_fd abs_err rel_err])
+    # println()
 end
 
 using BenchmarkTools

@@ -68,3 +68,6 @@ See chapter 12 of [1] for the basics.
 
 [1] - Särkkä, Simo, and Arno Solin. Applied stochastic differential equations. Vol. 10. Cambridge University Press, 2019.
 
+# Gotchas
+
+- And time-rescaling is assumed to be a strictly increasing function of time. If this is not the case, then your code will fail silently. This could be addressed via careful engineering.

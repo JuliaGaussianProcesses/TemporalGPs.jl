@@ -1,5 +1,5 @@
 import Random: rand
-import Base: isapprox, ==, copy, deepcopy
+import Base: isapprox, copy, deepcopy
 
 """
     Gaussian{Tm, TP}
@@ -13,24 +13,18 @@ struct Gaussian{Tm, TP}
     P::TP
 end
 
-function Random.rand(rng::AbstractRNG, x::Gaussian)
-    return x.m + cholesky(x.P).U' * randn(rng, length(x.m))
-end
+Random.rand(rng::AbstractRNG, x::Gaussian) = vec(rand(rng, x, 1))
 
 function Random.rand(rng::AbstractRNG, x::Gaussian, S::Int)
     return x.m .+ cholesky(Symmetric(x.P)).U' * randn(rng, length(x.m), S)
 end
-deepcopy(x::Gaussian) = Gaussian(deepcopy(x.m), deepcopy(x.P))
-copy(x::Gaussian) = Gaussian(copy(x.m), copy(x.P))
 
-==(x::Gaussian, y::Gaussian) = x.m == y.m && x.P == y.P
+Stheno.logpdf(x::Gaussian, y::AbstractVector{<:Real}) = first(logpdf(x, reshape(y, :, 1)))
 
-function isapprox(x::Gaussian{<:AV, <:AM}, y::Gaussian{<:AV, <:AM})
-    return isapprox(x.m, y.m) && isapprox(x.P, y.P)
+function Stheno.logpdf(x::Gaussian, Y::AbstractMatrix{<:Real})
+    μ, C = x.m, cholesky(Symmetric(x.P))
+    T = promote_type(eltype(μ), eltype(C), eltype(Y))
+    return -((size(Y, 1) * T(log(2π)) + logdet(C)) .+ Stheno.diag_Xt_invA_X(C, Y .- μ)) ./ 2
 end
 
-function isapprox(x::Gaussian{<:AV, <:AM}, y::Gaussian{<:Real, <:Real})
-    return length(x.m) == 1 && isapprox(first(x.m), y.m) && isapprox(first(x.P), y.P)
-end
-
-isapprox(y::Gaussian{<:Real, <:Real}, x::Gaussian{<:AV, <:AM}) = isapprox(x, y)
+Base.:(==)(x::Gaussian, y::Gaussian) = x.m == y.m && x.P == y.P

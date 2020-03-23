@@ -16,13 +16,12 @@ using TemporalGPs: time_exp
         Ȳ = SMatrix{P, Q}(randn(rng, P, Q))
         adjoint_test(SMatrix{P, Q}, Ȳ, X)
     end
-    # @testset "SArray" begin
-    #     rng = MersenneTwister(123456)
-    #     P, Q = 4, 5
-    #     X = randn(rng, P, Q)
-    #     Ȳ = SArray{Tuple{P, Q}}(randn(rng, P, Q))
-    #     adjoint_test(SArray{Tuple{P, Q}}, Ȳ, X)
-    # end
+    @testset "SMatrix{1, 1} from scalar" begin
+        rng = MersenneTwister(123456)
+        x = randn(rng)
+        ȳ = SMatrix{1, 1}(randn(rng))
+        adjoint_test(SMatrix{1, 1}, ȳ, x)
+    end
     @testset "time_exp" begin
         rng = MersenneTwister(123456)
         A = randn(rng, 3, 3)
