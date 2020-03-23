@@ -6,8 +6,6 @@ module TemporalGPs
 
     import Stheno: mean, cov, pairwise, logpdf, AV, AM
 
-    Zygote.@nograd Core.println
-
     # Used to specify whether to use Base.Array or StaticArray parameter storage.
     abstract type StorageType end
     struct DenseStorage <: StorageType end

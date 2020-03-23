@@ -1,4 +1,4 @@
-using TemporalGPs: build_Σs, smooth, posterior_rand
+using TemporalGPs: build_Σs, smooth, posterior_rand, DenseStorage, StaticStorage
 
 _logistic(x) = 1 / (1 + exp(-x))
 
@@ -44,9 +44,9 @@ println("lti_sde:")
 
         σ²s = (
             (name="homoscedastic noise", val=(0.1,)),
-            (name="heteroscedastic noise", val=(_logistic.(-randn(rng, N)) .+ 1e-1,)),
+            (name="heteroscedastic noise", val=(_logistic.(randn(rng, N)) .+ 1e-1,)),
             (name="none", val=(),),
-            (name="Diagonal", val=(Diagonal(_logistic.(-randn(rng, N)) .+ 1e-1),)),
+            (name="Diagonal", val=(Diagonal(_logistic.(randn(rng, N)) .+ 1e-1),)),
         )
 
         @testset "t=$(t.name), storage=$(storage.name), σ²=$(σ².name)" for
@@ -78,7 +78,7 @@ println("lti_sde:")
             σ²_ssm = [first(y.P) for y in y_smooth]
 
             f′ = f | (ft ← y)
-            f′_marginals = marginals(f′(t.val))
+            f′_marginals = marginals(f′(t.val, 1e-12))
             m_exact = mean.(f′_marginals)
             σ²_exact = std.(f′_marginals).^2
 
