@@ -140,3 +140,46 @@ end
 function random_ti_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
     return ScalarLGSSM(random_ti_lgssm(rng, Dlat, 1, N, storage))
 end
+
+
+
+#
+# Validation of internal consistency.
+#
+
+function validate_dims(gmm::GaussMarkovModel)
+
+    # Check all vectors are the correct length.
+    @test length(gmm.A) == length(gmm)
+    @test length(gmm.a) == length(gmm)
+    @test length(gmm.Q) == length(gmm)
+    @test length(gmm.H) == length(gmm)
+    @test length(gmm.h) == length(gmm)
+
+    # Check sizes of each element of the struct are correct.
+    N = length(gmm)
+    Dlat = dim_latent(gmm)
+    Dobs = dim_obs(gmm)
+    @test all(map(n -> size(gmm.A[n]) == (Dlat, Dlat), 1:N))
+    @test all(map(n -> size(gmm.a[n]) == (Dlat,), 1:N))
+    @test all(map(n -> size(gmm.Q[n]) == (Dlat, Dlat), 1:N))
+    @test all(map(n -> size(gmm.H[n]) == (Dobs, Dlat), 1:N))
+    @test all(map(n -> size(gmm.h[n]) == (Dobs,), 1:N))
+    @test size(gmm.x0.m) == (Dlat,)
+    @test size(gmm.x0.P) == (Dlat, Dlat)
+    return nothing
+end
+
+function validate_dims(model::LGSSM)
+    validate_dims(model.gmm)
+
+    N = length(model)
+    Dobs = dim_obs(model.gmm)
+    @test all(map(n -> size(model.Σ[n]) == (Dobs, Dobs), 1:N))
+    return nothing
+end
+
+function validate_dims(model::ScalarLGSSM)
+    validate_dims(model.model)
+    return nothing
+end

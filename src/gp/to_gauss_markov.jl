@@ -1,4 +1,4 @@
-using Stheno: MeanFunction, ConstMean, ZeroMean
+using Stheno: MeanFunction, ConstMean, ZeroMean, BaseKernel
 
 
 
@@ -7,7 +7,7 @@ using Stheno: MeanFunction, ConstMean, ZeroMean
 # kernel_trait(k) isa BaseKernel.
 #
 
-function GaussMarkovModel(k::Kernel, t::AV{<:Real}, storage_type)
+function GaussMarkovModel(k::BaseKernel, t::AV{<:Real}, storage_type)
 
     # Compute stationary distribution and sde.
     x0 = stationary_distribution(k, storage_type)
@@ -17,7 +17,7 @@ function GaussMarkovModel(k::Kernel, t::AV{<:Real}, storage_type)
     # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
     t = vcat([first(t) - 1], t)
     As = map(Δt -> time_exp(F, Δt), diff(t))
-    as = Fill(Zeros(size(first(As), 1)), length(t))
+    as = Fill(Zeros(size(first(As), 1)), length(As))
     Qs = map(A -> P - A * P * A', As)
     Hs = Fill(H, length(As))
     hs = Fill(Zeros(size(H, 1)), length(As))
@@ -25,7 +25,7 @@ function GaussMarkovModel(k::Kernel, t::AV{<:Real}, storage_type)
     return GaussMarkovModel(As, as, Qs, Hs, hs, x0)
 end
 
-function GaussMarkovModel(k::Kernel, t::StepRangeLen, storage_type)
+function GaussMarkovModel(k::BaseKernel, t::StepRangeLen, storage_type)
 
     # Compute stationary distribution and sde.
     x0 = stationary_distribution(k, storage_type)
@@ -45,9 +45,9 @@ function GaussMarkovModel(k::Kernel, t::StepRangeLen, storage_type)
 end
 
 # Fallback definitions for most base kernels.
-to_sde(k::Kernel, ::DenseStorage) = map(collect, to_sde(k, StaticStorage()))
+to_sde(k::BaseKernel, ::DenseStorage) = map(collect, to_sde(k, StaticStorage()))
 
-function stationary_distribution(k::Kernel, ::DenseStorage)
+function stationary_distribution(k::BaseKernel, ::DenseStorage)
     x = stationary_distribution(k, StaticStorage())
     return Gaussian(collect(x.m), collect(x.P))
 end
@@ -142,7 +142,7 @@ end
 # Scaled
 #
 
-function GaussMarkovModel(k::Stheno.Scaled, ts::AV{<:Real}, storage_type)
+function GaussMarkovModel(k::Stheno.Scaled, ts::AV, storage_type)
     model = GaussMarkovModel(k.k, ts, storage_type)
     σ = sqrt(only(k.σ²))
     Hs = map(n->σ * model.H[n], 1:length(model.H))
@@ -156,7 +156,7 @@ end
 # Stretched
 #
 
-function GaussMarkovModel(k::Stheno.Stretched, ts::AV{<:Real}, storage_type)
+function GaussMarkovModel(k::Stheno.Stretched, ts::AV, storage_type)
     return GaussMarkovModel(k.k, apply_stretch(only(k.a), ts), storage_type)
 end
 
@@ -172,7 +172,7 @@ end
 # Sum
 #
 
-function GaussMarkovModel(k::Stheno.Sum, ts::AV{<:Real}, storage_type)
+function GaussMarkovModel(k::Stheno.Sum, ts::AV, storage_type)
     model_l = GaussMarkovModel(k.kl, ts, storage_type)
     model_r = GaussMarkovModel(k.kr, ts, storage_type)
 
@@ -181,7 +181,7 @@ function GaussMarkovModel(k::Stheno.Sum, ts::AV{<:Real}, storage_type)
         vcat.(model_l.a, model_r.a),
         blk_diag.(model_l.Q, model_r.Q),
         hcat.(model_l.H, model_r.H),
-        vcat.(model_l.h, model_r.h),
+        model_l.h + model_r.h,
         Gaussian(
             collect(vcat(model_l.x0.m, model_r.x0.m)),
             blk_diag(model_l.x0.P, model_r.x0.P),
@@ -211,7 +211,7 @@ end
 # Product
 #
 
-function GaussMarkovModel(k::Stheno.Product, ts::AV{<:Real}, storage_type)
+function GaussMarkovModel(k::Stheno.Product, ts::AV, storage_type)
     error("Not implemented")
     model_l = GaussMarkovModel(k.kl, ts, storage_type)
     model_r = GaussMarkovModel(k.kr, ts, storage_type)

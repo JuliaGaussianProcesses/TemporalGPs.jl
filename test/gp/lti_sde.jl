@@ -60,6 +60,8 @@ println("lti_sde:")
             f_sde = to_sde(f, storage.val)
             ft_sde = f_sde(t.val, σ².val...)
 
+            validate_dims(ft_sde)
+
             # These things are slow. Only helpful for verifying correctness.
             @test mean(ft) ≈ mean(ft_sde)
             @test cov(ft) ≈ cov(ft_sde)

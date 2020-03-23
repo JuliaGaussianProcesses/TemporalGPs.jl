@@ -1,6 +1,7 @@
 module TemporalGPs
 
-    using FillArrays, LinearAlgebra, Random, StaticArrays, Stheno, Zygote, ZygoteRules
+    using FillArrays, Kronecker, LinearAlgebra, Random, StaticArrays, Stheno, Zygote,
+        ZygoteRules
 
     using FillArrays: AbstractFill
 
@@ -24,4 +25,9 @@ module TemporalGPs
     # Converting GPs to Linear-Gaussian SSMs.
     include(joinpath("gp", "to_gauss_markov.jl"))
     include(joinpath("gp", "lti_sde.jl"))
+
+    # Converting space-time GPs to Linear-Gaussian SSMs.
+    include(joinpath("space_time", "rectilinear_grid.jl"))
+    include(joinpath("space_time", "separable_kernel.jl"))
+    include(joinpath("space_time", "to_gauss_markov.jl"))
 end # module

@@ -63,6 +63,8 @@ println("to_gauss_markov:")
             k = kernel_info.ctor(kernel_info.θ...)
             ft = GaussMarkovModel(k, t.val, storage.val)
 
+            validate_dims(ft)
+
             # Check that the covariances agree.
             @test cov(ft) ≈ pw(k, t.val, t.val)
 
