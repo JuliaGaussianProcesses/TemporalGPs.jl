@@ -86,35 +86,35 @@ _logistic(x) = 1 / (1 + exp(-x))
         end
     end
 
-    # @testset "StaticArrays performance integration" begin
-    #     rng = MersenneTwister(123456)
-    #     f = to_sde(GP(Matern32(), GPC()), StaticStorage())
-    #     σ²_n = 0.54
+    @testset "StaticArrays performance integration" begin
+        rng = MersenneTwister(123456)
+        f = to_sde(GP(Matern32(), GPC()), StaticStorage())
+        σ²_n = 0.54
 
-    #     t = range(0.1; step=0.11, length=1_000_000)
-    #     ft = f(t, σ²_n)
-    #     y = collect(rand(rng, ft))
+        t = range(0.1; step=0.11, length=1_000_000)
+        ft = f(t, σ²_n)
+        y = collect(rand(rng, ft))
 
-    #     @testset "logpdf performance" begin
-    #         Δlml = randn(rng)
+        @testset "logpdf performance" begin
+            Δlml = randn(rng)
 
-    #         # Ensure that allocs is roughly independent of length(t).
-    #         primal, fwd, rvs = benchmark_adjoint(logpdf, Δlml, ft, y; disp=false)
-    #         @test allocs(primal) < 100
-    #         @test allocs(fwd) < 100
-    #         @test allocs(rvs) < 100
-    #     end
-    #     @testset "rand" begin
-    #         Δy = randn(rng, length(t))
+            # Ensure that allocs is roughly independent of length(t).
+            primal, fwd, rvs = benchmark_adjoint(logpdf, Δlml, ft, y; disp=false)
+            @test allocs(primal) < 100
+            @test allocs(fwd) < 100
+            @test allocs(rvs) < 100
+        end
+        @testset "rand" begin
+            Δy = randn(rng, length(t))
 
-    #         # Ensure that allocs is roughly independent of length(t).
-    #         primal, fwd, rvs = benchmark_adjoint(
-    #             ft->rand(MersenneTwister(123456), ft), Δy, ft;
-    #             disp=false,
-    #         )
-    #         @test allocs(primal) < 100
-    #         @test allocs(fwd) < 100
-    #         @test allocs(rvs) < 100
-    #     end
-    # end
+            # Ensure that allocs is roughly independent of length(t).
+            primal, fwd, rvs = benchmark_adjoint(
+                ft->rand(MersenneTwister(123456), ft), Δy, ft;
+                disp=false,
+            )
+            @test allocs(primal) < 100
+            @test allocs(fwd) < 100
+            @test allocs(rvs) < 100
+        end
+    end
 end
