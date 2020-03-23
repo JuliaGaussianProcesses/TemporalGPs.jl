@@ -1,4 +1,4 @@
-using TemporalGPs: build_Σs
+using TemporalGPs: build_Σs, smooth, posterior_rand
 
 _logistic(x) = 1 / (1 + exp(-x))
 
@@ -68,21 +68,53 @@ _logistic(x) = 1 / (1 + exp(-x))
             @test y ≈ y_sde
 
             @test logpdf(ft, y) ≈ logpdf(ft_sde, y)
-        end
 
+
+            _, y_smooth, _ = smooth(ft_sde, y)
+
+            # Check posterior marginals
+            m_ssm = [first(y.m) for y in y_smooth]
+            σ²_ssm = [first(y.P) for y in y_smooth]
+
+            f′ = f | (ft ← y)
+            f′_marginals = marginals(f′(t.val))
+            m_exact = mean.(f′_marginals)
+            σ²_exact = std.(f′_marginals).^2
+
+            @test isapprox(m_ssm, m_exact; atol=1e-9, rtol=1e-9)
+            @test isapprox(σ²_ssm, σ²_exact; atol=1e-9, rtol=1e-9)
+        end
     end
 
-    # _, y_smooth, _ = smooth(ssm(f(t.val, σ².val), storage.val), y)
+    # @testset "StaticArrays performance integration" begin
+    #     rng = MersenneTwister(123456)
+    #     f = to_sde(GP(Matern32(), GPC()), StaticStorage())
+    #     σ²_n = 0.54
 
-    # # Check posterior marginals
-    # m_ssm = [first(y.m) for y in y_smooth]
-    # σ²_ssm = [first(y.P) for y in y_smooth]
+    #     t = range(0.1; step=0.11, length=1_000_000)
+    #     ft = f(t, σ²_n)
+    #     y = collect(rand(rng, ft))
 
-    # f′ = f | (f(t.val, σ².val) ← y)
-    # f′_marginals = marginals(f′(t.val))
-    # m_exact = mean.(f′_marginals)
-    # σ²_exact = std.(f′_marginals).^2
+    #     @testset "logpdf performance" begin
+    #         Δlml = randn(rng)
 
-    # @test m_ssm ≈ m_exact
-    # @test σ²_ssm ≈ σ²_exact
+    #         # Ensure that allocs is roughly independent of length(t).
+    #         primal, fwd, rvs = benchmark_adjoint(logpdf, Δlml, ft, y; disp=false)
+    #         @test allocs(primal) < 100
+    #         @test allocs(fwd) < 100
+    #         @test allocs(rvs) < 100
+    #     end
+    #     @testset "rand" begin
+    #         Δy = randn(rng, length(t))
+
+    #         # Ensure that allocs is roughly independent of length(t).
+    #         primal, fwd, rvs = benchmark_adjoint(
+    #             ft->rand(MersenneTwister(123456), ft), Δy, ft;
+    #             disp=false,
+    #         )
+    #         @test allocs(primal) < 100
+    #         @test allocs(fwd) < 100
+    #         @test allocs(rvs) < 100
+    #     end
+    # end
 end

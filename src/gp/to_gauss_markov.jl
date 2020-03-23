@@ -144,7 +144,7 @@ end
 
 function GaussMarkovModel(k::Stheno.Scaled, ts::AV{<:Real}, storage_type)
     model = GaussMarkovModel(k.k, ts, storage_type)
-    σ = sqrt(k.σ²)
+    σ = sqrt(only(k.σ²))
     Hs = map(n->σ * model.H[n], 1:length(model.H))
     hs = map(n->σ * model.h[n], 1:length(model.h))
     return GaussMarkovModel(model.A, model.a, model.Q, Hs, hs, model.x0)
@@ -157,7 +157,7 @@ end
 #
 
 function GaussMarkovModel(k::Stheno.Stretched, ts::AV{<:Real}, storage_type)
-    return GaussMarkovModel(k.k, apply_stretch(k.a, ts), storage_type)
+    return GaussMarkovModel(k.k, apply_stretch(only(k.a), ts), storage_type)
 end
 
 apply_stretch(a, ts::AV{<:Real}) = a * ts

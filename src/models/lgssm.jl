@@ -119,7 +119,7 @@ function smooth(model::LGSSM, ys::AbstractVector)
     return to_observed.(Hs, hs, x_filter), to_observed.(Hs, hs, x_smooth), lml
 end
 
-predict(model, x) = Gaussian(_predict(x.m, x.P, model[1], model[2])...)
+predict(model, x) = Gaussian(_predict(x.m, x.P, model.A, model.a, model.Q)...)
 
 """
     posterior_rand(rng::AbstractRNG, model::LGSSM, ys::Vector{<:AV{<:Real}})
@@ -135,7 +135,7 @@ function posterior_rand(
 )
     _, x_filter = filter(model, ys)
 
-    chol_Q = cholesky.(Symmetric.(model.Q))
+    chol_Q = cholesky.(Symmetric.(model.gmm.Q))
 
     x_T = rand(rng, x_filter[end], N_samples)
     x_sample = Vector{typeof(x_T)}(undef, length(ys))
@@ -144,16 +144,17 @@ function posterior_rand(
 
         # Produce joint samples.
         x̃ = rand(rng, x_filter[t], N_samples)
-        x̃′ = model.A[t] * x̃ + chol_Q[t].U' * randn(rng, size(x_T)...)
+        x̃′ = model.gmm.A[t] * x̃ + chol_Q[t].U' * randn(rng, size(x_T)...)
 
         # Applying conditioning transformation.
-        AP = model[t].A * x_filter[t].P
-        S = Symmetric(model[t].A * Matrix(transpose(AP)) + model[t].Q)
+        AP = model.gmm.A[t] * x_filter[t].P
+        S = Symmetric(model.gmm.A[t] * Matrix(transpose(AP)) + model.gmm.Q[t])
         chol_S = cholesky(S)
 
         x_sample[t] = x̃ + AP' * (chol_S.U \ (chol_S.U' \ (x_sample[t+1] - x̃′)))
     end
-    return model.H .* x_sample
+
+    return map(n -> model.gmm.H[n] * x_sample[n] .+ model.gmm.h[n], eachindex(x_sample))
 end
 
 function posterior_rand(rng::AbstractRNG, model::LGSSM, y::Vector{<:Real}, N_samples::Int)
