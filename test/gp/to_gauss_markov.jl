@@ -1,6 +1,7 @@
 using TemporalGPs: GaussMarkovModel, StaticStorage, DenseStorage
 
-@testset "to_sde" begin
+println("to_gauss_markov:")
+@testset "to_gauss_markov" begin
 
     @testset "blk_diag" begin
         adjoint_test(TemporalGPs.blk_diag, randn(5, 5), randn(2, 2), randn(3, 3))

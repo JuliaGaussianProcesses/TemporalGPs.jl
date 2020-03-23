@@ -4,6 +4,8 @@ using FillArrays, LinearAlgebra, Random, Stheno, StaticArrays, Zygote
 include("test_util.jl")
 
 @testset "TemporalGPs.jl" begin
+
+    println("util:")
     @testset "util" begin
         include(joinpath("util", "zygote_rules.jl"))
         include(joinpath("util", "gaussian.jl"))

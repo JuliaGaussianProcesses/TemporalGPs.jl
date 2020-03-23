@@ -2,6 +2,7 @@ using TemporalGPs: build_Σs, smooth, posterior_rand
 
 _logistic(x) = 1 / (1 + exp(-x))
 
+println("lti_sde:")
 @testset "lti_sde" begin
     @testset "build_Σs" begin
         rng = MersenneTwister(123456)

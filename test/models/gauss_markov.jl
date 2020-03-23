@@ -1,3 +1,4 @@
+println("gauss_markov:")
 @testset "gauss_markov" begin
 
     Dlats = [1, 3, 5, 7]

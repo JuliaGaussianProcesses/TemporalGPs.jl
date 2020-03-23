@@ -1,5 +1,6 @@
 using TemporalGPs: DenseStorage, StaticStorage, smooth, Gaussian, GaussMarkovModel
 
+prntln("scalar_lgssm:")
 @testset "scalar_lgssm" begin
     @testset "correctness" begin
         rng = MersenneTwister(123456)

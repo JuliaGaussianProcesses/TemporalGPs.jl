@@ -6,6 +6,7 @@ using TemporalGPs: smooth, StaticStorage, DenseStorage, _predict,
 using Stheno: GP, GPC
 using Zygote, StaticArrays
 
+println("lgssm:")
 @testset "lgssm" begin
 
     @testset "mean and cov" begin
