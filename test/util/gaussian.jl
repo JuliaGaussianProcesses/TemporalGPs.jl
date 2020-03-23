@@ -8,10 +8,12 @@ function fd_isapprox(x_ad::Gaussian, x_fd::Gaussian, rtol, atol)
         fd_isapprox(x_ad.P, x_fd.P, rtol, atol)
 end
 
-@testset "gaussian" begin
-    @testset "Gaussian" begin
-        x = Gaussian(randn(3), randn(3, 3))
-        x_vec, back = to_vec(x)
-        @test back(x_vec) == x
-    end
-end
+# @testset "Gaussian" begin
+#     rng = MersenneTwister(123456)
+#     N = 11
+
+#     let
+#         x = Gaussian(randn(rng, N), randn(rng, N, N))
+#         y = Gaussian(randn(rng, N), randn(rng, N, N))
+#     end
+# end

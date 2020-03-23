@@ -4,15 +4,23 @@ using FillArrays, LinearAlgebra, Random, Stheno, StaticArrays, Zygote
 include("test_util.jl")
 
 @testset "TemporalGPs.jl" begin
+
+    println("util:")
     @testset "util" begin
         include(joinpath("util", "zygote_rules.jl"))
         include(joinpath("util", "gaussian.jl"))
     end
 
-    include("gp_to_sde.jl")
+    include(joinpath("models", "model_test_utils.jl"))
+    @testset "models" begin
+        include(joinpath("models", "gauss_markov.jl"))
+        include(joinpath("models", "lgssm.jl"))
+        include(joinpath("models", "lgssm_pullbacks.jl"))
+        include(joinpath("models", "scalar_lgssm.jl"))
+    end
 
-    @testset "lgssm" begin
-        include(joinpath("lgssm", "generic.jl"))
-        include(joinpath("lgssm", "scalar.jl"))
+    @testset "gp" begin
+        include(joinpath("gp", "to_gauss_markov.jl"))
+        include(joinpath("gp", "lti_sde.jl"))
     end
 end

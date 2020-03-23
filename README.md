@@ -15,14 +15,14 @@ TemporalGPs.jl is a tool to make Gaussian processes (GPs) defined using [Stheno.
 using Stheno, TemporalGPs
 
 # Specify a Stheno.jl GP as usual
-f = GP(Matern32(), GPC())
+f_naive = GP(Matern32(), GPC())
+
+# Wrap it in an object that TemporalGPs knows how to handle.
+f = to_sde(f_naive)
 
 # Project onto finite-dimensional distribution as usual.
 x = range(-5.0, 5.0; length=1000)
 fx = f(x, 0.1)
-
-# Convert to state-space form. This is the single-function API.
-fx_ssm = ssm(fx)
 
 # Sample from the prior as usual.
 y = rand(fx_ssm)
@@ -68,3 +68,8 @@ See chapter 12 of [1] for the basics.
 
 [1] - Särkkä, Simo, and Arno Solin. Applied stochastic differential equations. Vol. 10. Cambridge University Press, 2019.
 
+
+
+# Gotchas
+
+- And time-rescaling is assumed to be a strictly increasing function of time. If this is not the case, then your code will fail silently. This could be addressed via careful engineering.
