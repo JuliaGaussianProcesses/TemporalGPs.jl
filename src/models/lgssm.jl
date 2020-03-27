@@ -56,7 +56,9 @@ end
     α = U' \ (y - H * mp - h)
 
     mf = mp + B'α
-    Pf = Pp - B'B
+    # @show size(B), typeof(B), typeof(Pp)
+    # Pf = Pp - B'B
+    Pf = collect(Symmetric(BLAS.syrk!('U', 'T', -1.0, B, 1.0, copy(Pp))))
     lml = -(length(y) * log(2π) + logdet(S) + α'α) / 2
     return mf, Pf, lml, α
 end
@@ -144,7 +146,7 @@ function posterior_rand(
 
         # Produce joint samples.
         x̃ = rand(rng, x_filter[t], N_samples)
-        x̃′ = model.gmm.A[t] * x̃ + chol_Q[t].U' * randn(rng, size(x_T)...)
+        x̃′ = model.gmm.A[t] * x̃ + model.gmm.a[t] + chol_Q[t].U' * randn(rng, size(x_T)...)
 
         # Applying conditioning transformation.
         AP = model.gmm.A[t] * x_filter[t].P
@@ -174,9 +176,9 @@ pick_last(a, b) = b
 get_pb(::typeof(pick_last)) = Δ->(nothing, Δ)
 
 
-for (foo, step_foo, step_foo_pullback) in [
-    (:correlate, :step_correlate, :step_correlate_pullback),
-    (:decorrelate, :step_decorrelate, :step_decorrelate_pullback),
+for (foo, step_foo) in [
+    (:correlate, :step_correlate),
+    (:decorrelate, :step_decorrelate),
 ]
     @eval function $foo(model::LGSSM, αs::AV{<:AV{<:Real}}, f=pick_first)
         @assert length(model) == length(αs)
