@@ -43,6 +43,7 @@ using TemporalGPs: RectilinearGrid, Separable, DenseStorage
         ft_sde = f_sde(x, σ².val...)
 
         validate_dims(ft_sde)
+        @test length(ft_sde) == length(x.xr)
 
         y_naive = rand(MersenneTwister(123456), ft)
         y_sde = rand(MersenneTwister(123456), ft_sde)
