@@ -56,12 +56,13 @@ end
     α = U' \ (y - H * mp - h)
 
     mf = mp + B'α
-    # @show size(B), typeof(B), typeof(Pp)
-    # Pf = Pp - B'B
-    Pf = collect(Symmetric(BLAS.syrk!('U', 'T', -1.0, B, 1.0, copy(Pp))))
+    Pf = _compute_Pf(Pp, B)
     lml = -(length(y) * log(2π) + logdet(S) + α'α) / 2
     return mf, Pf, lml, α
 end
+
+_compute_Pf(Pp::AM, B::AM) = Pp - B'B
+_compute_Pf(Pp::Matrix, B::Matrix) = Symmetric(BLAS.syrk!('U', 'T', -1.0, B, 1.0, copy(Pp)))
 
 
 
@@ -82,7 +83,7 @@ end
     y = S.U'α + H * mp + h
 
     mf = mp + B'α
-    Pf = Pp - B'B
+    Pf = _compute_Pf(Pp, B)
     lml = -(length(y) * log(2π) + logdet(S) + α'α) / 2
     return mf, Pf, lml, y
 end
@@ -111,14 +112,41 @@ function smooth(model::LGSSM, ys::AbstractVector)
         U = cholesky(Symmetric(x′.P + 1e-12I)).U
         Gt = U \ (U' \ (model.gmm.A[k + 1] * x.P))
         x_smooth[k] = Gaussian(
-            x.m + Gt' * (x_smooth[k + 1].m - x′.m),
-            x.P + Gt' * (x_smooth[k + 1].P - x′.P) * Gt,
+            _compute_ms(x.m, Gt, x_smooth[k + 1].m, x′.m),
+            _compute_Ps(x.P, Gt, x_smooth[k + 1].P, x′.P),
         )
     end
 
     Hs = model.gmm.H
     hs = model.gmm.h
     return to_observed.(Hs, hs, x_filter), to_observed.(Hs, hs, x_smooth), lml
+end
+
+"""
+    _compute_ms(mf::AV, Gt::AM, ms′::AV, mp′::AV)
+
+Compute the smoothing mean `ms`, given the filtering mean `mf`, transpose of the smoothing
+gain `Gt`, smoothing mean at the next time step `ms′`, and predictive mean at next time step
+`mp′`.
+"""
+_compute_ms(mf::AV, Gt::AM, ms′::AV, mp′::AV) = mf + Gt' * (ms′ - mp′)
+
+"""
+    _compute_Ps(Pf::AM, Gt::AM, Ps′::AM, Pp′::AM)
+
+Compute the smoothing covariance `Ps`, given the filtering covariance `Pf`, transpose of the
+smoothing gain `Gt`, smoothing covariance at the next time step `Ps′`, and the predictive
+covariance at the next time step `Pp′`.
+"""
+_compute_Ps(Pf::AM, Gt::AM, Ps′::AM, Pp′::AM) = Pf + Gt' * (Ps′ - Pp′) * Gt
+
+function _compute_Ps(
+    Pf::Symmetric{<:Real, <:Matrix},
+    Gt::Matrix,
+    Ps′::Symmetric{<:Real, <:Matrix},
+    Pp′::Matrix,
+)
+    return Symmetric(Pf + Gt' * (Ps′ - Pp′) * Gt)
 end
 
 predict(model, x) = Gaussian(_predict(x.m, x.P, model.A, model.a, model.Q)...)

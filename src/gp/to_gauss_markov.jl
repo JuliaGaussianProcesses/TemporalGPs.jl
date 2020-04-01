@@ -163,7 +163,8 @@ end
 apply_stretch(a, ts::AV{<:Real}) = a * ts
 
 function apply_stretch(a, ts::StepRangeLen)
-    return Zygote.@showgrad(range(a * first(ts), a * last(ts); length=length(ts)))
+    return a * ts
+    # return Zygote.@showgrad(range(a * first(ts), a * last(ts); length=length(ts)))
 end
 
 
