@@ -1,5 +1,9 @@
 using BlockDiagonals: getblock
 
+#
+# Matrix-Matrix product.
+#
+
 function LinearAlgebra.mul!(
     C::Matrix{T},
     A::BlockDiagonal{T},
@@ -104,4 +108,35 @@ function LinearAlgebra.mul!(
         start_col += p
     end
     return C
+end
+
+
+#
+# Matrix-Vector product.
+#
+
+function LinearAlgebra.mul!(
+    c::Vector{T},
+    A::BlockDiagonal{T, Matrix{T}},
+    b::Vector{T},
+    α::T,
+    β::T,
+) where {T<:Real}
+    @assert size(A, 1) == size(A, 2)
+    start_row = 1
+
+    @views for n in 1:nblocks(A)
+
+        # Compute end row.
+        (p, q) = blocksize(A, n)
+        @assert p == q
+        end_row = start_row + p - 1
+
+        # Multiply nth block of A by a block of rows of b.
+        mul!(c[start_row:end_row], getblock(A, n), b[start_row:end_row], α, β)
+
+        # Update position.
+        start_row += p
+    end
+    return c
 end

@@ -40,12 +40,14 @@
         At = setting.At
         B = setting.B
         Bt = collect(B')
+
         C = setting.C
         Ct = collect(C')
 
         A_dense = collect(A)
         At_dense = collect(At)
 
+        # Matrix-Matrix product.
         @test collect(mul!(copy(C), A, B, α, β)) ≈ α * A_dense * B + β * C
         @test collect(mul!(copy(C), At', B, α, β)) ≈ α * At_dense' * B + β * C
         @test collect(mul!(copy(C), A, Bt', α, β)) ≈ α * A_dense * Bt' + β * C
@@ -55,5 +57,10 @@
         @test collect(mul!(copy(Ct), B', At, α, β)) ≈ α * B' * At_dense + β * Ct
         @test collect(mul!(copy(Ct), Bt, A', α, β)) ≈ α * Bt * A_dense' + β * Ct
         @test collect(mul!(copy(Ct), B', A', α, β)) ≈ α * B' * A_dense' + β * Ct
+
+        # Matrix-Vector product.
+        b = B[:, 1]
+        c = C[:, 1]
+        @test collect(mul!(copy(c), A, b, α, β)) ≈ α * A_dense * b + β * c
     end
 end
