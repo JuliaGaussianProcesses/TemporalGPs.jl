@@ -100,8 +100,8 @@ println("predict:")
             adjoint_test(
                 (mf, U_Pf, A, a, U_Q) -> begin
                     U_Q = UpperTriangular(U_Q)
-                    U_Pf = UpperTriangular(U_Pf)                        
-                    return predict(mf, U_Pf'U_Pf, A, a, U_Q'U_Q)
+                    U_Pf = UpperTriangular(U_Pf)
+                    return predict(mf, Symmetric(U_Pf'U_Pf), A, a, U_Q'U_Q)
                 end,
                 (Δmp, ΔPp),
                 mf, U_Pf, A, a, U_Q;
