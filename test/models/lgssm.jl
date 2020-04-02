@@ -40,6 +40,9 @@ println("lgssm:")
             Dobs in Dobss,
             storage in storages
 
+            # Print current iteration to prevent CI timing out.
+            println("(time_varying=$tv, Dlat=$Dlat, Dobs=$Dobs, $(storage.name))")
+
             # Build LGSSM.
             model = tv ?
                 random_tv_lgssm(rng, Dlat, Dobs, N, storage.val) :
