@@ -1,4 +1,4 @@
-using TemporalGPs: cholesky_pullback, logdet_pullback, _predict, update_correlate,
+using TemporalGPs: cholesky_pullback, logdet_pullback, predict, update_correlate,
     update_decorrelate, step_correlate, step_decorrelate, Gaussian
 
 function _verify_pullback(f, xs, Δy, T)
@@ -25,6 +25,8 @@ function _verify_pullback(f, xs, Δy, T)
         T != Array && error("Unrecognised type")
     end 
 end
+
+naive_predict(mf, Pf, A, a, Q) = A * mf + a, (A * Pf) * A' + Q
 
 @testset "lgssm_pullbacks" begin
     @testset "$N" for N in [1, 2, 3]
@@ -85,39 +87,21 @@ end
             rng = MersenneTwister(123456)
             A = storage.val(randn(rng, Dlat, Dlat))
             a = storage.val(randn(rng, Dlat))
-            Q = storage.val(random_nice_psd_matrix(rng, Dlat, DenseStorage()))
+            Q = storage.val(random_nice_psd_matrix(rng, Float64, Dlat, DenseStorage()))
             U_Q = cholesky(Q).U
             H = storage.val(randn(rng, Dobs, Dlat))
             h = storage.val(randn(rng, Dobs))
-            S = storage.val(random_nice_psd_matrix(rng, Dobs, DenseStorage()))
+            S = storage.val(random_nice_psd_matrix(rng, Float64, Dobs, DenseStorage()))
             U_S = cholesky(S).U
 
             m = storage.val(randn(rng, Dlat))
-            P = storage.val(random_nice_psd_matrix(rng, Dlat, DenseStorage()))
+            P = storage.val(random_nice_psd_matrix(rng, Float64, Dlat, DenseStorage()))
+            P = P isa Matrix ? Symmetric(P) : P
             U_P = cholesky(P).U
 
             α = storage.val(randn(rng, Dobs))
             y = storage.val(randn(rng, Dobs))
 
-            @testset "predict" begin
-
-                # Specify adjoints for outputs.
-                Δmp = storage.val(randn(rng, Dlat))
-                ΔPp = storage.val(randn(rng, Dlat, Dlat))
-
-                # Verify approximate numerical correctness.
-                adjoint_test(
-                    (mf, U_Pf, A, a, U_Q) -> begin
-                        U_Q = UpperTriangular(U_Q)
-                        U_Pf = UpperTriangular(U_Pf)                        
-                        return _predict(mf, Symmetric(U_Pf'U_Pf), A, a, Symmetric(U_Q'U_Q))
-                    end,
-                    (Δmp, ΔPp),
-                    m, U_P, A, a, U_Q,
-                )
-
-                _verify_pullback(_predict, (m, P, A, a, Q), (Δmp, ΔPp), storage.T)
-            end
             @testset "update_correlate" begin
 
                 # Specify adjoints for outputs.

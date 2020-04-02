@@ -74,11 +74,11 @@ println("to_gauss_markov:")
                 Dobs = size(first(ft.H), 1)
                 Dlat = size(first(ft.H), 2)
                 ΔA = map(_ -> randn(rng, Dlat, Dlat), 1:N)
-                ΔQ = map(_ -> random_nice_psd_matrix(rng, Dlat, storage.val), 1:N)
+                ΔQ = map(_ -> random_nice_psd_matrix(rng, Float64, Dlat, storage.val), 1:N)
                 ΔH = map(_ -> randn(rng, Dobs, Dlat), 1:N)
                 ΔH_sum = randn(rng, Dobs, Dlat)
                 Δm = randn(rng, size(ft.x0.m))
-                ΔP = random_nice_psd_matrix(rng, Dlat, storage.val)
+                ΔP = random_nice_psd_matrix(rng, Float64, Dlat, storage.val)
 
                 adjoint_test(
                     (θ) -> begin

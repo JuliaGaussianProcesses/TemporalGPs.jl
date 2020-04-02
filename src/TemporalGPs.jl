@@ -19,6 +19,7 @@ module TemporalGPs
 
     # Linear-Gaussian State Space Models.
     include(joinpath("models", "gauss_markov.jl"))
+    include(joinpath("models", "predict.jl"))
     include(joinpath("models", "lgssm.jl"))
     include(joinpath("models", "lgssm_pullbacks.jl"))
     include(joinpath("models", "scalar_lgssm.jl"))

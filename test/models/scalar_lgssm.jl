@@ -22,7 +22,7 @@ println("scalar_lgssm:")
             storage in storages
 
             # Build LGSSM.
-            scalar_model = random_tv_scalar_lgssm(rng, Dlat, N, storage.val)
+            scalar_model = random_tv_scalar_lgssm(rng, Float64, Dlat, N, storage.val)
             model = scalar_model.model
             gmm = model.gmm
             Σs = model.Σ

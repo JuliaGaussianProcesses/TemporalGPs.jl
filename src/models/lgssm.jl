@@ -40,12 +40,10 @@ end
 #
 
 @inline function step_decorrelate(model, x::Gaussian, y::AV{<:Real})
-    mp, Pp = _predict(x.m, x.P, model.A, model.a, model.Q)
+    mp, Pp = predict(x.m, x.P, model.A, model.a, model.Q)
     mf, Pf, lml, α = update_decorrelate(mp, Pp, model.H, model.h, model.Σ, y)
     return lml, α, Gaussian(mf, Pf)
 end
-
-@inline _predict(mf::AV, Pf::AM, A::AM, a::AV, Q::AM) = A * mf + a, (A * Pf) * A' + Q
 
 @inline function update_decorrelate(mp, Pp, H::AM, h::AV, Σ::AM, y::AV{<:Real})
     V = H * Pp
@@ -71,7 +69,7 @@ _compute_Pf(Pp::Matrix, B::Matrix) = Symmetric(BLAS.syrk!('U', 'T', -1.0, B, 1.0
 #
 
 @inline function step_correlate(model, x::Gaussian, α::AV{<:Real})
-    mp, Pp = _predict(x.m, x.P, model.A, model.a, model.Q)
+    mp, Pp = predict(x.m, x.P, model.A, model.a, model.Q)
     mf, Pf, lml, y = update_correlate(mp, Pp, model.H, model.h, model.Σ, α)
     return lml, y, Gaussian(mf, Pf)
 end
@@ -149,7 +147,7 @@ function _compute_Ps(
     return Symmetric(Pf + Gt' * (Ps′ - Pp′) * Gt)
 end
 
-predict(model, x) = Gaussian(_predict(x.m, x.P, model.A, model.a, model.Q)...)
+predict(model, x) = Gaussian(predict(x.m, x.P, model.A, model.a, model.Q)...)
 
 """
     posterior_rand(rng::AbstractRNG, model::LGSSM, ys::Vector{<:AV{<:Real}})

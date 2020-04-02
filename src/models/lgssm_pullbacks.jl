@@ -184,7 +184,7 @@ end
 function step_decorrelate_pullback(model, x::Gaussian, y::AV{<:Real})
 
     # Evaluate function, keeping track of derivatives.
-    (mp, Pp), _predict_pb = _predict_pullback(x.m, x.P, model.A, model.a, model.Q)
+    (mp, Pp), predict_pb = predict_pullback(x.m, x.P, model.A, model.a, model.Q)
     (mf, Pf, lml, α), update_decorrelate_pb = 
         update_decorrelate_pullback(mp, Pp, model.H, model.h, model.Σ, y)
 
@@ -197,39 +197,11 @@ function step_decorrelate_pullback(model, x::Gaussian, y::AV{<:Real})
 
         # Backprop through stuff.
         Δmp, ΔPp, ΔH, Δh, ΔΣ, Δy = update_decorrelate_pb((Δmf, ΔPf, Δlml, Δα))
-        Δmf, ΔPf, ΔA, Δa, ΔQ = _predict_pb((Δmp, ΔPp))
+        Δmf, ΔPf, ΔA, Δa, ΔQ = predict_pb((Δmp, ΔPp))
 
         Δx = (m=Δmf, P=ΔPf)
         Δmodel = (A=ΔA, a=Δa, Q=ΔQ, H=ΔH, h=Δh, Σ=ΔΣ)
         return Δmodel, Δx, Δy
-    end
-end
-
-@adjoint _predict(m::AV, P::AM, A::AM, a::AV, Q::AM) = _predict_pullback(m, P, A, a, Q)
-
-function _predict_pullback(m::AV, P::AM, A::AM, a::AV, Q::AM)
-    mp = A * m + a # 1
-    T = A * P # 2
-    Pp = T * A' + Q # 3
-    return (mp, Pp), function(Δ)
-        Δmp = Δ[1]
-        ΔPp = Δ[2]
-
-        # 3
-        ΔQ = ΔPp
-        ΔA = ΔPp' * T
-        ΔT = ΔPp * A
-
-        # 2
-        ΔA += ΔT * P'
-        ΔP = A'ΔT
-
-        # 1
-        ΔA += Δmp * m'
-        Δm = A'Δmp
-        Δa = Δmp
-
-        return Δm, ΔP, ΔA, Δa, ΔQ
     end
 end
 
@@ -328,7 +300,7 @@ end
 function step_correlate_pullback(model, x::Gaussian, α::AV{<:Real})
 
     # Evaluate function, keeping track of derivatives.
-    (mp, Pp), _predict_pb = _predict_pullback(x.m, x.P, model.A, model.a, model.Q)
+    (mp, Pp), predict_pb = predict_pullback(x.m, x.P, model.A, model.a, model.Q)
     (mf, Pf, lml, y), update_decorrelate_pb = 
         update_correlate_pullback(mp, Pp, model.H, model.h, model.Σ, α)
 
@@ -341,7 +313,7 @@ function step_correlate_pullback(model, x::Gaussian, α::AV{<:Real})
 
         # Backprop through stuff.
         Δmp, ΔPp, ΔH, Δh, ΔΣ, Δα = update_decorrelate_pb((Δmf, ΔPf, Δlml, Δy))
-        Δmf, ΔPf, ΔA, Δa, ΔQ = _predict_pb((Δmp, ΔPp))
+        Δmf, ΔPf, ΔA, Δa, ΔQ = predict_pb((Δmp, ΔPp))
 
         Δx = (m=Δmf, P=ΔPf)
         Δmodel = (A=ΔA, a=Δa, Q=ΔQ, H=ΔH, h=Δh, Σ=ΔΣ)
