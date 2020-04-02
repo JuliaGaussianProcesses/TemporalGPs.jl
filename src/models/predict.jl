@@ -46,18 +46,14 @@ function predict(
     a::Vector{T},
     Q::Matrix{T},
 ) where {T<:Real}
-
-    # Compute predictive mean.
-    mp = mul!(copy(a), A, mf, 1.0, 1.0)
-
-    # Compute predictive covariance.
-    AQ = mul!(Matrix{T}(undef, size(Pf)), A, Pf, 1.0, 0.0)
-    Pp = mul!(copy(Q), AQ, A', 1.0, 1.0)
-
-    return mp, Pp
+    mp = Vector{T}(undef, size(mf))
+    Pp = Matrix{T}(undef, size(Pf))
+    return predict!(mp, Pp, mf, Pf, A, a, Q)
 end
 
 function predict!(
+    mp::Vector{T},
+    Pp::Matrix{T},
     mf::Vector{T},
     Pf::Symmetric{T, Matrix{T}},
     A::AM{T},
@@ -66,11 +62,11 @@ function predict!(
 ) where {T<:Real}
 
     # Compute predictive mean.
-    mp = mul!(copy(a), A, mf, 1.0, 1.0)
+    mp = mul!(copy!(mp, a), A, mf, one(T), one(T))
 
     # Compute predictive covariance.
-    AQ = mul!(Matrix{T}(undef, size(Pf)), A, Pf, 1.0, 0.0)
-    Pp = mul!(copy(Q), AQ, A', 1.0, 1.0)
+    AQ = mul!(Matrix{T}(undef, size(Pf)), A, Pf, one(T), zero(T))
+    Pp = mul!(copy!(Pp, Q), AQ, A', one(T), one(T))
 
     return mp, Pp
 end
