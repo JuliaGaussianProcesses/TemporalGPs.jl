@@ -18,9 +18,9 @@ function (f::LTISDE)(t::AV{<:Real}, σ²s::AV{<:Real})
     model = LGSSM(GaussMarkovModel(f.f.k, t, f.storage), build_Σs(σ²s))
     return ScalarLGSSM(model)
 end
-(f::LTISDE)(t::AV{<:Real}, Σ::Diagonal{<:Real}) = f(t, Σ.diag)
-(f::LTISDE)(t::AV{<:Real}, σ²::Real) = f(t, Fill(σ², length(t)))
-(f::LTISDE)(t::AV{<:Real}) = f(t, zero(eltype(t)))
+(f::LTISDE)(t::AV, Σ::Diagonal{<:Real}) = f(t, Σ.diag)
+(f::LTISDE)(t::AV, σ²::Real) = f(t, Fill(σ², length(t)))
+(f::LTISDE)(t::AV) = f(t, zero(eltype(t)))
 
 
 

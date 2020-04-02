@@ -63,6 +63,8 @@ println("to_gauss_markov:")
             k = kernel_info.ctor(kernel_info.θ...)
             ft = GaussMarkovModel(k, t.val, storage.val)
 
+            validate_dims(ft)
+
             # Check that the covariances agree.
             @test cov(ft) ≈ pw(k, t.val, t.val)
 
@@ -72,11 +74,11 @@ println("to_gauss_markov:")
                 Dobs = size(first(ft.H), 1)
                 Dlat = size(first(ft.H), 2)
                 ΔA = map(_ -> randn(rng, Dlat, Dlat), 1:N)
-                ΔQ = map(_ -> random_nice_psd_matrix(rng, Dlat, storage.val), 1:N)
+                ΔQ = map(_ -> random_nice_psd_matrix(rng, Float64, Dlat, storage.val), 1:N)
                 ΔH = map(_ -> randn(rng, Dobs, Dlat), 1:N)
                 ΔH_sum = randn(rng, Dobs, Dlat)
                 Δm = randn(rng, size(ft.x0.m))
-                ΔP = random_nice_psd_matrix(rng, Dlat, storage.val)
+                ΔP = random_nice_psd_matrix(rng, Float64, Dlat, storage.val)
 
                 adjoint_test(
                     (θ) -> begin

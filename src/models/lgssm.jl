@@ -40,12 +40,10 @@ end
 #
 
 @inline function step_decorrelate(model, x::Gaussian, y::AV{<:Real})
-    mp, Pp = _predict(x.m, x.P, model.A, model.a, model.Q)
+    mp, Pp = predict(x.m, x.P, model.A, model.a, model.Q)
     mf, Pf, lml, α = update_decorrelate(mp, Pp, model.H, model.h, model.Σ, y)
     return lml, α, Gaussian(mf, Pf)
 end
-
-@inline _predict(mf::AV, Pf::AM, A::AM, a::AV, Q::AM) = A * mf + a, (A * Pf) * A' + Q
 
 @inline function update_decorrelate(mp, Pp, H::AM, h::AV, Σ::AM, y::AV{<:Real})
     V = H * Pp
@@ -56,10 +54,13 @@ end
     α = U' \ (y - H * mp - h)
 
     mf = mp + B'α
-    Pf = Pp - B'B
+    Pf = _compute_Pf(Pp, B)
     lml = -(length(y) * log(2π) + logdet(S) + α'α) / 2
     return mf, Pf, lml, α
 end
+
+_compute_Pf(Pp::AM, B::AM) = Pp - B'B
+_compute_Pf(Pp::Matrix, B::Matrix) = Symmetric(BLAS.syrk!('U', 'T', -1.0, B, 1.0, copy(Pp)))
 
 
 
@@ -68,7 +69,7 @@ end
 #
 
 @inline function step_correlate(model, x::Gaussian, α::AV{<:Real})
-    mp, Pp = _predict(x.m, x.P, model.A, model.a, model.Q)
+    mp, Pp = predict(x.m, x.P, model.A, model.a, model.Q)
     mf, Pf, lml, y = update_correlate(mp, Pp, model.H, model.h, model.Σ, α)
     return lml, y, Gaussian(mf, Pf)
 end
@@ -80,7 +81,7 @@ end
     y = S.U'α + H * mp + h
 
     mf = mp + B'α
-    Pf = Pp - B'B
+    Pf = _compute_Pf(Pp, B)
     lml = -(length(y) * log(2π) + logdet(S) + α'α) / 2
     return mf, Pf, lml, y
 end
@@ -109,8 +110,8 @@ function smooth(model::LGSSM, ys::AbstractVector)
         U = cholesky(Symmetric(x′.P + 1e-12I)).U
         Gt = U \ (U' \ (model.gmm.A[k + 1] * x.P))
         x_smooth[k] = Gaussian(
-            x.m + Gt' * (x_smooth[k + 1].m - x′.m),
-            x.P + Gt' * (x_smooth[k + 1].P - x′.P) * Gt,
+            _compute_ms(x.m, Gt, x_smooth[k + 1].m, x′.m),
+            _compute_Ps(x.P, Gt, x_smooth[k + 1].P, x′.P),
         )
     end
 
@@ -119,7 +120,34 @@ function smooth(model::LGSSM, ys::AbstractVector)
     return to_observed.(Hs, hs, x_filter), to_observed.(Hs, hs, x_smooth), lml
 end
 
-predict(model, x) = Gaussian(_predict(x.m, x.P, model.A, model.a, model.Q)...)
+"""
+    _compute_ms(mf::AV, Gt::AM, ms′::AV, mp′::AV)
+
+Compute the smoothing mean `ms`, given the filtering mean `mf`, transpose of the smoothing
+gain `Gt`, smoothing mean at the next time step `ms′`, and predictive mean at next time step
+`mp′`.
+"""
+_compute_ms(mf::AV, Gt::AM, ms′::AV, mp′::AV) = mf + Gt' * (ms′ - mp′)
+
+"""
+    _compute_Ps(Pf::AM, Gt::AM, Ps′::AM, Pp′::AM)
+
+Compute the smoothing covariance `Ps`, given the filtering covariance `Pf`, transpose of the
+smoothing gain `Gt`, smoothing covariance at the next time step `Ps′`, and the predictive
+covariance at the next time step `Pp′`.
+"""
+_compute_Ps(Pf::AM, Gt::AM, Ps′::AM, Pp′::AM) = Pf + Gt' * (Ps′ - Pp′) * Gt
+
+function _compute_Ps(
+    Pf::Symmetric{<:Real, <:Matrix},
+    Gt::Matrix,
+    Ps′::Symmetric{<:Real, <:Matrix},
+    Pp′::Matrix,
+)
+    return Symmetric(Pf + Gt' * (Ps′ - Pp′) * Gt)
+end
+
+predict(model, x) = Gaussian(predict(x.m, x.P, model.A, model.a, model.Q)...)
 
 """
     posterior_rand(rng::AbstractRNG, model::LGSSM, ys::Vector{<:AV{<:Real}})
@@ -144,7 +172,7 @@ function posterior_rand(
 
         # Produce joint samples.
         x̃ = rand(rng, x_filter[t], N_samples)
-        x̃′ = model.gmm.A[t] * x̃ + chol_Q[t].U' * randn(rng, size(x_T)...)
+        x̃′ = model.gmm.A[t] * x̃ + model.gmm.a[t] + chol_Q[t].U' * randn(rng, size(x_T)...)
 
         # Applying conditioning transformation.
         AP = model.gmm.A[t] * x_filter[t].P
@@ -174,9 +202,9 @@ pick_last(a, b) = b
 get_pb(::typeof(pick_last)) = Δ->(nothing, Δ)
 
 
-for (foo, step_foo, step_foo_pullback) in [
-    (:correlate, :step_correlate, :step_correlate_pullback),
-    (:decorrelate, :step_decorrelate, :step_decorrelate_pullback),
+for (foo, step_foo) in [
+    (:correlate, :step_correlate),
+    (:decorrelate, :step_decorrelate),
 ]
     @eval function $foo(model::LGSSM, αs::AV{<:AV{<:Real}}, f=pick_first)
         @assert length(model) == length(αs)

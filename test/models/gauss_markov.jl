@@ -24,13 +24,13 @@ println("gauss_markov:")
 
         rng = MersenneTwister(123456)
         gmm = tv == true ?
-            random_tv_gmm(rng, Dlat, Dobs, N, storage.val) :
-            random_ti_gmm(rng, Dlat, Dobs, N, storage.val)
+            random_tv_gmm(rng, Float64, Dlat, Dobs, N, storage.val) :
+            random_ti_gmm(rng, Float64, Dlat, Dobs, N, storage.val)
 
         @testset "==" begin
             gmm_other = tv == true ?
-                random_tv_gmm(rng, Dlat, Dobs, N, storage.val) :
-                random_ti_gmm(rng, Dlat, Dobs, N, storage.val)
+                random_tv_gmm(rng, Float64, Dlat, Dobs, N, storage.val) :
+                random_ti_gmm(rng, Float64, Dlat, Dobs, N, storage.val)
             @test gmm == gmm
             @test gmm != gmm_other
         end

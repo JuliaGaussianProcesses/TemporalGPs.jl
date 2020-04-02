@@ -1,4 +1,4 @@
-using TemporalGPs: smooth, StaticStorage, DenseStorage, _predict,
+using TemporalGPs: smooth, StaticStorage, DenseStorage, predict,
     update_decorrelate, step_decorrelate, update_correlate, step_correlate, LGSSM,
     GaussMarkovModel, Gaussian
 # using TemporalGPs: update_correlate_pullback, update_decorrelate_pullback,
@@ -14,7 +14,7 @@ println("lgssm:")
         Dlat = 3
         Dobs = 2
         N = 5
-        model = random_tv_lgssm(rng, Dlat, Dobs, N, DenseStorage())
+        model = random_tv_lgssm(rng, Float64, Dlat, Dobs, N, DenseStorage())
         @test mean(model) == mean(model.gmm)
 
         P = cov(model)
@@ -45,8 +45,8 @@ println("lgssm:")
 
             # Build LGSSM.
             model = tv ?
-                random_tv_lgssm(rng, Dlat, Dobs, N, storage.val) :
-                random_ti_lgssm(rng, Dlat, Dobs, N, storage.val)
+                random_tv_lgssm(rng, Float64, Dlat, Dobs, N, storage.val) :
+                random_ti_lgssm(rng, Float64, Dlat, Dobs, N, storage.val)
             gmm = model.gmm
             Σs = model.Σ
             As, as, Qs, Hs, hs, x = gmm.A, gmm.a, gmm.Q, gmm.H, gmm.h, gmm.x0
