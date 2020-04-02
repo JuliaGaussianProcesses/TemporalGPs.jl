@@ -1,7 +1,7 @@
 module TemporalGPs
 
-    using FillArrays, Kronecker, LinearAlgebra, Random, StaticArrays, Stheno, Zygote,
-        ZygoteRules
+    using BlockDiagonals, FillArrays, Kronecker, LinearAlgebra, Random, StaticArrays,
+        Stheno, Zygote, ZygoteRules
 
     using FillArrays: AbstractFill
 
@@ -15,6 +15,7 @@ module TemporalGPs
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "zygote_rules.jl"))
     include(joinpath("util", "gaussian.jl"))
+    include(joinpath("util", "mul.jl"))
 
     # Linear-Gaussian State Space Models.
     include(joinpath("models", "gauss_markov.jl"))
