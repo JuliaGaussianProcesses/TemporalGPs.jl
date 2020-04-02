@@ -6,9 +6,7 @@
     return A * mf + a, (A * Pf) * A' + Q
 end
 
-@adjoint function predict(m::AV, P::AM, A::AM, a::AV, Q::AM)
-    return predict_pullback(m, P, A, a, Q)
-end
+@adjoint predict(m::AV, P::AM, A::AM, a::AV, Q::AM) = predict_pullback(m, P, A, a, Q)
 
 function predict_pullback(m::AV, P::AM, A::AM, a::AV, Q::AM)
     mp = A * m + a # 1

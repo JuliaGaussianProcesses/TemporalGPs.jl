@@ -69,7 +69,6 @@ _, dense_back = predict_pullback(mf, Pf, A, a, Q);
 
 
 
-
 #
 # BlockDiagonal * SymmetricDense * BlockDiagonal + BlockDiagonal
 #
