@@ -109,6 +109,18 @@ function to_vec(model::TemporalGPs.LGSSM)
     return model_vec, LGSSM_from_vec
 end
 
+function to_vec(X::BlockDiagonal)
+    Xs = blocks(X)
+    Xs_vec, Xs_from_vec = to_vec(Xs)
+
+    function BlockDiagonal_from_vec(Xs_vec)
+        Xs = Xs_from_vec(Xs_vec)
+        return BlockDiagonal(Xs)
+    end
+
+    return Xs_vec, BlockDiagonal_from_vec
+end
+
 # Ensure that to_vec works for the types that we care about in this package.
 @testset "custom FiniteDifferences stuff" begin
     @testset "NamedTuple" begin
@@ -164,6 +176,15 @@ end
 
         model_vec, model_from_vec = to_vec(model)
         @test model_from_vec(model_vec) == model
+    end
+    @testset "to_vec(::BlockDiagonal)" begin
+        Ns = [3, 5, 1]
+        Xs = map(N -> randn(N, N), Ns)
+        X = BlockDiagonal(Xs)
+
+        X_vec, X_from_vec = to_vec(X)
+        @test X_vec isa Vector{<:Real}
+        @test X_from_vec(X_vec) == X
     end
 end
 
