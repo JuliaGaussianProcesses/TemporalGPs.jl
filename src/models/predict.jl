@@ -52,21 +52,24 @@ function predict(
 end
 
 function predict!(
-    mp::Vector{T},
-    Pp::Matrix{T},
-    mf::Vector{T},
-    Pf::Symmetric{T, Matrix{T}},
+    mp::Union{Vector{T}, SubArray{T, 1}},
+    Pp::Union{Matrix{T}, SubArray{T, 2}},
+    mf::Union{Vector{T}, SubArray{T, 1}},
+    Pf::Symmetric{T, <:Union{Matrix{T}, SubArray{T, 2}}},
     A::AM{T},
-    a::Vector{T},
+    a::Union{Vector{T}, SubArray{T, 1}},
     Q::Matrix{T},
 ) where {T<:Real}
 
     # Compute predictive mean.
-    mp = mul!(copy!(mp, a), A, mf, one(T), one(T))
+    mp .= a
+    mp = mul!(mp, A, mf, one(T), one(T))
 
     # Compute predictive covariance.
     APf = mul!(Matrix{T}(undef, size(Pf)), A, Pf, one(T), zero(T))
-    Pp = mul!(copy!(Pp, Q), APf, A', one(T), one(T))
+
+    Pp .= Q
+    Pp = mul!(Pp, APf, A', one(T), one(T))
 
     return mp, Pp
 end
@@ -133,5 +136,55 @@ function predict(
     a::Vector{T},
     Q::BlockDiagonal{T, TM},
 ) where {T<:Real, TM<:AbstractMatrix{T}}
-    return nothing
+    mp = Vector{T}(undef, size(mf))
+    Pp = Matrix{T}(undef, size(Pf))
+    return predict!(mp, Pp, mf, Pf, A, a, Q)
+end
+
+function predict!(
+    mp::Vector{T},
+    Pp::Matrix{T},
+    mf::Vector{T},
+    Pf::Symmetric{T, Matrix{T}},
+    A::BlockDiagonal{T, TM},
+    a::Vector{T},
+    Q::BlockDiagonal{T, TM},
+) where {T<:Real, TM<:AbstractMatrix{T}}
+
+    # Compute predictive mean.
+    mp = mul!(copy!(mp, a), A, mf, one(T), one(T))
+
+    # Compute predictive covariance. Only works with the upper triangle.
+    row_lb = 1
+    @views for n in 1:nblocks(A)
+
+        # Determine rows to consider.
+        (δ_r, δ_c) = blocksize(A, n)
+        @assert δ_r === δ_c
+        row_ids = row_lb:(row_lb + δ_r - 1)
+
+        # Update diagonal element of Pp.
+        predict!(
+            mp[row_ids],
+            Pp[row_ids, row_ids],
+            mf[row_ids],
+            Symmetric(Pf.data[row_ids, row_ids]),
+            getblock(A, n),
+            a[row_ids],
+            getblock(Q, n),
+        )
+
+        # Update elements above the diagonal.
+        col_lb = row_lb + δ_r
+        for m in (n + 1):nblocks(A)
+            col_ids = col_lb:(col_lb + δ_r - 1)
+            APf = getblock(A, n) * Pf.data[row_ids, col_ids]
+            mul!(Pp[row_ids, col_ids], APf, getblock(A, m))
+            col_lb += δ_r
+        end
+
+        # Shift the rows considered.
+        row_lb += δ_r
+    end
+    return mp, Pp
 end

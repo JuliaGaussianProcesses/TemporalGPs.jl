@@ -123,5 +123,43 @@ println("predict:")
             @test Δa isa Vector{T.T}
             @test ΔQ isa Matrix{T.T}
         end
+
+        n_blockss = [1, 3]
+        @testset "$Dlat_block, $(T.T), $n_blocks" for
+            Dlat_block in Dlats,
+            T in Ts,
+            n_blocks in n_blockss
+
+            # Compute the total number of dimensions.
+            Dlat = n_blocks * Dlat_block
+
+            # Generate block-diagonal transition dynamics.
+            As = map(_ -> randn(rng, T.T, Dlat_block, Dlat_block), 1:n_blocks)
+            A = BlockDiagonal(As)
+
+            a = randn(rng, T.T, Dlat)
+
+            Qs = map(
+                _ -> random_nice_psd_matrix(rng, T.T, Dlat_block, DenseStorage()),
+                1:n_blocks,
+            )
+            Q = BlockDiagonal(Qs)
+
+            # Generate filtering (input) distribution.
+            mf = randn(rng, T.T, Dlat)
+            Pf = Symmetric(random_nice_psd_matrix(rng, T.T, Dlat, DenseStorage()))
+
+            # Generate corresponding dense dynamics.
+            A_dense = collect(A)
+            Q_dense = collect(Q)
+
+            # Check agreement with dense implementation.
+            mp, Pp = predict(mf, Pf, A, a, Q)
+            mp_dense_dynamics, Pp_dense_dynamics = predict(mf, Pf, A, a, Q)
+            @test mp ≈ mp_dense_dynamics
+            @test Symmetric(Pp) ≈ Symmetric(Pp_dense_dynamics)
+            @test mp isa Vector{T.T}
+            @test Pp isa Matrix{T.T}
+        end
     end
 end

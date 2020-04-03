@@ -2,6 +2,8 @@ using BenchmarkTools, BlockDiagonals, LinearAlgebra, Random, TemporalGPs
 
 using TemporalGPs: predict, predict_pullback, AV, AM
 
+BLAS.set_num_threads(4);
+
 
 
 #
