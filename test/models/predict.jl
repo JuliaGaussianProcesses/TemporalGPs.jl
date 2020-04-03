@@ -149,17 +149,56 @@ println("predict:")
             mf = randn(rng, T.T, Dlat)
             Pf = Symmetric(random_nice_psd_matrix(rng, T.T, Dlat, DenseStorage()))
 
+            # Check that predicting twice gives exactly the same answer.
+            let
+                mf_c = copy(mf)
+                Pf_c = copy(Pf)
+                A_c = BlockDiagonal(map(copy, As))
+                a_c = copy(a)
+                Q_c = BlockDiagonal(map(copy, Qs))
+
+                m1, P1 = predict(mf_c, Pf_c, A_c, a_c, Q_c)
+                m2, P2 = predict(mf_c, Pf_c, A_c, a_c, Q_c)
+
+                @test m1 == m2
+                @test P1 == P2
+
+                @test mf_c == mf
+                @test Pf_c == Pf
+                @test A_c == A
+                @test a_c == a
+                @test Q_c == Q
+            end
+
             # Generate corresponding dense dynamics.
             A_dense = collect(A)
             Q_dense = collect(Q)
 
             # Check agreement with dense implementation.
             mp, Pp = predict(mf, Pf, A, a, Q)
-            mp_dense_dynamics, Pp_dense_dynamics = predict(mf, Pf, A, a, Q)
+            mp_dense_dynamics, Pp_dense_dynamics = predict(mf, Pf, A_dense, a, Q_dense)
             @test mp ≈ mp_dense_dynamics
             @test Symmetric(Pp) ≈ Symmetric(Pp_dense_dynamics)
             @test mp isa Vector{T.T}
             @test Pp isa Matrix{T.T}
+
+            # Verify approximate numerical correctness of pullback.
+            U_Pf = collect(cholesky(Symmetric(Pf)).U)
+            U_Q = map(Q -> collect(cholesky(Symmetric(Q)).U), Qs)
+            Δmp = randn(rng, T.T, Dlat)
+            ΔPp = randn(rng, T.T, Dlat, Dlat)
+
+            adjoint_test(
+                (mf, U_Pf, A, a, U_Q) -> begin
+                    Qs = map(U -> UpperTriangular(U)'UpperTriangular(U), U_Q)
+                    Q = BlockDiagonal(Qs)
+                    U_Pf = UpperTriangular(U_Pf)
+                    return predict(mf, Symmetric(U_Pf'U_Pf), A, a, Q)
+                end,
+                (Δmp, ΔPp),
+                mf, U_Pf, A, a, U_Q;
+                rtol=T.rtol, atol=T.atol,
+            )
         end
     end
 end

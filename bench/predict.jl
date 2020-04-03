@@ -84,5 +84,17 @@ Q_dense = collect(Q);
 mf = randn(rng, size(A, 1));
 Pf = Symmetric(randn(rng, size(A)));
 
-@benchmark naive_predict($mf, $Pf, $A_dense, $a, $Q_dense)
+@benchmark predict($mf, $Pf, $A_dense, $a, $Q_dense)
 @benchmark predict($mf, $Pf, $A, $a, $Q)
+
+@benchmark predict_pullback($mf, $Pf, $A_dense, $a, $Q_dense)
+@benchmark predict_pullback($mf, $Pf, $A, $a, $Q)
+
+_, dense_back = predict_pullback(mf, Pf, A_dense, a, Q_dense);
+_, block_diag_back = predict_pullback(mf, Pf, A, a, Q);
+
+Δmp = randn(rng, size(mf));
+ΔPp = randn(rng, size(Pf));
+
+@benchmark $dense_back(($Δmp, $ΔPp))
+@benchmark $block_diag_back(($Δmp, $ΔPp))
