@@ -43,3 +43,35 @@ function (f::LTISDE)(x::SpaceTimeGrid, σ²::Real)
 end
 
 (f::LTISDE)(x::SpaceTimeGrid) = f(x, 0.0)
+
+
+function GaussMarkovModel(k::Stheno.Sum, ts::SpaceTimeGrid, storage_type)
+    model_l = GaussMarkovModel(k.kl, ts, storage_type)
+    model_r = GaussMarkovModel(k.kr, ts, storage_type)
+
+    return GaussMarkovModel(
+        sparse_blk_diag.(model_l.A, model_r.A),
+        vcat.(model_l.a, model_r.a),
+        sparse_blk_diag.(model_l.Q, model_r.Q),
+        hcat.(model_l.H, model_r.H),
+        model_l.h + model_r.h,
+        Gaussian(
+            collect(vcat(model_l.x0.m, model_r.x0.m)),
+            blk_diag(model_l.x0.P, model_r.x0.P),
+        ),
+    )
+end
+
+sparse_blk_diag(A::AbstractMatrix, B::AbstractMatrix) = BlockDiagonal([A, B])
+
+function sparse_blk_diag(A::AbstractMatrix, B::BlockDiagonal)
+    return BlockDiagonal(vcat([A], B.blocks))
+end
+
+function sparse_blk_diag(A::BlockDiagonal, B::AbstractMatrix)
+    return BlockDiagonal(vcat(A.blocks, [B]))
+end
+
+function sparse_blk_diag(A::BlockDiagonal, B::BlockDiagonal)
+    return BlockDiagonal(vcat(A.blocks, B.blocks))
+end

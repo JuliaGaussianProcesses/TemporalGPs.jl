@@ -46,7 +46,7 @@ end
 end
 
 @inline function update_decorrelate(mp, Pp, H::AM, h::AV, Σ::AM, y::AV{<:Real})
-    V = H * Pp
+    V = _compute_V(H, Pp)
     S_1 = V * H' + Σ
     S = cholesky(Symmetric(S_1))
     U = S.U
@@ -59,8 +59,17 @@ end
     return mf, Pf, lml, α
 end
 
+function _compute_V(H::AM, Pp::AM)
+    return H * Pp
+end
+function _compute_V(H::Matrix, Pp::Matrix)
+    return H * Symmetric(Pp)
+end
+
 _compute_Pf(Pp::AM, B::AM) = Pp - B'B
-_compute_Pf(Pp::Matrix, B::Matrix) = Symmetric(BLAS.syrk!('U', 'T', -1.0, B, 1.0, copy(Pp)))
+function _compute_Pf(Pp::Matrix, B::Matrix)
+    return Symmetric(BLAS.syrk!('U', 'T', -1.0, B, 1.0, collect(Symmetric(Pp))))
+end
 
 
 
@@ -75,7 +84,7 @@ _compute_Pf(Pp::Matrix, B::Matrix) = Symmetric(BLAS.syrk!('U', 'T', -1.0, B, 1.0
 end
 
 @inline function update_correlate(mp, Pp, H::AM, h::AV, Σ::AM, α::AV{<:Real})
-    V = H * Pp
+    V = _compute_V(H, Pp)
     S = cholesky(Symmetric(V * H' + Σ))
     B = S.U' \ V
     y = S.U'α + H * mp + h
