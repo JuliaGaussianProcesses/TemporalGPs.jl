@@ -46,18 +46,14 @@ function predict(
     a::Vector{T},
     Q::Matrix{T},
 ) where {T<:Real}
-
-    # Compute predictive mean.
-    mp = mul!(copy(a), A, mf, 1.0, 1.0)
-
-    # Compute predictive covariance.
-    AQ = mul!(Matrix{T}(undef, size(Pf)), A, Pf, 1.0, 0.0)
-    Pp = mul!(copy(Q), AQ, A', 1.0, 1.0)
-
-    return mp, Pp
+    mp = Vector{T}(undef, size(mf))
+    Pp = Matrix{T}(undef, size(Pf))
+    return predict!(mp, Pp, mf, Pf, A, a, Q)
 end
 
 function predict!(
+    mp::Vector{T},
+    Pp::Matrix{T},
     mf::Vector{T},
     Pf::Symmetric{T, Matrix{T}},
     A::AM{T},
@@ -66,13 +62,62 @@ function predict!(
 ) where {T<:Real}
 
     # Compute predictive mean.
-    mp = mul!(copy(a), A, mf, 1.0, 1.0)
+    mp = mul!(copy!(mp, a), A, mf, one(T), one(T))
 
     # Compute predictive covariance.
-    AQ = mul!(Matrix{T}(undef, size(Pf)), A, Pf, 1.0, 0.0)
-    Pp = mul!(copy(Q), AQ, A', 1.0, 1.0)
+    APf = mul!(Matrix{T}(undef, size(Pf)), A, Pf, one(T), zero(T))
+    Pp = mul!(copy!(Pp, Q), APf, A', one(T), one(T))
 
     return mp, Pp
+end
+
+function predict_pullback(
+    mf::Vector{T},
+    Pf::Symmetric{T, Matrix{T}},
+    A::Matrix{T},
+    a::Vector{T},
+    Q::Matrix{T},
+) where {T<:Real}
+
+    # Pre-allocate for output.
+    mp = Vector{T}(undef, size(mf))
+    Pp = Matrix{T}(undef, size(Pf))
+
+    # 1: Compute predictive mean.
+    mp = mul!(copy!(mp, a), A, mf, one(T), one(T))
+
+    # 2: compute A * Pf
+    APf = mul!(Matrix{T}(undef, size(Pf)), A, Pf, one(T), zero(T))
+
+    # 3: compute APf * A' + Q
+    Pp = mul!(copy!(Pp, Q), APf, A', one(T), one(T))
+
+    return (mp, Pp), function(Δ)
+        Δmp = Δ[1]
+        ΔPp = Δ[2]
+
+        # Pre-allocate for cotangents.
+        Δmf = Vector{T}(undef, size(mf))
+        ΔPf = Matrix{T}(undef, size(Pf))
+        ΔAPf = Matrix{T}(undef, size(APf))
+        ΔA = Matrix{T}(undef, size(A))
+
+        # 3
+        ΔQ = ΔPp
+        ΔA = mul!(ΔA, ΔPp', APf)
+        ΔAPf = mul!(ΔAPf, ΔPp, A)
+
+        # 2
+        ΔA = mul!(ΔA, ΔAPf, Pf', one(T), one(T))
+        ΔPf = mul!(ΔPf, A', ΔAPf)
+
+        # 1
+        ΔA = mul!(ΔA, Δmp, mf', one(T), one(T))
+        Δmf = mul!(Δmf, A', Δmp)
+        Δa = Δmp
+
+        return Δmf, ΔPf, ΔA, Δa, ΔQ
+    end
 end
 
 

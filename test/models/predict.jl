@@ -75,7 +75,7 @@ println("predict:")
             (T=Float64, atol=1e-9, rtol=1e-9),
         ]
 
-        @testset "A::Matrix{Float64}, $Dlat, $(T.T)" for Dlat in Dlats, T in Ts
+        @testset "$Dlat, $(T.T)" for Dlat in Dlats, T in Ts
 
             # Generate parameters for a transition model.
             A = randn(rng, T.T, Dlat, Dlat)
@@ -89,22 +89,39 @@ println("predict:")
             mp_naive, Pp_naive = naive_predict(mf, Pf, A, a, Q)
             @test mp ≈ mp_naive
             @test Pp ≈ Pp_naive
+            @test mp isa Vector{T.T}
+            @test Pp isa Matrix{T.T}
 
             # Verify approximate numerical correctness of pullback.
             U_Pf = cholesky(Symmetric(Pf)).U
             U_Q = cholesky(Symmetric(Q)).U
-            Δmp = SVector{Dlat}(randn(rng, T.T, Dlat))
-            ΔPp = SMatrix{Dlat, Dlat}(randn(rng, T.T, Dlat, Dlat)) 
+            Δmp = randn(rng, T.T, Dlat)
+            ΔPp = randn(rng, T.T, Dlat, Dlat)
             adjoint_test(
                 (mf, U_Pf, A, a, U_Q) -> begin
                     U_Q = UpperTriangular(U_Q)
-                    U_Pf = UpperTriangular(U_Pf)                        
-                    return predict(mf, U_Pf'U_Pf, A, a, U_Q'U_Q)
+                    U_Pf = UpperTriangular(U_Pf)
+                    return predict(mf, Symmetric(U_Pf'U_Pf), A, a, U_Q'U_Q)
                 end,
                 (Δmp, ΔPp),
                 mf, U_Pf, A, a, U_Q;
                 rtol=T.rtol, atol=T.atol
             )
+
+            # Evaluate and pullback.
+            (mp, Pp), back = pullback(predict, mf, Pf, A, a, Q)
+            (Δmf, ΔPf, ΔA, Δa, ΔQ) = back((Δmp, ΔPp))
+
+            # Verify correct output types have been produced.
+            @test mp isa Vector{T.T}
+            @test Pp isa Matrix{T.T}
+
+            # Verify the adjoints w.r.t. the inputs are of the correct type.
+            @test Δmf isa Vector{T.T}
+            @test ΔPf isa Matrix{T.T}
+            @test ΔA isa Matrix{T.T}
+            @test Δa isa Vector{T.T}
+            @test ΔQ isa Matrix{T.T}
         end
     end
 end
