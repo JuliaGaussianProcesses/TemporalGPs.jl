@@ -25,7 +25,7 @@ ft = f(RectilinearGrid(x, t), 0.1);
 y = rand(rng, ft);
 
 println("Construction")
-display(benchmark $f(RectilinearGrid($x, $t), 0.1))
+display(@benchmark $f(RectilinearGrid($x, $t), 0.1))
 println()
 
 println("rand")
