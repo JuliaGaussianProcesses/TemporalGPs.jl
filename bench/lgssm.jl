@@ -19,7 +19,7 @@ k = Separable(EQ(), Matern52());
 
 f = to_sde(GP(k + k + k, GPC()));
 t = range(-5.0, 5.0; length=100);
-x = randn(rng, 24);
+x = randn(rng, 247);
 
 ft = f(RectilinearGrid(x, t), 0.1);
 y = rand(rng, ft);
