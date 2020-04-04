@@ -1,4 +1,5 @@
-using BenchmarkTools, BlockDiagonals, FillArrays, LinearAlgebra, Random, Stheno, TemporalGPs
+using BenchmarkTools, BlockDiagonals, FillArrays, LinearAlgebra, Random, Stheno,
+    TemporalGPs, Zygote
 
 using TemporalGPs: predict, predict_pullback, AV, AM, Separable, RectilinearGrid, LGSSM,
     GaussMarkovModel
@@ -18,13 +19,18 @@ k = Separable(EQ(), Matern52());
 
 f = to_sde(GP(k + k + k, GPC()));
 t = range(-5.0, 5.0; length=100);
-x = randn(rng, 247);
+x = randn(rng, 24);
 
 ft = f(RectilinearGrid(x, t), 0.1);
 y = rand(rng, ft);
 
-@benchmark $f(RectilinearGrid($x, $t), 0.1)
-@benchmark rand($rng, $ft)
+println("Construction")
+display(benchmark $f(RectilinearGrid($x, $t), 0.1))
+println()
+
+println("rand")
+display(@benchmark rand($rng, $ft))
+println()
 
 ft_dense = LGSSM(
     GaussMarkovModel(
@@ -38,7 +44,14 @@ ft_dense = LGSSM(
     ft.Σ,
 );
 
-@benchmark rand($rng, $ft_dense)
+println("rand (dense)")
+display(@benchmark rand($rng, $ft_dense))
+println()
 
-@benchmark logpdf($ft, $y)
-@benchmark logpdf($ft_dense, $y)
+println("logpdf")
+display(@benchmark logpdf($ft, $y))
+println()
+
+println("logpdf (dense)")
+display(@benchmark logpdf($ft_dense, $y))
+println()
