@@ -1,0 +1,10 @@
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+BlockDiagonals = "0a1fb500-61f7-11e9-3c65-f5ef3456f9f0"
+DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
+FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Stheno = "8188c328-b5d6-583d-959b-9690869a5511"
+TemporalGPs = "e155a3c4-0841-43e1-8b83-a0e4f03cc18f"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
