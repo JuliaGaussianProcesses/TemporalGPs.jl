@@ -1,8 +1,23 @@
-using BenchmarkTools, BlockDiagonals, LinearAlgebra, Random, TemporalGPs
+using BenchmarkTools, BlockDiagonals, DataFrames, DrWatson, LinearAlgebra, PGFPlotsX,
+    Random, TemporalGPs
 
 using TemporalGPs: predict, predict_pullback, AV, AM
 
-BLAS.set_num_threads(4);
+BLAS.set_num_threads(Sys.CPU_THREADS);
+
+const exp_dir_name = "predict"
+
+
+
+#
+# Saving / loading utilities.
+#
+
+function load_settings()
+    return load(joinpath(datadir(), exp_dir_name, "meta", "settings.bson"))[:settings]
+end
+
+load_results() = collect_results(joinpath(datadir(), exp_dir_name))
 
 
 
@@ -38,63 +53,316 @@ function naive_predict_pullback(m::AV, P::AM, A::AM, a::AV, Q::AM)
     end
 end
 
+function dense_dynamics_constructor(rng, dim_lat, n_blocks)
+    D = dim_lat * n_blocks
+    A = randn(rng, D, D)
+    a = randn(rng, D)
+    Q = collect(Symmetric(randn(rng, D, D)))
 
+    mf = randn(rng, D)
+    Pf = Symmetric(randn(rng, D, D))
 
-#
-# Dense * SymmetricDense * Dense + Dense
-#
+    Δmp = randn(rng, size(a))
+    ΔPp = randn(rng, size(Pf))
 
-rng = MersenneTwister(123456);
-D = 741;
+    return Δmp, ΔPp, mf, Pf, A, a, Q
+end
 
-# We don't need Pp or Q to be positive definite for any of the operations here.
-A = randn(rng, D, D);
-a = randn(rng, D);
-Q = collect(Symmetric(randn(rng, D, D)));
+function block_diagonal_dynamics_constructor(rng, dim_lat, n_blocks)
+    A = BlockDiagonal([randn(rng, dim_lat, dim_lat) for _ in 1:n_blocks])
+    a = randn(rng, size(A, 1))
+    Q = BlockDiagonal([randn(rng, dim_lat, dim_lat) for _ in 1:n_blocks])
 
-mf = randn(rng, D);
-Pf = Symmetric(randn(rng, D, D));
+    mf = randn(rng, size(a))
+    Pf = Symmetric(randn(rng, size(A)))
 
-@benchmark naive_predict($mf, $Pf, $A, $a, $Q)
-@benchmark predict($mf, $Pf, $A, $a, $Q)
+    Δmp = randn(rng, size(a))
+    ΔPp = randn(rng, size(Pf))
 
-@benchmark naive_predict_pullback($mf, $Pf, $A, $a, $Q)
-@benchmark predict_pullback($mf, $Pf, $A, $a, $Q)
-
-_, naive_dense_back = naive_predict_pullback(mf, Pf, A, a, Q);
-_, dense_back = predict_pullback(mf, Pf, A, a, Q);
-
-Δmp = randn(rng, D);
-ΔPp = randn(rng, D, D);
-@benchmark $naive_dense_back(($Δmp, $ΔPp))
-@benchmark $dense_back(($Δmp, $ΔPp))
+    return Δmp, ΔPp, mf, Pf, A, a, Q
+end
 
 
 
 #
-# BlockDiagonal * SymmetricDense * BlockDiagonal + BlockDiagonal
+# Save settings for benchmarking experiments.
 #
 
-A = BlockDiagonal([randn(rng, D, D) for _ in 1:3]);
-A_dense = collect(A);
-a = randn(rng, size(A, 1));
-Q = BlockDiagonal([randn(rng, D, D) for _ in 1:3]);
-Q_dense = collect(Q);
+wsave(
+    joinpath(datadir(), exp_dir_name, "meta", "settings.bson"),
+    :settings => dict_list(
+        Dict(
 
-mf = randn(rng, size(A, 1));
-Pf = Symmetric(randn(rng, size(A)));
+            # Method to execute `predict` and construct / evaluate its pullback.
+            :implementation =>[
+                (
+                    name = "naive",
+                    predict = naive_predict,
+                    predict_pullback = naive_predict_pullback,
+                    dynamics_constructor = dense_dynamics_constructor,
+                ),
+                (
+                    name = "dense",
+                    predict = predict,
+                    predict_pullback = predict_pullback,
+                    dynamics_constructor = dense_dynamics_constructor,
+                ),
+                (
+                    name = "block-diagonal",
+                    predict = predict,
+                    predict_pullback = predict_pullback,
+                    dynamics_constructor = block_diagonal_dynamics_constructor,
+                ),
+            ],
 
-@benchmark predict($mf, $Pf, $A_dense, $a, $Q_dense)
-@benchmark predict($mf, $Pf, $A, $a, $Q)
+            # Dimensionality of each block.
+            :dim_lat => [5, 10, 50, 100],
 
-@benchmark predict_pullback($mf, $Pf, $A_dense, $a, $Q_dense)
-@benchmark predict_pullback($mf, $Pf, $A, $a, $Q)
+            # Number of blocks.
+            :n_blocks => [3],
 
-_, dense_back = predict_pullback(mf, Pf, A_dense, a, Q_dense);
-_, block_diag_back = predict_pullback(mf, Pf, A, a, Q);
+            # # Dimensionality of each block.
+            # :dim_lat => [5, 10, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500],
 
-Δmp = randn(rng, size(mf));
-ΔPp = randn(rng, size(Pf));
+            # # Number of blocks.
+            # :n_blocks => [1, 2, 3, 4, 5],
+        ),
+    ),
+)
 
-@benchmark $dense_back(($Δmp, $ΔPp))
-@benchmark $block_diag_back(($Δmp, $ΔPp))
+
+
+#
+# Run benchmarking experiments.
+#
+
+let
+    settings = load_settings()
+    N = length(settings)
+    for (n, setting) in enumerate(settings)
+
+        # Display current iteration.
+        impl = setting[:implementation]
+        dim_lat = setting[:dim_lat]
+        n_blocks = setting[:n_blocks]
+        println("$n / $N: name=$(impl.name), dim_lat=$(dim_lat), n_blocks=$(n_blocks)")
+
+        # Build dynamics model.
+        rng = MersenneTwister(123456)
+        Δmp, ΔPp, mf, Pf, A, a, Q = impl.dynamics_constructor(rng, dim_lat, n_blocks)
+
+        # Generate pullback.
+        _, back = impl.predict_pullback(mf, Pf, A, a, Q)
+
+        # Benchmark evaluation, pullback generation, and pullback evaluation.
+        predict_results = @benchmark $(impl.predict)($mf, $Pf, $A, $a, $Q)
+        generate_pullback_results =
+            (@benchmark $(impl.predict_pullback)($mf, $Pf, $A, $a, $Q))
+        pullback_results = @benchmark $back(($Δmp, $ΔPp))
+
+        # Save results to disk.
+        wsave(
+            joinpath(
+                datadir(),
+                exp_dir_name,
+                savename(
+                    Dict(
+                        :name => impl.name,
+                        :dim_lat => dim_lat,
+                        :n_blocks => n_blocks,
+                    ),
+                    "bson",
+                ),
+            ),
+            Dict(
+                :setting => setting,
+                :predict_results => predict_results,
+                :generate_pullback_results => generate_pullback_results,
+                :pullback_results => pullback_results,
+            ),
+        )
+    end
+end
+
+
+
+#
+# Process results.
+#
+
+let
+    settings = load_settings()
+
+    # Define some plotting settings for each of the implementation types.
+    colour_map = Dict(
+        "naive" => "black",
+        "dense" => "blue",
+        "block-diagonal" => "red",
+    )
+    marker_map = Dict(
+        "naive" => "square",
+        "dense" => "triangle",
+        "block-diagonal" => "*",
+    )
+
+    # Load the results and compute some additional columns.
+    results = DataFrame(
+        map(eachrow(load_results())) do row
+            row = merge(
+                copy(row), # No need to copy in following blocks.
+                (
+                    implementation_name = row.setting[:implementation].name,
+                    dim_lat = row.setting[:dim_lat],
+                    n_blocks = row.setting[:n_blocks],
+                ),
+            )
+            return row
+        end
+    )
+
+    # Generate plots of timings per n_blocks per implementation.
+    by(results, :n_blocks) do n_blocks_group
+
+        # Specify plots to produce.
+        plots = [
+            (
+                plot = (@pgf Axis(
+                    {
+                        title = "predict",
+                        legend_pos = "north west",
+                    }
+                )),
+                result_name = :predict_results,
+                save_name = "predict_n_blocks=$(first(n_blocks_group.n_blocks)).tex",
+            ),
+            (
+                plot = (@pgf Axis(
+                    {
+                        title = "forwards pass",
+                        legend_pos = "north west",
+                    },
+                )),
+                result_name = :generate_pullback_results,
+                save_name = "generate_n_blocks=$(first(n_blocks_group.n_blocks)).tex",
+            ),
+            (
+                plot = (@pgf Axis(
+                    {
+                        title = "reverse pass",
+                        legend_pos = "north west",
+                    },
+                )),
+                result_name = :pullback_results,
+                save_name = "pullback_n_blocks=$(first(n_blocks_group.n_blocks)).tex",
+            ),
+        ]
+
+        # Compute dim_lat vs time curves for each implementation, for each benchmarked op.
+        by(n_blocks_group, :implementation_name) do impl_group
+
+            impl_group = sort(impl_group, :dim_lat)
+
+            impl = first(impl_group.implementation_name)
+
+            for plt in plots
+                push!(
+                    plt.plot,
+                    (@pgf Plot(
+                        {
+                            color = colour_map[impl],
+                            mark_options={fill=colour_map[impl]},
+                            mark=marker_map[impl],
+                        },
+                        Coordinates(
+                            impl_group.dim_lat,
+                            time.(impl_group[!, plt.result_name]),
+                        ),
+                    )),
+                )
+                push!(plt.plot, LegendEntry(impl))
+            end
+        end
+
+        # Save plots.
+        for plt in plots
+            pgfsave(
+                joinpath(plotsdir(), exp_dir_name, plt.save_name),
+                plt.plot;
+                include_preamble=true,
+            )
+        end
+    end
+
+    # Generate plots of timings per n_blocks per implementation.
+    by(results, :dim_lat) do dim_lat_group
+
+        # Specify plots to produce.
+        plots = [
+            (
+                plot = (@pgf Axis(
+                    {
+                        title = "predict",
+                        legend_pos = "north west",
+                    }
+                )),
+                result_name = :predict_results,
+                save_name = "predict_dim_lat=$(first(dim_lat_group.dim_lat)).tex",
+            ),
+            (
+                plot = (@pgf Axis(
+                    {
+                        title = "forwards pass",
+                        legend_pos = "north west",
+                    },
+                )),
+                result_name = :generate_pullback_results,
+                save_name = "generate_dim_lat=$(first(dim_lat_group.dim_lat)).tex",
+            ),
+            (
+                plot = (@pgf Axis(
+                    {
+                        title = "reverse pass",
+                        legend_pos = "north west",
+                    },
+                )),
+                result_name = :pullback_results,
+                save_name = "pullback_dim_lat=$(first(dim_lat_group.dim_lat)).tex",
+            ),
+        ]
+
+        # Compute dim_lat vs time curves for each implementation, for each benchmarked op.
+        by(dim_lat_group, :implementation_name) do impl_group
+
+            impl_group = sort(impl_group, :n_blocks)
+
+            impl = first(impl_group.implementation_name)
+
+            for plt in plots
+                push!(
+                    plt.plot,
+                    (@pgf Plot(
+                        {
+                            color = colour_map[impl],
+                            mark_options={fill=colour_map[impl]},
+                            mark=marker_map[impl],
+                        },
+                        Coordinates(
+                            impl_group.n_blocks,
+                            time.(impl_group[!, plt.result_name]),
+                        ),
+                    )),
+                )
+                push!(plt.plot, LegendEntry(impl))
+            end
+        end
+
+        # Save plots.
+        for plt in plots
+            pgfsave(
+                joinpath(plotsdir(), exp_dir_name, plt.save_name),
+                plt.plot;
+                include_preamble=true,
+            )
+        end
+    end
+end
