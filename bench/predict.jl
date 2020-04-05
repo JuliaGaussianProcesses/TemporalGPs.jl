@@ -1,3 +1,7 @@
+using Pkg
+Pkg.activate(".")
+Pkg.instantiate()
+
 using BenchmarkTools, BlockDiagonals, DataFrames, DrWatson, LinearAlgebra, PGFPlotsX,
     Random, TemporalGPs
 
@@ -198,6 +202,12 @@ let
         "dense" => "triangle",
         "block-diagonal" => "*",
     )
+
+    try
+        mkdir(plotsdir())
+        mkdir(joinpath(plotsdir(), exp_dir_name))
+    catch
+    end
 
     # Load the results and compute some additional columns.
     results = DataFrame(
