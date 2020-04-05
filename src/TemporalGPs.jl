@@ -4,6 +4,7 @@ module TemporalGPs
         Stheno, Zygote, ZygoteRules
 
     using FillArrays: AbstractFill
+    using Kronecker: KroneckerProduct
 
     import Stheno: mean, cov, pairwise, logpdf, AV, AM
 

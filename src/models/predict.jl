@@ -45,12 +45,12 @@ end
 function predict(
     mf::Vector{T},
     Pf::Symmetric{T, Matrix{T}},
-    A::AM{T},
+    A::Union{Matrix{T}, BlockDiagonal{T}, KroneckerProduct{T}},
     a::Vector{T},
-    Q::Matrix{T},
+    Q::Union{Matrix{T}, BlockDiagonal{T}},
 ) where {T<:Real}
-    mp = Vector{T}(undef, size(mf))
-    Pp = Matrix{T}(undef, size(Pf))
+    mp = fill(zero(T), size(mf))
+    Pp = fill(zero(T), size(Pf))
     return predict!(mp, Pp, mf, Pf, A, a, Q)
 end
 
@@ -156,18 +156,6 @@ end
 #
 # A <: BlockDiagonal{<:Real}
 #
-
-function predict(
-    mf::Vector{T},
-    Pf::Symmetric{T, Matrix{T}},
-    A::BlockDiagonal{T, TM},
-    a::Vector{T},
-    Q::BlockDiagonal{T, TM},
-) where {T<:Real, TM<:AbstractMatrix{T}}
-    mp = fill(zero(T), size(mf))
-    Pp = fill(zero(T), size(Pf))
-    return predict!(mp, Pp, mf, Pf, A, a, Q)
-end
 
 function predict!(
     mp::Vector{T},
@@ -301,4 +289,41 @@ end
 get_tangent_storage(A::Matrix{T}, val::T) where {T<:Real} = fill(val, size(A))
 function get_tangent_storage(A::BlockDiagonal{T}, val::T) where {T<:Real}
     return (blocks=map(block -> get_tangent_storage(block, val), A.blocks), )
+end
+
+
+
+#
+# A <: Kronecker{<:Real, <:Eye, <:Kronecker}
+#
+
+function predict!(
+    mp::Vector{T},
+    Pp::Matrix{T},
+    mf::Vector{T},
+    Pf::Symmetric{T, Matrix{T}},
+    A::KroneckerProduct{T, <:Eye{T}, Matrix{T}},
+    a::Vector{T},
+    Q::Matrix{T},
+) where {T<:Real}
+
+    # Compute sizes.
+    I_N, A_D = getmatrices(A)
+    N = size(I_N, 1)
+    D = size(A_D, 1)
+
+    # Compute predictive mean.
+    mp = copyto!(mp, a)
+    mul!(reshape(mp, D, N), A_D, reshape(mf, D, N), one(T), one(T))
+
+    # Compute predictive covariance. Appears that we have to transpose the dynamics
+    # half way through, which is a little sad.
+    APf = Matrix{T}(undef, size(Pf))
+    mul!(reshape(APf, D, D * N^2), A_D, reshape(Pf, D, D * N^2))
+
+    APft = collect(APf')
+    Pp = collect(Q)
+    mul!(reshape(Pp, D, D * N^2), A_D, reshape(APft, D, D * N^2), one(T), one(T))
+
+    return mp, Pp
 end

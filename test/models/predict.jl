@@ -75,7 +75,7 @@ println("predict:")
             (T=Float64, atol=1e-9, rtol=1e-9),
         ]
 
-        @testset "$Dlat, $(T.T)" for Dlat in Dlats, T in Ts
+        @testset "Matrix - $Dlat, $(T.T)" for Dlat in Dlats, T in Ts
 
             # Generate parameters for a transition model.
             A = randn(rng, T.T, Dlat, Dlat)
@@ -125,7 +125,7 @@ println("predict:")
         end
 
         n_blockss = [1, 3]
-        @testset "$Dlat_block, $(T.T), $n_blocks" for
+        @testset "BlockDiagonal - $Dlat_block, $(T.T), $n_blocks" for
             Dlat_block in Dlats,
             T in Ts,
             n_blocks in n_blockss
@@ -199,6 +199,58 @@ println("predict:")
                 mf, U_Pf, A, a, U_Q;
                 rtol=T.rtol, atol=T.atol,
             )
+        end
+
+        Ns = [1, 2]
+        Ds = [2, 3]
+        @testset "KroneckerProduct - $N, $D, $(T.T)" for N in Ns, D in Ds, T in Ts
+
+            # Compute the total number of dimensions.
+            Dlat = N * D
+
+            # Generate Kronecker-Product transition dynamics.
+            A_D = randn(rng, T.T, D, D)
+            A = Eye{T.T}(N) ⊗ A_D
+
+            a = randn(rng, T.T, Dlat)
+
+            K_N = random_nice_psd_matrix(rng, T.T, N, DenseStorage())
+            Q_D = random_nice_psd_matrix(rng, T.T, D, DenseStorage())
+            Q = collect(K_N ⊗ Q_D)
+
+            # Generate filtering (input) distribution.
+            mf = randn(rng, T.T, Dlat)
+            Pf = Symmetric(random_nice_psd_matrix(rng, T.T, Dlat, DenseStorage()))
+
+            # Generate corresponding dense dynamics.
+            A_dense = collect(A)
+
+            # Check agreement with dense implementation.
+            mp, Pp = predict(mf, Pf, A, a, Q)
+            mp_dense_dynamics, Pp_dense_dynamics = predict(mf, Pf, A_dense, a, Q)
+            @test mp ≈ mp_dense_dynamics
+            @test Symmetric(Pp) ≈ Symmetric(Pp_dense_dynamics)
+            @test mp isa Vector{T.T}
+            @test Pp isa Matrix{T.T}
+
+            # # Verify approximate numerical correctness of pullback.
+            # U_Pf = collect(cholesky(Symmetric(Pf)).U)
+            # U_Q = collect(cholesky(Symmetric(Q)).U)
+            # Δmp = randn(rng, T.T, Dlat)
+            # ΔPp = randn(rng, T.T, Dlat, Dlat)
+
+            # adjoint_test(
+            #     (mf, U_Pf, A_D, a, U_Q) -> begin
+            #         U_Q = UpperTriangular(U_Q)
+            #         Q = collect(Symmetric(U_Q'U_Q))
+            #         U_Pf = UpperTriangular(U_Pf)
+            #         A = Eye{T.T}(N) ⊗ A_D
+            #         return predict(mf, Symmetric(U_Pf'U_Pf), A, a, Q)
+            #     end,
+            #     (Δmp, ΔPp),
+            #     mf, U_Pf, A_D, a, U_Q;
+            #     rtol=T.rtol, atol=T.atol,
+            # )
         end
     end
 end
