@@ -1,57 +1,278 @@
-using BenchmarkTools, BlockDiagonals, FillArrays, LinearAlgebra, Random, Stheno,
-    TemporalGPs, Zygote
+using Pkg
+Pkg.activate(".")
+Pkg.instantiate()
 
-using TemporalGPs: predict, predict_pullback, AV, AM, Separable, RectilinearGrid, LGSSM,
-    GaussMarkovModel
+using BenchmarkTools, BlockDiagonals, DataFrames, DrWatson, FillArrays, LinearAlgebra,
+    PGFPlotsX, Random, Stheno, TemporalGPs, Zygote
 
-BLAS.set_num_threads(16);
+using TemporalGPs: AV, AM, Separable, RectilinearGrid, LGSSM, GaussMarkovModel
+
+BLAS.set_num_threads(Sys.CPU_THREADS);
+
+const exp_dir_name = "lgssm"
 
 
 
 #
-# Generate an LGSSM with BlockDiagonal transition dynamics, comprising three blocks of
-# equal size.
+# Utilities
 #
 
-rng = MersenneTwister(123456)
+function load_settings()
+    return load(joinpath(datadir(), exp_dir_name, "meta", "settings.bson"))[:settings]
+end
 
-k = Separable(EQ(), Matern52());
+load_results() = collect_results(joinpath(datadir(), exp_dir_name))
 
-f = to_sde(GP(k + k + k, GPC()));
-t = range(-5.0, 5.0; length=1_000);
-x = randn(rng, 247);
+function dense_dynamics_constructor(rng, N_space, N_time, N_blocks)
 
-ft = f(RectilinearGrid(x, t), 0.1);
-y = rand(rng, ft);
+    # Build kernel with block-diagonal transition dynamics.
+    ft = block_diagonal_dynamics_constructor(rng, N_space, N_time, N_blocks)
 
-println("Construction")
-display(@benchmark $f(RectilinearGrid($x, $t), 0.1))
-println()
+    # Densify dynamics and construct new LGSSM.
+    return LGSSM(
+        GaussMarkovModel(
+            Fill(collect(first(ft.gmm.A)), length(ft)),
+            ft.gmm.a,
+            Fill(collect(first(ft.gmm.Q)), length(ft)),
+            ft.gmm.H,
+            ft.gmm.h,
+            ft.gmm.x0,
+        ),
+        ft.Σ,
+    )
+end
 
-println("rand")
-display(@benchmark rand($rng, $ft))
-println()
+function block_diagonal_dynamics_constructor(rng, N_space, N_time, N_blocks)
 
-ft_dense = LGSSM(
-    GaussMarkovModel(
-        Fill(collect(first(ft.gmm.A)), length(t)),
-        ft.gmm.a,
-        Fill(collect(first(ft.gmm.Q)), length(t)),
-        ft.gmm.H,
-        ft.gmm.h,
-        ft.gmm.x0,
+    # Construct kernel.
+    k = Separable(EQ(), Matern52())
+    for n in 1:(N_blocks - 1)
+        k += k
+    end
+
+    f = to_sde(GP(k, GPC()))
+    t = range(-5.0, 5.0; length=N_time)
+    x = randn(rng, N_space)
+    return f(RectilinearGrid(x, t), 0.1)
+end
+
+
+
+#
+# Save settings.
+#
+
+wsave(
+    joinpath(datadir(), exp_dir_name, "meta", "settings.bson"),
+    :settings => dict_list(
+        Dict(
+
+            # Method to execute `predict` and construct / evaluate its pullback.
+            :implementation => [
+                (
+                    name = "naive",
+                    dynamics_constructor = dense_dynamics_constructor,
+                ),
+                (
+                    name = "dense",
+                    dynamics_constructor = dense_dynamics_constructor,
+                ),
+                (
+                    name = "block-diagonal",
+                    dynamics_constructor = block_diagonal_dynamics_constructor,
+                ),
+            ],
+
+            # Number of observations in space.
+            :N_space => [5],
+
+            # Number of time points.
+            # :N_time => [2, 5, 10, 50, 100, 500, 1_000, 50_000],
+            :N_time => [500_000],
+
+            # Number of things to sum in the kernel.
+            :N_blocks => [2],
+        ),
     ),
-    ft.Σ,
-);
+)
 
-println("rand (dense)")
-display(@benchmark rand($rng, $ft_dense))
-println()
 
-println("logpdf")
-display(@benchmark logpdf($ft, $y))
-println()
 
-println("logpdf (dense)")
-display(@benchmark logpdf($ft_dense, $y))
-println()
+#
+# Run benchmarking experiments.
+#
+
+let
+    settings = load_settings()
+    N_settings = length(settings)
+    for (n, setting) in enumerate(settings)
+
+        # Display current iteration.
+        impl = setting[:implementation]
+        N_space = setting[:N_space]
+        N_time = setting[:N_time]
+        N_blocks = setting[:N_blocks]
+        println(
+            "$n / $N_settings: name=$(impl.name), N_space=$N_space, " *
+            "N_time=$N_time, N_blocks = $N_blocks",
+        )
+
+        # Build dynamics model.
+        rng = MersenneTwister(123456)
+        ft = impl.dynamics_constructor(rng, N_space, N_time, N_blocks)
+        y = rand(rng, ft)
+
+        # Benchmark rand evaluation.
+        rand_results = @benchmark rand($rng, $ft)
+
+        # Benchmark logpdf evaluation and gradient evaluation.
+        logpdf_results = @benchmark logpdf($ft, $y)
+        logpdf_gradient_results = @benchmark Zygote.gradient(logpdf, $ft, $y)
+
+        # Save results to disk.
+        wsave(
+            joinpath(
+                datadir(),
+                exp_dir_name,
+                savename(
+                    Dict(
+                        :name => impl.name,
+                        :N_space => N_space,
+                        :N_time => N_time,
+                        :N_blocks => N_blocks,
+                    ),
+                    "bson",
+                ),
+            ),
+            Dict(
+                :setting => setting,
+                :rand_results => rand_results,
+                :logpdf_results => logpdf_results,
+                :logpdf_gradient_results => logpdf_gradient_results,
+            ),
+        )
+    end
+end
+
+
+
+
+#
+# Process results.
+#
+
+let
+    # Define some plotting settings for each of the implementation types.
+    colour_map = Dict(
+        "naive" => "black",
+        "dense" => "blue",
+        "block-diagonal" => "red",
+    )
+    marker_map = Dict(
+        "naive" => "square",
+        "dense" => "triangle",
+        "block-diagonal" => "*",
+    )
+
+    try
+        mkdir(plotsdir())
+    catch
+    end
+
+    try
+        mkdir(joinpath(plotsdir(), exp_dir_name))
+    catch
+    end
+
+    # Load the results and compute some additional columns.
+    results = DataFrame(
+        map(eachrow(load_results())) do row
+            row = merge(
+                copy(row), # No need to copy in following blocks.
+                (
+                    implementation_name = row.setting[:implementation].name,
+                    N_space = row.setting[:N_space],
+                    N_time = row.setting[:N_time],
+                    N_blocks = row.setting[:N_blocks],
+                ),
+            )
+            return row
+        end
+    )
+
+    # Plot timing curves for each block size for each implementation. This is used to assess
+    # after what value of N_time the time-per-iteration saturates.
+    by(results, [:N_blocks, :implementation_name]) do group
+
+        # Specify plots to produce.
+        N_blocks = first(group.N_blocks)
+        impl_name = first(group.implementation_name)
+        setting_name = "N_blocks=$N_blocks-impl_name=$impl_name"
+        plots = [
+            (
+                plot = (@pgf Axis(
+                    {
+                        title = "rand",
+                        legend_pos = "north west",
+                        xmode="log",
+                    }
+                )),
+                result_name = :rand_results,
+                save_name = "rand_$setting_name.tex",
+            ),
+            (
+                plot = (@pgf Axis(
+                    {
+                        title = "logpdf",
+                        legend_pos = "north west",
+                        xmode="log",
+                    },
+                )),
+                result_name = :logpdf_results,
+                save_name = "logpdf_$setting_name.tex",
+            ),
+            (
+                plot = (@pgf Axis(
+                    {
+                        title = "logpdf gradient",
+                        legend_pos = "north west",
+                        xmode="log",
+                    },
+                )),
+                result_name = :logpdf_gradient_results,
+                save_name = "logpdf_gradient_$setting_name.tex",
+            ),
+        ]
+
+        by(group, :N_space) do space_group
+
+            space_group = sort(space_group, :N_time)
+            for plt in plots
+                push!(
+                    plt.plot,
+                    (@pgf Plot(
+                        {
+                            color = colour_map[impl_name],
+                            mark_options={fill=colour_map[impl_name]},
+                            mark=marker_map[impl_name],
+                        },
+                        Coordinates(
+                            space_group.N_time,
+                            time.(space_group[!, plt.result_name]) ./ space_group.N_time,
+                        ),
+                    )),
+                )
+                push!(plt.plot, LegendEntry(string(first(space_group.N_space))))
+            end
+        end
+
+        # Save plots.
+        for plt in plots
+            pgfsave(
+                joinpath(plotsdir(), exp_dir_name, plt.save_name),
+                plt.plot;
+                include_preamble=true,
+            )
+        end
+    end
+end
