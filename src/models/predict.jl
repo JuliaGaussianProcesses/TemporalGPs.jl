@@ -310,7 +310,7 @@ function predict!(
 
     # Transpose APf.
     APft = Matrix{Float64}(undef, size(APf))
-    APft = @strided permutedims!(APft, APf, (2, 1))
+    @strided permutedims!(APft, APf, (2, 1))
 
     # Compute A * APft + Q.
     Pp = copy!(Pp, Q)
@@ -354,7 +354,7 @@ function predict_pullback_accum!(
 
     # Transpose APf.
     APft = Matrix{Float64}(undef, size(APf))
-    APft = @strided permutedims!(APft, APf, (2, 1))
+    @strided permutedims!(APft, APf, (2, 1))
 
     #
     # Perform the reverse-pass.
@@ -362,13 +362,14 @@ function predict_pullback_accum!(
 
     # Compute cotangents arising from computing A * APft + Q.
     ΔQ .+= ΔPp
-    ΔA_D = mul!(ΔA_D, reshape(ΔPp, D, D * N^2), reshape(APft, D, D * N^2)', one(T), one(T))
+    mul!(ΔA_D, reshape(ΔPp, D, D * N^2), reshape(APft, D, D * N^2)', one(T), one(T))
     ΔAPft = Matrix{T}(undef, size(APft))
     mul!(reshape(ΔAPft, D, D * N^2), A_D', reshape(ΔPp, D, D * N^2))
 
     # Compute cotangents arising from computing transpose of APf.
-    ΔAPf = Matrix{Float64}(undef, size(APf))
-    ΔAPf = @strided permutedims!(ΔAPf, ΔAPft, (2, 1))
+    # Re-purposes memory allocated for APft to avoid the additional allocation.
+    ΔAPf = APft
+    @strided permutedims!(ΔAPf, ΔAPft, (2, 1))
 
     # Compute cotangets arising from computing APf = A * Pf.
     mul!(ΔA_D, reshape(ΔAPf, D, D * N^2), reshape(Pf, D, D * N^2)', one(T), one(T))

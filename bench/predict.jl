@@ -372,8 +372,8 @@ let
 end
 
 
-using BenchmarkTools, FillArrays, Kronecker, LinearAlgebra, ProfileView, Random, Stheno,
-    TemporalGPs
+using BenchmarkTools, FillArrays, Kronecker, LinearAlgebra, Random, Stheno,
+    TemporalGPs, Zygote
 
 using TemporalGPs: predict
 
@@ -406,4 +406,39 @@ F = randn(rng, Dlat, Dlat);
 @benchmark predict($mf, $Pf, $A, $a, $Q)
 @benchmark predict($mf, $Pf, $A_dense, $a, $Q)
 
-@profview [predict(mf, Pf, A, a, Q) for _ in 1:500]
+# using ProfileView
+# @profview [predict(mf, Pf, A, a, Q) for _ in 1:10]
+
+@benchmark Zygote.pullback(predict, $mf, $Pf, $A, $a, $Q)
+@benchmark Zygote.pullback(predict, $mf, $Pf, $A_dense, $a, $Q)
+
+_, back = Zygote.pullback(predict, mf, Pf, A, a, Q);
+_, back_dense = Zygote.pullback(predict, mf, Pf, A_dense, a, Q);
+
+mp = copy(mf);
+Pp = collect(Pf);
+
+@benchmark $back(($mp, $Pp))
+@benchmark $back_dense(($mp, $Pp))
+
+# using ProfileView
+# @profview [back((mp, Pp)) for _ in 1:10]
+
+
+T = Float64;
+Δmp = copy(mp);
+ΔPp = copy(Pp);
+Δmf = fill(zero(T), size(mf));
+ΔPf = fill(zero(T), size(Pf));
+ΔA = TemporalGPs.get_cotangent_storage(A, zero(T));
+Δa = fill(zero(T), size(a));
+ΔQ = TemporalGPs.get_cotangent_storage(Q, zero(T));
+@benchmark TemporalGPs.predict_pullback_accum!(
+    $Δmp, $ΔPp, $Δmf, $ΔPf, $ΔA, $Δa, $ΔQ,
+    $mf, $Pf, $A, $a, $Q,
+)
+
+# @profview [TemporalGPs.predict_pullback_accum!(
+#     Δmp, ΔPp, Δmf, ΔPf, ΔA, Δa, ΔQ,
+#     mf, Pf, A, a, Q,
+# ) for _ in 1:100]
