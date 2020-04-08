@@ -203,6 +203,7 @@ println("predict:")
 
         Ns = [1, 2]
         Ds = [2, 3]
+
         @testset "KroneckerProduct - $N, $D, $(T.T)" for N in Ns, D in Ds, T in Ts
 
             # Compute the total number of dimensions.
@@ -233,24 +234,58 @@ println("predict:")
             @test mp isa Vector{T.T}
             @test Pp isa Matrix{T.T}
 
-            # # Verify approximate numerical correctness of pullback.
-            # U_Pf = collect(cholesky(Symmetric(Pf)).U)
-            # U_Q = collect(cholesky(Symmetric(Q)).U)
-            # Δmp = randn(rng, T.T, Dlat)
-            # ΔPp = randn(rng, T.T, Dlat, Dlat)
+            # Check that predicting twice gives exactly the same answer.
+            let
+                mf_c = copy(mf)
+                Pf_c = copy(Pf)
+                A_D_c = copy(A_D)
+                A_c = Eye(N) ⊗ A_D
+                a_c = copy(a)
+                Q_c = copy(Q)
 
-            # adjoint_test(
-            #     (mf, U_Pf, A_D, a, U_Q) -> begin
-            #         U_Q = UpperTriangular(U_Q)
-            #         Q = collect(Symmetric(U_Q'U_Q))
-            #         U_Pf = UpperTriangular(U_Pf)
-            #         A = Eye{T.T}(N) ⊗ A_D
-            #         return predict(mf, Symmetric(U_Pf'U_Pf), A, a, Q)
-            #     end,
-            #     (Δmp, ΔPp),
-            #     mf, U_Pf, A_D, a, U_Q;
-            #     rtol=T.rtol, atol=T.atol,
-            # )
+                m1, P1 = predict(mf_c, Pf_c, A_c, a_c, Q_c)
+                m2, P2 = predict(mf_c, Pf_c, A_c, a_c, Q_c)
+
+                @test m1 == m2
+                @test P1 == P2
+
+                @test mf_c == mf
+                @test Pf_c == Pf
+                @test A_c == A
+                @test a_c == a
+                @test Q_c == Q
+
+                (m3, P3), back = Zygote.pullback(predict, mf_c, Pf_c, A_c, a_c, Q_c)
+                @test m1 == m3
+                @test P1 == P3
+
+                back((m3, P3))
+
+                @test mf_c == mf
+                @test Pf_c == Pf
+                @test A_c == A
+                @test a_c == a
+                @test Q_c == Q
+            end
+
+            # Verify approximate numerical correctness of pullback.
+            U_Pf = collect(cholesky(Symmetric(Pf)).U)
+            U_Q = collect(cholesky(Symmetric(Q)).U)
+            Δmp = randn(rng, T.T, Dlat)
+            ΔPp = randn(rng, T.T, Dlat, Dlat)
+
+            adjoint_test(
+                (mf, U_Pf, A_D, a, U_Q) -> begin
+                    U_Q = UpperTriangular(U_Q)
+                    Q = collect(Symmetric(U_Q'U_Q))
+                    U_Pf = UpperTriangular(U_Pf)
+                    A = Eye{T.T}(N) ⊗ A_D
+                    return predict(mf, Symmetric(U_Pf'U_Pf), A, a, Q)
+                end,
+                (Δmp, ΔPp),
+                mf, U_Pf, A_D, a, U_Q;
+                rtol=T.rtol, atol=T.atol,
+            )
         end
     end
 end

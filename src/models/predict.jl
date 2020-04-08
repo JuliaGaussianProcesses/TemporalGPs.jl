@@ -61,7 +61,10 @@ function predict_pullback(
     a::Vector{T},
     Q::Union{Matrix{T}, BlockDiagonal{T}},
 ) where {T<:Real}
-    return predict(mf, Pf, A, a, Q), function(Δ)
+
+    mp, Pp = predict(mf, Pf, A, a, Q)
+
+    function predict_pullback_pullback(Δ)
         Δmp = Δ[1]
         ΔPp = Δ[2]
 
@@ -74,6 +77,8 @@ function predict_pullback(
 
         return predict_pullback_accum!(Δmp, ΔPp, Δmf, ΔPf, ΔA, Δa, ΔQ, mf, Pf, A, a, Q)
     end
+
+    return (mp, Pp), predict_pullback_pullback
 end
 
 get_cotangent_storage(A::Matrix{T}, val::T) where {T<:Real} = fill(val, size(A))
@@ -207,25 +212,6 @@ function predict!(
     return mp, Pp
 end
 
-# function predict_pullback(
-#     mf::Vector{T},
-#     Pf::Symmetric{T, Matrix{T}},
-#     A::BlockDiagonal{T, TM},
-#     a::Vector{T},
-#     Q::BlockDiagonal{T, TM},
-# ) where {T<:Real, TM<:AbstractMatrix{T}}
-#     return predict(mf, Pf, A, a, Q), function(Δ)
-#         Δmp = Δ[1]
-#         ΔPp = Δ[2]
-#         Δmf = fill(zero(T), size(mf))
-#         ΔPf = fill(zero(T), size(Pf))
-#         ΔA = get_cotangent_storage(A, zero(T))
-#         Δa = fill(zero(T), size(a))
-#         ΔQ = get_cotangent_storage(Q, zero(T))
-#         return predict_pullback_accum!(Δmp, ΔPp, Δmf, ΔPf, ΔA, Δa, ΔQ, mf, Pf, A, a, Q)
-#     end
-# end
-
 function predict_pullback_accum!(
     Δmp::Vector{T},
     ΔPp::Matrix{T},
@@ -318,7 +304,7 @@ function predict!(
 
     # Compute APf = A * Pf.
     APf = Matrix{T}(undef, size(Pf))
-    Pf = Pf.data
+    Pf = copy(Pf.data)
     LinearAlgebra.copytri!(Pf, 'U')
     mul!(reshape(APf, D, D * N^2), A_D, reshape(Pf, D, D * N^2))
 
@@ -340,7 +326,7 @@ function predict_pullback_accum!(
     ΔPf::Matrix{T},
     ΔA::NamedTuple{(:A, :B)},
     Δa::Vector{T},
-    ΔQ::NamedTuple{(:A, :B)},
+    ΔQ::Matrix{T},
     mf::Vector{T},
     Pf::Symmetric{T, Matrix{T}},
     A::KroneckerProduct{T, <:Eye{T}, Matrix{T}},
@@ -348,4 +334,50 @@ function predict_pullback_accum!(
     Q::Matrix{T},
 ) where {T<:Real}
 
+    # Compute sizes.
+    I_N, A_D = getmatrices(A)
+    N = size(I_N, 1)
+    D = size(A_D, 1)
+
+    # Pull out cotangent storage for A_D.
+    ΔA_D = ΔA.B
+
+    #
+    # Re-do some of the forwards-pass.
+    #
+
+    # Re-compute APf = A * Pf.
+    APf = Matrix{T}(undef, size(Pf))
+    Pf = Pf.data
+    LinearAlgebra.copytri!(Pf, 'U')
+    mul!(reshape(APf, D, D * N^2), A_D, reshape(Pf, D, D * N^2))
+
+    # Transpose APf.
+    APft = Matrix{Float64}(undef, size(APf))
+    APft = @strided permutedims!(APft, APf, (2, 1))
+
+    #
+    # Perform the reverse-pass.
+    #
+
+    # Compute cotangents arising from computing A * APft + Q.
+    ΔQ .+= ΔPp
+    ΔA_D = mul!(ΔA_D, reshape(ΔPp, D, D * N^2), reshape(APft, D, D * N^2)', one(T), one(T))
+    ΔAPft = Matrix{T}(undef, size(APft))
+    mul!(reshape(ΔAPft, D, D * N^2), A_D', reshape(ΔPp, D, D * N^2))
+
+    # Compute cotangents arising from computing transpose of APf.
+    ΔAPf = Matrix{Float64}(undef, size(APf))
+    ΔAPf = @strided permutedims!(ΔAPf, ΔAPft, (2, 1))
+
+    # Compute cotangets arising from computing APf = A * Pf.
+    mul!(ΔA_D, reshape(ΔAPf, D, D * N^2), reshape(Pf, D, D * N^2)', one(T), one(T))
+    mul!(reshape(ΔPf, D, D * N^2), A_D', reshape(ΔAPf, D, D * N^2), one(T), one(T))
+
+    # Compute cotangents arising from computing mp = A * mf + a.
+    Δa = copy!(Δa, Δmp)
+    mul!(ΔA_D, reshape(Δmp, D, N), reshape(mf, D, N)', one(T), one(T))
+    mul!(reshape(Δmf, D, N), A_D', reshape(Δmp, D, N), one(T), one(T))
+
+    return Δmf, ΔPf, ΔA, Δa, ΔQ
 end
