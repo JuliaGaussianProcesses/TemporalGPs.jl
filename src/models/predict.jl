@@ -39,7 +39,7 @@ end
 
 
 #
-# `A <: Matrix{<:Real}`.
+# Non-mutating wrapper interface for things that do mutation internally.
 #
 
 function predict(
@@ -53,6 +53,47 @@ function predict(
     Pp = fill(zero(T), size(Pf))
     return predict!(mp, Pp, mf, Pf, A, a, Q)
 end
+
+function predict_pullback(
+    mf::Vector{T},
+    Pf::Symmetric{T, Matrix{T}},
+    A::Union{Matrix{T}, BlockDiagonal{T}, KroneckerProduct{T, <:Eye{T}}},
+    a::Vector{T},
+    Q::Union{Matrix{T}, BlockDiagonal{T}},
+) where {T<:Real}
+    return predict(mf, Pf, A, a, Q), function(Δ)
+        Δmp = Δ[1]
+        ΔPp = Δ[2]
+
+        # Pre-allocate for cotangents.
+        Δmf = fill(zero(T), size(mf))
+        ΔPf = fill(zero(T), size(Pf))
+        ΔA = get_cotangent_storage(A, zero(T))
+        Δa = fill(zero(T), size(a))
+        ΔQ = get_cotangent_storage(Q, zero(T))
+
+        return predict_pullback_accum!(Δmp, ΔPp, Δmf, ΔPf, ΔA, Δa, ΔQ, mf, Pf, A, a, Q)
+    end
+end
+
+get_cotangent_storage(A::Matrix{T}, val::T) where {T<:Real} = fill(val, size(A))
+
+function get_cotangent_storage(A::BlockDiagonal{T}, val::T) where {T<:Real}
+    return (blocks=map(block -> get_cotangent_storage(block, val), A.blocks), )
+end
+
+function get_cotangent_storage(
+    A::KroneckerProduct{T, <:Eye, <:AbstractMatrix},
+    val::T,
+) where {T<:Real}
+    return (A=nothing, B=get_cotangent_storage(A.B, val))
+end
+
+
+
+#
+# `A <: Matrix{<:Real}`.
+#
 
 function predict!(
     mp::Union{Vector{T}, SubArray{T, 1}},
@@ -75,42 +116,6 @@ function predict!(
     Pp = mul!(Pp, APf, A', one(T), one(T))
 
     return mp, Pp
-end
-
-function predict_pullback(
-    mf::Vector{T},
-    Pf::Symmetric{T, Matrix{T}},
-    A::Matrix{T},
-    a::Vector{T},
-    Q::Matrix{T},
-) where {T<:Real}
-
-    # Pre-allocate for output.
-    mp = Vector{T}(undef, size(mf))
-    Pp = Matrix{T}(undef, size(Pf))
-
-    # 1: Compute predictive mean.
-    mp = mul!(copy!(mp, a), A, mf, one(T), one(T))
-
-    # 2: compute A * Pf
-    APf = mul!(Matrix{T}(undef, size(Pf)), A, Pf, one(T), zero(T))
-
-    # 3: compute APf * A' + Q
-    Pp = mul!(copy!(Pp, Q), APf, A', one(T), one(T))
-
-    return (mp, Pp), function(Δ)
-        Δmp = Δ[1]
-        ΔPp = Δ[2]
-
-        # Pre-allocate for cotangents.
-        Δmf = fill(zero(T), size(mf))
-        ΔPf = fill(zero(T), size(Pf))
-        ΔA = fill(zero(T), size(A))
-        Δa = fill(zero(T), size(a))
-        ΔQ = fill(zero(T), size(Q))
-
-        return predict_pullback_accum!(Δmp, ΔPp, Δmf, ΔPf, ΔA, Δa, ΔQ, mf, Pf, A, a, Q)
-    end
 end
 
 function predict_pullback_accum!(
@@ -202,24 +207,24 @@ function predict!(
     return mp, Pp
 end
 
-function predict_pullback(
-    mf::Vector{T},
-    Pf::Symmetric{T, Matrix{T}},
-    A::BlockDiagonal{T, TM},
-    a::Vector{T},
-    Q::BlockDiagonal{T, TM},
-) where {T<:Real, TM<:AbstractMatrix{T}}
-    return predict(mf, Pf, A, a, Q), function(Δ)
-        Δmp = Δ[1]
-        ΔPp = Δ[2]
-        Δmf = fill(zero(T), size(mf))
-        ΔPf = fill(zero(T), size(Pf))
-        ΔA = get_tangent_storage(A, zero(T))
-        Δa = fill(zero(T), size(a))
-        ΔQ = get_tangent_storage(Q, zero(T))
-        return predict_pullback_accum!(Δmp, ΔPp, Δmf, ΔPf, ΔA, Δa, ΔQ, mf, Pf, A, a, Q)
-    end
-end
+# function predict_pullback(
+#     mf::Vector{T},
+#     Pf::Symmetric{T, Matrix{T}},
+#     A::BlockDiagonal{T, TM},
+#     a::Vector{T},
+#     Q::BlockDiagonal{T, TM},
+# ) where {T<:Real, TM<:AbstractMatrix{T}}
+#     return predict(mf, Pf, A, a, Q), function(Δ)
+#         Δmp = Δ[1]
+#         ΔPp = Δ[2]
+#         Δmf = fill(zero(T), size(mf))
+#         ΔPf = fill(zero(T), size(Pf))
+#         ΔA = get_cotangent_storage(A, zero(T))
+#         Δa = fill(zero(T), size(a))
+#         ΔQ = get_cotangent_storage(Q, zero(T))
+#         return predict_pullback_accum!(Δmp, ΔPp, Δmf, ΔPf, ΔA, Δa, ΔQ, mf, Pf, A, a, Q)
+#     end
+# end
 
 function predict_pullback_accum!(
     Δmp::Vector{T},
@@ -286,11 +291,6 @@ function predict_pullback_accum!(
     return Δmf, ΔPf, ΔA, Δa, ΔQ
 end
 
-get_tangent_storage(A::Matrix{T}, val::T) where {T<:Real} = fill(val, size(A))
-function get_tangent_storage(A::BlockDiagonal{T}, val::T) where {T<:Real}
-    return (blocks=map(block -> get_tangent_storage(block, val), A.blocks), )
-end
-
 
 
 #
@@ -312,18 +312,40 @@ function predict!(
     N = size(I_N, 1)
     D = size(A_D, 1)
 
-    # Compute predictive mean.
+    # Compute predictive mean, mp = A * mf + a.
     mp = copyto!(mp, a)
     mul!(reshape(mp, D, N), A_D, reshape(mf, D, N), one(T), one(T))
 
-    # Compute predictive covariance. Appears that we have to transpose the dynamics
-    # half way through, which is a little sad.
+    # Compute APf = A * Pf.
     APf = Matrix{T}(undef, size(Pf))
+    Pf = Pf.data
+    LinearAlgebra.copytri!(Pf, 'U')
     mul!(reshape(APf, D, D * N^2), A_D, reshape(Pf, D, D * N^2))
 
-    APft = collect(APf')
-    Pp = collect(Q)
+    # Transpose APf.
+    APft = Matrix{Float64}(undef, size(APf))
+    APft = @strided permutedims!(APft, APf, (2, 1))
+
+    # Compute A * APft + Q.
+    Pp = copy!(Pp, Q)
     mul!(reshape(Pp, D, D * N^2), A_D, reshape(APft, D, D * N^2), one(T), one(T))
 
     return mp, Pp
+end
+
+function predict_pullback_accum!(
+    Δmp::Vector{T},
+    ΔPp::Matrix{T},
+    Δmf::Vector{T},
+    ΔPf::Matrix{T},
+    ΔA::NamedTuple{(:A, :B)},
+    Δa::Vector{T},
+    ΔQ::NamedTuple{(:A, :B)},
+    mf::Vector{T},
+    Pf::Symmetric{T, Matrix{T}},
+    A::KroneckerProduct{T, <:Eye{T}, Matrix{T}},
+    a::Vector{T},
+    Q::Matrix{T},
+) where {T<:Real}
+
 end

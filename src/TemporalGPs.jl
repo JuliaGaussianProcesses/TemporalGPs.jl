@@ -1,7 +1,7 @@
 module TemporalGPs
 
     using BlockDiagonals, FillArrays, Kronecker, LinearAlgebra, Random, StaticArrays,
-        Stheno, Zygote, ZygoteRules
+        Stheno, Strided, Zygote, ZygoteRules
 
     using FillArrays: AbstractFill
     using Kronecker: KroneckerProduct

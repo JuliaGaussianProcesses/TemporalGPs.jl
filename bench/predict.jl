@@ -2,8 +2,8 @@ using Pkg
 Pkg.activate(".")
 Pkg.instantiate()
 
-using BenchmarkTools, BlockDiagonals, DataFrames, DrWatson, LinearAlgebra, PGFPlotsX,
-    Random, TemporalGPs
+using BenchmarkTools, BlockDiagonals, DataFrames, DrWatson, Kronecker, LinearAlgebra,
+    PGFPlotsX, Random, TemporalGPs
 
 using TemporalGPs: predict, predict_pullback, AV, AM
 
@@ -370,3 +370,40 @@ let
         end
     end
 end
+
+
+using BenchmarkTools, FillArrays, Kronecker, LinearAlgebra, ProfileView, Random, Stheno,
+    TemporalGPs
+
+using TemporalGPs: predict
+
+rng = MersenneTwister(123456);
+D = 3;
+N = 247;
+
+# Compute the total number of dimensions.
+Dlat = N * D;
+
+# Generate Kronecker-Product transition dynamics.
+A_D = randn(rng, Float64, D, D);
+A = Eye{Float64}(N) ⊗ A_D;
+
+a = randn(rng, Float64, Dlat);
+
+Q = randn(rng, Dlat, Dlat);
+
+# Generate filtering (input) distribution.
+mf = randn(rng, Float64, Dlat);
+Pf = Symmetric(Stheno.pw(EQ(), range(-10.0, 10.0; length=Dlat)));
+
+
+# Generate corresponding dense dynamics.
+A_dense = collect(A);
+
+C = randn(rng, Dlat, Dlat);
+F = randn(rng, Dlat, Dlat);
+
+@benchmark predict($mf, $Pf, $A, $a, $Q)
+@benchmark predict($mf, $Pf, $A_dense, $a, $Q)
+
+@profview [predict(mf, Pf, A, a, Q) for _ in 1:500]
