@@ -201,8 +201,12 @@ function predict!(
         col_lb = row_lb + δ_r
         for m in (n + 1):nblocks(A)
             col_ids = col_lb:(col_lb + δ_r - 1)
-            APf = getblock(A, n) * Pf.data[row_ids, col_ids]
-            mul!(Pp[row_ids, col_ids], APf, getblock(A, m)')
+            Al_Pf_Art!(
+                Pp[row_ids, col_ids],
+                getblock(A, n),
+                Pf.data[row_ids, col_ids],
+                getblock(A, m),
+            )
             col_lb += δ_r
         end
 
@@ -210,6 +214,18 @@ function predict!(
         row_lb += δ_r
     end
     return mp, Pp
+end
+
+# Compute Al * Pf * Ar', storing the result in Pp. (l as in left, r as in right)
+@inline function Al_Pf_Art!(
+    Pp::SubArray{T, 2, Matrix{T}},
+    Al::Matrix{T},
+    Pf::SubArray{T, 2, Matrix{T}},
+    Ar::Matrix{T},
+) where {T<:Real}
+    Al_Pf = Al * Pf
+    mul!(Pp, Al_Pf, Ar')
+    return nothing
 end
 
 function predict_pullback_accum!(
@@ -257,16 +273,15 @@ function predict_pullback_accum!(
         for m in (n + 1):nblocks(A)
             col_ids = col_lb:(col_lb + δ_r - 1)
 
-            # Recompute APf.
-            APf = getblock(A, n) * Pf.data[row_ids, col_ids]
-
-            # Compute ΔA of mth block, and ΔAnPf.
-            mul!(ΔA.blocks[m], ΔPp[row_ids, col_ids]', APf, one(T), one(T))
-            ΔAPf = ΔPp[row_ids, col_ids] * getblock(A, m)
-
-            # Compute ΔA of nth block and ΔPf.
-            mul!(ΔA.blocks[n], ΔAPf, Pf.data[row_ids, col_ids]', one(T), one(T))
-            mul!(ΔPf[row_ids, col_ids], getblock(A, n)', ΔAPf, one(T), one(T))
+            APfAt_pullback!(
+                ΔPp[row_ids, col_ids],
+                ΔA.blocks[n],
+                ΔPf[row_ids, col_ids],
+                ΔA.blocks[m],
+                getblock(A, n),
+                Pf.data[row_ids, col_ids],
+                getblock(A, m),
+            )
 
             col_lb += δ_r
         end
@@ -275,6 +290,30 @@ function predict_pullback_accum!(
         row_lb += δ_r
     end
     return Δmf, ΔPf, ΔA, Δa, ΔQ
+end
+
+# Compute Al * Pf * Ar', storing the result in Pp. (l as in left, r as in right)
+@inline function APfAt_pullback!(
+    ΔPp::SubArray{T, 2, Matrix{T}},
+    ΔAl::Matrix{T},
+    ΔPf::SubArray{T, 2, Matrix{T}},
+    ΔAr::Matrix{T},
+    Al::Matrix{T},
+    Pf::SubArray{T, 2, Matrix{T}},
+    Ar::Matrix{T},
+) where {T<:Real}
+
+    # Recompute Al_Pf.
+    Al_Pf = Al * Pf
+
+    # Compute ΔAl_Pf and ΔAr.
+    mul!(ΔAr, ΔPp', Al_Pf, one(T), one(T))
+    ΔAl_Pf = ΔPp * Ar
+
+    # Compute ΔAl and ΔPf.
+    mul!(ΔAl, ΔAl_Pf, Pf', one(T), one(T))
+    mul!(ΔPf, Al', ΔAl_Pf, one(T), one(T))
+    return nothing
 end
 
 
