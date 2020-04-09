@@ -37,7 +37,7 @@ logpdf(fx_ssm, y)
 
 There are a couple of ways that `TemporalGPs.jl` can represent things internally. In particular, it can use regular Julia `Vector` and `Matrix` objects, or the `StaticArrays.jl` package to optimise in certain cases. The default is the former. To employ the latter, just add an extra argument to the `ssm` function:
 ```julia
-fx_ssm = ssm(fx, TemporalGPs.StaticStorage())
+f = to_sde(f_naive, TemporalGPs.StaticStorage())
 ```
 See the benchmarking results below for the effect that this can have.
 
