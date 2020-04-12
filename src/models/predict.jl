@@ -115,7 +115,7 @@ function predict!(
     mp = mul!(mp, A, mf, one(T), one(T))
 
     # Compute predictive covariance.
-    APf = mul!(Matrix{T}(undef, size(Pf)), A, Pf, one(T), zero(T))
+    APf = mul!(Matrix{T}(undef, size(Pf)), A, Pf)
 
     Pp .= Q
     Pp = mul!(Pp, APf, A', one(T), one(T))
@@ -124,22 +124,22 @@ function predict!(
 end
 
 function predict_pullback_accum!(
-    Δmp::Union{Vector{T}, SubArray{T, 1}},
-    ΔPp::Union{Matrix{T}, SubArray{T, 2}},
-    Δmf::Union{Vector{T}, SubArray{T, 1}},
-    ΔPf::Union{Matrix{T}, SubArray{T, 2}},
-    ΔA::Union{Matrix{T}, SubArray{T, 2}},
-    Δa::Union{Vector{T}, SubArray{T, 1}},
-    ΔQ::Union{Matrix{T}, SubArray{T, 2}},
-    mf::Union{Vector{T}, SubArray{T, 1}},
-    Pf::Symmetric{T, <:Union{Matrix{T}, SubArray{T, 2}}},
-    A::Union{Matrix{T}, SubArray{T, 2}},
-    a::Union{Vector{T}, SubArray{T, 1}},
-    Q::Union{Matrix{T}, SubArray{T, 2}},
+    Δmp::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
+    ΔPp::Union{Matrix{T}, SubArray{T, 2, Matrix{T}}},
+    Δmf::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
+    ΔPf::Union{Matrix{T}, SubArray{T, 2, Matrix{T}}},
+    ΔA::Union{Matrix{T}, SubArray{T, 2, Matrix{T}}},
+    Δa::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
+    ΔQ::Union{Matrix{T}, SubArray{T, 2, Matrix{T}}},
+    mf::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
+    Pf::Symmetric{T, <:Union{Matrix{T}, SubArray{T, 2, Matrix{T}}}},
+    A::Union{Matrix{T}, SubArray{T, 2, Matrix{T}}},
+    a::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
+    Q::Union{Matrix{T}, SubArray{T, 2, Matrix{T}}},
 ) where {T<:Real}
 
     # Re-compute A * Pf
-    APf = mul!(Matrix{T}(undef, size(Pf)), A, Pf, one(T), zero(T))
+    APf = mul!(Matrix{T}(undef, size(Pf)), A, Pf)
 
     # Pre-allocate for ΔAPf.
     ΔAPf = Matrix{T}(undef, size(APf))
@@ -172,10 +172,10 @@ function predict!(
     Pp::Matrix{T},
     mf::Vector{T},
     Pf::Symmetric{T, Matrix{T}},
-    A::BlockDiagonal{T, TM},
+    A::BlockDiagonal{T, <:AbstractMatrix{T}},
     a::Vector{T},
-    Q::BlockDiagonal{T, TM},
-) where {T<:Real, TM<:AbstractMatrix{T}}
+    Q::BlockDiagonal{T, <:AbstractMatrix{T}},
+) where {T<:Real}
 
     # Compute predictive covariance. Only works with the upper triangle.
     row_lb = 1
@@ -238,10 +238,10 @@ function predict_pullback_accum!(
     ΔQ::NamedTuple{(:blocks,)},
     mf::Vector{T},
     Pf::Symmetric{T, Matrix{T}},
-    A::BlockDiagonal{T, TM},
+    A::BlockDiagonal{T, <:AbstractMatrix{T}},
     a::Vector{T},
-    Q::BlockDiagonal{T, TM},
-) where {T<:Real, TM<:AbstractMatrix{T}}
+    Q::BlockDiagonal{T, <:AbstractMatrix{T}},
+) where {T<:Real}
 
     # Compute predictive covariance. Only works with the upper triangle.
     row_lb = 1
@@ -273,7 +273,7 @@ function predict_pullback_accum!(
         for m in (n + 1):nblocks(A)
             col_ids = col_lb:(col_lb + δ_r - 1)
 
-            APfAt_pullback!(
+            Al_Pf_Art_pullback!(
                 ΔPp[row_ids, col_ids],
                 ΔA.blocks[n],
                 ΔPf[row_ids, col_ids],
@@ -293,7 +293,7 @@ function predict_pullback_accum!(
 end
 
 # Compute Al * Pf * Ar', storing the result in Pp. (l as in left, r as in right)
-@inline function APfAt_pullback!(
+@inline function Al_Pf_Art_pullback!(
     ΔPp::SubArray{T, 2, Matrix{T}},
     ΔAl::Matrix{T},
     ΔPf::SubArray{T, 2, Matrix{T}},
@@ -323,12 +323,12 @@ end
 #
 
 function predict!(
-    mp::Vector{T},
-    Pp::Matrix{T},
-    mf::Vector{T},
-    Pf::Symmetric{T, Matrix{T}},
+    mp::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
+    Pp::Union{Matrix{T}, SubArray{T, 2, Matrix{T}}},
+    mf::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
+    Pf::Symmetric{T, <:Union{Matrix{T}, SubArray{T, 2, Matrix{T}}}},
     A::KroneckerProduct{T, <:Eye{T}, Matrix{T}},
-    a::Vector{T},
+    a::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
     Q::Matrix{T},
 ) where {T<:Real}
 
@@ -348,29 +348,58 @@ function predict!(
     mul!(reshape(APf, D, D * N^2), A_D, reshape(Pf, D, D * N^2))
 
     # Transpose APf.
-    APft = Matrix{Float64}(undef, size(APf))
+    APft = Matrix{T}(undef, size(APf))
     @strided permutedims!(APft, APf, (2, 1))
 
     # Compute A * APft + Q.
-    Pp = copy!(Pp, Q)
-    mul!(reshape(Pp, D, D * N^2), A_D, reshape(APft, D, D * N^2), one(T), one(T))
+    _compute_Pp!(Pp, A_D, APft, Q, D, N)
 
     return mp, Pp
 end
 
-function predict_pullback_accum!(
-    Δmp::Vector{T},
-    ΔPp::Matrix{T},
-    Δmf::Vector{T},
-    ΔPf::Matrix{T},
-    ΔA::NamedTuple{(:A, :B)},
-    Δa::Vector{T},
-    ΔQ::Matrix{T},
-    mf::Vector{T},
-    Pf::Symmetric{T, Matrix{T}},
-    A::KroneckerProduct{T, <:Eye{T}, Matrix{T}},
-    a::Vector{T},
+function _compute_Pp!(
+    Pp::Matrix{T},
+    A_D::Matrix{T},
+    APft::Matrix{T},
     Q::Matrix{T},
+    D::Int,
+    N::Int,
+) where {T<:Real}
+    Pp = copy!(Pp, Q)
+    mul!(reshape(Pp, D, D * N^2), A_D, reshape(APft, D, D * N^2), one(T), one(T))
+    return nothing
+end
+
+# Works with packed storage and copies the result into Pp at the end. This is necessary to
+# achieve constant stride.
+function _compute_Pp!(
+    Pp::SubArray{T, 2, Matrix{T}},
+    A_D::Matrix{T},
+    APft::Matrix{T},
+    Q::Matrix{T},
+    D::Int,
+    N::Int,
+) where {T<:Real}
+    Pp = copy!(Pp, Q)
+    Pp_tmp = copy(Q)
+    mul!(reshape(Pp_tmp, D, D * N^2), A_D, reshape(APft, D, D * N^2), one(T), one(T))
+    copy!(Pp, Pp_tmp)
+    return nothing
+end
+
+function predict_pullback_accum!(
+    Δmp::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
+    ΔPp::Union{Matrix{T}, SubArray{T, 2, Matrix{T}}},
+    Δmf::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
+    ΔPf::Union{Matrix{T}, SubArray{T, 2, Matrix{T}}},
+    ΔA::NamedTuple{(:A, :B)},
+    Δa::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
+    ΔQ::Union{Matrix{T}, SubArray{T, 2, Matrix{T}}},
+    mf::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
+    Pf::Symmetric{T, <:Union{Matrix{T}, SubArray{T, 2, Matrix{T}}}},
+    A::KroneckerProduct{T, <:Eye{T}, Matrix{T}},
+    a::Union{Vector{T}, SubArray{T, 1, Vector{T}}},
+    Q::Union{Matrix{T}, SubArray{T, 2, Matrix{T}}},
 ) where {T<:Real}
 
     # Compute sizes.
@@ -392,7 +421,7 @@ function predict_pullback_accum!(
     mul!(reshape(APf, D, D * N^2), A_D, reshape(Pf, D, D * N^2))
 
     # Transpose APf.
-    APft = Matrix{Float64}(undef, size(APf))
+    APft = Matrix{T}(undef, size(APf))
     @strided permutedims!(APft, APf, (2, 1))
 
     #
@@ -415,9 +444,90 @@ function predict_pullback_accum!(
     mul!(reshape(ΔPf, D, D * N^2), A_D', reshape(ΔAPf, D, D * N^2), one(T), one(T))
 
     # Compute cotangents arising from computing mp = A * mf + a.
-    Δa = copy!(Δa, Δmp)
+    Δa = copyto!(Δa, Δmp)
     mul!(ΔA_D, reshape(Δmp, D, N), reshape(mf, D, N)', one(T), one(T))
     mul!(reshape(Δmf, D, N), A_D', reshape(Δmp, D, N), one(T), one(T))
 
     return Δmf, ΔPf, ΔA, Δa, ΔQ
+end
+
+# Important for predict! with BlockDiagonals.
+@inline function Al_Pf_Art!(
+    Pp::SubArray{T, 2, Matrix{T}},
+    Al::KroneckerProduct{T, <:Eye, Matrix{T}},
+    Pf::SubArray{T, 2, Matrix{T}},
+    Ar::KroneckerProduct{T, <:Eye, Matrix{T}},
+) where {T<:Real}
+
+    # Unpack the Kronecker matrices and determine sizes.
+    Il, Al_D = getmatrices(Al)
+    Ir, Ar_D = getmatrices(Ar)
+    N = size(Il, 1)
+    Dl = size(Al_D, 1)
+    Dr = size(Ar_D, 1)
+
+    # Compute Al_Pf = Al * Pf.
+    Al_Pf = Matrix{T}(undef, size(Pf))
+    mul!(reshape(Al_Pf, Dl, Dl * N^2), Al_D, reshape(Pf, Dl, Dl * N^2))
+
+    # Transpose Al_Pf.
+    Al_Pft = Matrix{T}(undef, size(Al_Pf))
+    @strided permutedims!(Al_Pft, Al_Pf, (2, 1))
+
+    # Compute Ar * Al_Pft to produce transpose(Pp).
+    Ppt = Matrix{T}(undef, size(Pp))
+    mul!(reshape(Ppt, Dr, Dr * N^2), Ar_D, reshape(Al_Pft, Dr, Dr * N^2))
+
+    # Transpose Ppt to obtain Pp.
+    @strided permutedims!(Pp, Ppt, (2, 1))
+
+    return nothing
+end
+
+# Compute Al * Pf * Ar', storing the result in Pp. (l as in left, r as in right)
+@inline function Al_Pf_Art_pullback!(
+    ΔPp::SubArray{T, 2, Matrix{T}},
+    ΔAl::NamedTuple{(:A, :B)},
+    ΔPf::SubArray{T, 2, Matrix{T}},
+    ΔAr::NamedTuple{(:A, :B)},
+    Al::KroneckerProduct{T, <:Eye, Matrix{T}},
+    Pf::SubArray{T, 2, Matrix{T}},
+    Ar::KroneckerProduct{T, <:Eye, Matrix{T}},
+) where {T<:Real}
+
+    # Unpack the Kronecker matrices and determine sizes.
+    Il, Al_D = getmatrices(Al)
+    Ir, Ar_D = getmatrices(Ar)
+    N = size(Il, 1)
+    Dl = size(Al_D, 1)
+    Dr = size(Ar_D, 1)
+    ΔAl_D = ΔAl.B
+    ΔAr_D = ΔAr.B
+
+    # Recompute Al_Pf = Al * Pf.
+    Al_Pf = Matrix{T}(undef, size(Pf))
+    mul!(reshape(Al_Pf, Dl, Dl * N^2), Al_D, reshape(Pf, Dl, Dl * N^2))
+
+    # Recompute the transpose of Al_Pf.
+    Al_Pft = Matrix{T}(undef, size(Al_Pf))
+    @strided permutedims!(Al_Pft, Al_Pf, (2, 1))
+
+    # Compute ΔPpt from ΔPp.
+    ΔPpt = Matrix{T}(undef, size(ΔPp))
+    @strided permutedims!(ΔPpt, ΔPp, (2, 1))
+
+    # Compute ΔAr_D and ΔAl_Pft. Primal op is Ppt = Ar * Al_Pft.
+    mul!(ΔAr_D, reshape(ΔPpt, Dr, Dr * N^2), reshape(Al_Pft, Dr, Dr * N^2)', one(T), one(T))
+    ΔAl_Pft = Al_Pft # Recycle memory for Al_Pft;.
+    mul!(reshape(ΔAl_Pft, Dr, Dr * N^2), Ar_D', reshape(ΔPpt, Dr, Dr * N^2))
+
+    # Transpose ΔAl_Pf.
+    ΔAl_Pf = Al_Pf # recycle memory for Al_Pf
+    @strided permutedims!(ΔAl_Pf, ΔAl_Pft, (2, 1))
+
+    # Compute ΔAl and ΔPf. Primal op is Al_Pf = Al * Pf.
+    mul!(ΔAl_D, reshape(ΔAl_Pf, Dl, Dl * N^2), reshape(Pf, Dl, Dl * N^2)', one(T), one(T))
+    mul!(reshape(ΔPf, Dl, Dl * N^2), Al_D', reshape(ΔAl_Pf, Dl, Dl * N^2), one(T), one(T))
+
+    return nothing
 end

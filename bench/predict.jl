@@ -372,6 +372,11 @@ let
 end
 
 
+
+#
+# Roughly benchmark Kronecker against Dense.
+#
+
 using BenchmarkTools, FillArrays, Kronecker, LinearAlgebra, Random, Stheno,
     TemporalGPs, Zygote
 
@@ -399,9 +404,6 @@ Pf = Symmetric(Stheno.pw(EQ(), range(-10.0, 10.0; length=Dlat)));
 
 # Generate corresponding dense dynamics.
 A_dense = collect(A);
-
-C = randn(rng, Dlat, Dlat);
-F = randn(rng, Dlat, Dlat);
 
 @benchmark predict($mf, $Pf, $A, $a, $Q)
 @benchmark predict($mf, $Pf, $A_dense, $a, $Q)
@@ -442,3 +444,63 @@ T = Float64;
 #     Δmp, ΔPp, Δmf, ΔPf, ΔA, Δa, ΔQ,
 #     mf, Pf, A, a, Q,
 # ) for _ in 1:100]
+
+
+
+#
+# Roughly benchmark BlockDiagonal of Kroneckers against Dense.
+#
+
+using BenchmarkTools, BlockDiagonals, FillArrays, Kronecker, LinearAlgebra, Random, Stheno,
+    TemporalGPs, Zygote
+
+using TemporalGPs: predict
+
+
+
+rng = MersenneTwister(123456);
+D = 3;
+N = 247;
+N_blocks = 3;
+T = Float64;
+
+
+Dlat = N * D * N_blocks;
+
+# Generate BlockDiagonal-KroneckerProduct transition dynamics.
+A_Ds = [randn(rng, T, D, D) for _ in 1:N_blocks];
+As = [Eye{T}(N) ⊗ A_Ds[n] for n in 1:N_blocks];
+A = BlockDiagonal(As);
+
+a = randn(rng, T, N * D * N_blocks);
+
+Qs = [randn(rng, T, N * D, N * D) for _ in 1:N_blocks];
+Q = BlockDiagonal(Qs);
+
+# Generate filtering (input) distribution.
+mf = randn(rng, T, Dlat);
+Pf_ = randn(rng, T, Dlat, Dlat);
+Pf = Symmetric(Pf_'Pf_ + I);
+
+
+# Generate corresponding dense dynamics.
+A_dense = collect(A);
+Q_dense = collect(Q);
+
+@benchmark predict($mf, $Pf, $A, $a, $Q)
+@benchmark predict($mf, $Pf, $A_dense, $a, $Q_dense)
+
+# using ProfileView
+# @profview [predict(mf, Pf, A, a, Q) for _ in 1:10]
+
+@benchmark Zygote.pullback(predict, $mf, $Pf, $A, $a, $Q)
+@benchmark Zygote.pullback(predict, $mf, $Pf, $A_dense, $a, $Q_dense)
+
+_, back = Zygote.pullback(predict, mf, Pf, A, a, Q);
+_, back_dense = Zygote.pullback(predict, mf, Pf, A_dense, a, Q_dense);
+
+mp = copy(mf);
+Pp = collect(Pf);
+
+@benchmark $back(($mp, $Pp))
+@benchmark $back_dense(($mp, $Pp))

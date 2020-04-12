@@ -130,6 +130,8 @@ println("predict:")
             T in Ts,
             n_blocks in n_blockss
 
+            rng = MersenneTwister(123456)
+
             # Compute the total number of dimensions.
             Dlat = n_blocks * Dlat_block
 
@@ -205,6 +207,8 @@ println("predict:")
         Ds = [2, 3]
 
         @testset "KroneckerProduct - $N, $D, $(T.T)" for N in Ns, D in Ds, T in Ts
+
+            rng = MersenneTwister(123456)
 
             # Compute the total number of dimensions.
             Dlat = N * D
@@ -284,6 +288,70 @@ println("predict:")
                 end,
                 (Δmp, ΔPp),
                 mf, U_Pf, A_D, a, U_Q;
+                rtol=T.rtol, atol=T.atol,
+            )
+        end
+
+        Ns = [1, 2, 3]
+        Ds = [1, 2, 3]
+        N_blockss = [1, 2, 3]
+
+        @testset "BlockDiagonal of KroneckerProduct - $N, $D, $N_blocks, $(T.T)" for
+            N in Ns,
+            D in Ds,
+            N_blocks in N_blockss,
+            T in Ts
+
+            rng = MersenneTwister(123456)
+
+            Dlat = N * D * N_blocks
+
+            # Generate BlockDiagonal-KroneckerProduct transition dynamics.
+            A_Ds = [randn(rng, T.T, D, D) for _ in 1:N_blocks]
+            As = [Eye{T.T}(N) ⊗ A_Ds[n] for n in 1:N_blocks]
+            A = BlockDiagonal(As)
+
+            a = randn(rng, T.T, N * D * N_blocks)
+
+            Qs = [random_nice_psd_matrix(rng, T.T, N * D, DenseStorage()) for _ in 1:N_blocks]
+            Q = BlockDiagonal(Qs)
+
+            # Generate filtering (input) distribution.
+            mf = randn(rng, T.T, Dlat)
+            Pf = Symmetric(random_nice_psd_matrix(rng, T.T, Dlat, DenseStorage()))
+
+            # Generate corresponding dense dynamics.
+            A_dense = collect(A)
+            Q_dense = collect(Q)
+
+            # Check agreement with dense implementation.
+            mp, Pp = predict(mf, Pf, A, a, Q)
+            mp_dense_dynamics, Pp_dense_dynamics = predict(mf, Pf, A_dense, a, Q_dense)
+            @test mp ≈ mp_dense_dynamics
+            @test Symmetric(Pp) ≈ Symmetric(Pp_dense_dynamics) atol=1e-6 rtol=1e-6
+
+            @test A_dense == A
+            @test Q_dense == Q
+
+            @test mp isa Vector{T.T}
+            @test Pp isa Matrix{T.T}
+
+            # Verify approximate numerical correctness of pullback.
+            U_Pf = collect(cholesky(Symmetric(Pf)).U)
+            U_Q = map(Q -> collect(cholesky(Symmetric(Q)).U), Qs)
+            Δmp = randn(rng, T.T, Dlat)
+            ΔPp = randn(rng, T.T, Dlat, Dlat)
+
+            adjoint_test(
+                (mf, U_Pf, A_Ds, a, U_Q) -> begin
+                    Qs = map(U -> UpperTriangular(U)'UpperTriangular(U), U_Q)
+                    Q = BlockDiagonal(Qs)
+                    U_Pf = UpperTriangular(U_Pf)
+                    A = BlockDiagonal(map(A_D -> Eye{T.T}(N) ⊗ A_D, A_Ds))
+                    return predict(mf, Symmetric(U_Pf'U_Pf), A, a, Q)
+                end,
+                (Δmp, ΔPp),
+                mf, U_Pf, A_Ds, a, U_Q;
                 rtol=T.rtol, atol=T.atol,
             )
         end
