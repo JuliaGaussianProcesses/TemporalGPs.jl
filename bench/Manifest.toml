@@ -291,10 +291,10 @@ uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
 version = "0.3.3"
 
 [[OpenBLAS_jll]]
-deps = ["Libdl", "Pkg"]
-git-tree-sha1 = "cbab167006bbb875d4b4204cc4da8822bd43df83"
+deps = ["CompilerSupportLibraries_jll", "Libdl", "Pkg"]
+git-tree-sha1 = "2ee3e636e94b9fd95fa8364d5cba2e20dae16609"
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.9+1"
+version = "0.3.9+2"
 
 [[OpenSpecFun_jll]]
 deps = ["CompilerSupportLibraries_jll", "Libdl", "Pkg"]
@@ -446,6 +446,12 @@ git-tree-sha1 = "ff6a642fc3e27711af0ed925048ce793ebc7a0be"
 uuid = "8188c328-b5d6-583d-959b-9690869a5511"
 version = "0.6.3"
 
+[[Strided]]
+deps = ["LinearAlgebra", "TupleTools"]
+git-tree-sha1 = "7bc504102ef0e49b19727ea45b54f611bee4320e"
+uuid = "5e0ebb24-38b0-5f93-81fe-25c709ecae67"
+version = "0.3.3"
+
 [[SuiteSparse]]
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
 uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
@@ -463,7 +469,7 @@ uuid = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 version = "1.0.3"
 
 [[TemporalGPs]]
-deps = ["BlockDiagonals", "FillArrays", "Kronecker", "LinearAlgebra", "Random", "StaticArrays", "Stheno", "Zygote", "ZygoteRules"]
+deps = ["BlockDiagonals", "FillArrays", "Kronecker", "LinearAlgebra", "Random", "StaticArrays", "Stheno", "Strided", "Zygote", "ZygoteRules"]
 path = "dev/TemporalGPs"
 uuid = "e155a3c4-0841-43e1-8b83-a0e4f03cc18f"
 version = "0.1.0"
@@ -471,6 +477,11 @@ version = "0.1.0"
 [[Test]]
 deps = ["Distributed", "InteractiveUtils", "Logging", "Random"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[[TupleTools]]
+git-tree-sha1 = "62a7a6cd5a608ff71cecfdb612e67a0897836069"
+uuid = "9d95972d-f1c8-5527-a6e0-b4b365fa01f6"
+version = "1.2.0"
 
 [[UUIDs]]
 deps = ["Random", "SHA"]
