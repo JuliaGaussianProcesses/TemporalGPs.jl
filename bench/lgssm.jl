@@ -7,7 +7,8 @@ using BenchmarkTools, BlockDiagonals, DataFrames, DrWatson, FillArrays, LinearAl
 
 using TemporalGPs: AV, AM, Separable, RectilinearGrid, LGSSM, GaussMarkovModel
 
-BLAS.set_num_threads(Sys.CPU_THREADS);
+const n_blas_threads = Sys.CPU_THREADS;
+BLAS.set_num_threads(n_blas_threads);
 
 const exp_dir_name = "lgssm"
 
@@ -84,14 +85,14 @@ wsave(
             ],
 
             # Number of observations in space.
-            :N_space => [5],
+            :N_space => [247],
 
             # Number of time points.
             # :N_time => [2, 5, 10, 50, 100, 500, 1_000, 50_000],
-            :N_time => [500_000],
+            :N_time => [2, 5, 10],
 
             # Number of things to sum in the kernel.
-            :N_blocks => [2],
+            :N_blocks => [1, 2, 3],
         ),
     ),
 )
@@ -149,6 +150,8 @@ let
                 :rand_results => rand_results,
                 :logpdf_results => logpdf_results,
                 :logpdf_gradient_results => logpdf_gradient_results,
+                :n_blas_threads => n_blas_threads,
+                :n_julia_threads => Threads.nthreads(),
             ),
         )
     end

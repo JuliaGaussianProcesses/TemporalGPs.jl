@@ -7,7 +7,8 @@ using BenchmarkTools, BlockDiagonals, DataFrames, DrWatson, FillArrays, Kronecke
 
 using TemporalGPs: predict, predict_pullback, AV, AM
 
-LinearAlgebra.BLAS.set_num_threads(4);
+const n_blas_threads = Sys.CPU_THREADS;
+LinearAlgebra.BLAS.set_num_threads(n_blas_threads);
 
 const exp_dir_name = "predict"
 
@@ -210,6 +211,8 @@ let
                 :predict_results => predict_results,
                 :generate_pullback_results => generate_pullback_results,
                 :pullback_results => pullback_results,
+                :n_blas_threads => n_blas_threads,
+                :n_julia_threads => Threads.nthreads(),
             ),
         )
     end
@@ -273,6 +276,8 @@ let
                     {
                         title = "predict",
                         legend_pos = "north west",
+                        xmode="log",
+                        ymode="log",
                     }
                 )),
                 result_name = :predict_results,
@@ -283,6 +288,8 @@ let
                     {
                         title = "forwards pass",
                         legend_pos = "north west",
+                        xmode="log",
+                        ymode="log",
                     },
                 )),
                 result_name = :generate_pullback_results,
@@ -293,6 +300,8 @@ let
                     {
                         title = "reverse pass",
                         legend_pos = "north west",
+                        xmode="log",
+                        ymode="log",
                     },
                 )),
                 result_name = :pullback_results,
