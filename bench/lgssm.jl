@@ -89,7 +89,7 @@ wsave(
 
             # Number of time points.
             # :N_time => [2, 5, 10, 50, 100, 500, 1_000, 50_000],
-            :N_time => [25, 50, 75, 100, 250, 500, 750, 1_000],
+            :N_time => [25, 50, 75, 100],
 
             # Number of things to sum in the kernel.
             :N_blocks => [1, 2, 3],
