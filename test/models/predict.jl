@@ -9,7 +9,7 @@ println("predict:")
         rng = MersenneTwister(123456)
         Dlats = [1, 3]
         Ts = [
-            (T=Float32, atol=5e-2, rtol=5e-2),
+            (T=Float32, atol=1e-1, rtol=1e-1),
             (T=Float64, atol=1e-9, rtol=1e-9),
         ]
 
