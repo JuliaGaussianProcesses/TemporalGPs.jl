@@ -102,3 +102,10 @@ end
 #     end
 #     return x * r, mul_Real_StepRangeLen_adjoint
 # end
+
+@adjoint function BlockDiagonal(blocks::Vector)
+    function BlockDiagonal_pullback(Δ::NamedTuple{(:blocks,)})
+        return (Δ.blocks,)
+    end
+    return BlockDiagonal(blocks), BlockDiagonal_pullback
+end

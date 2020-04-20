@@ -109,6 +109,34 @@ function to_vec(model::TemporalGPs.LGSSM)
     return model_vec, LGSSM_from_vec
 end
 
+function to_vec(X::BlockDiagonal)
+    Xs = blocks(X)
+    Xs_vec, Xs_from_vec = to_vec(Xs)
+
+    function BlockDiagonal_from_vec(Xs_vec)
+        Xs = Xs_from_vec(Xs_vec)
+        return BlockDiagonal(Xs)
+    end
+
+    return Xs_vec, BlockDiagonal_from_vec
+end
+
+function to_vec(X::KroneckerProduct)
+    A, B = getmatrices(X)
+    A_vec, A_from_vec = to_vec(A)
+    B_vec, B_from_vec = to_vec(B)
+    X_vec, back = to_vec((A_vec, B_vec))
+
+    function KroneckerProduct_from_vec(X_vec)
+        (A_vec, B_vec) = back(X_vec)
+        A = A_from_vec(A_vec)
+        B = B_from_vec(B_vec)
+        return A ⊗ B
+    end
+
+    return X_vec, KroneckerProduct_from_vec
+end
+
 # Ensure that to_vec works for the types that we care about in this package.
 @testset "custom FiniteDifferences stuff" begin
     @testset "NamedTuple" begin
@@ -164,6 +192,24 @@ end
 
         model_vec, model_from_vec = to_vec(model)
         @test model_from_vec(model_vec) == model
+    end
+    @testset "to_vec(::BlockDiagonal)" begin
+        Ns = [3, 5, 1]
+        Xs = map(N -> randn(N, N), Ns)
+        X = BlockDiagonal(Xs)
+
+        X_vec, X_from_vec = to_vec(X)
+        @test X_vec isa Vector{<:Real}
+        @test X_from_vec(X_vec) == X
+    end
+    @testset "to_vec(::KroneckerProduct" begin
+        A = randn(4, 5)
+        B = randn(6, 7)
+        X = A ⊗ B
+
+        X_vec, X_from_vec = to_vec(X)
+        @test X_vec isa Vector{<:Real}
+        @test X_from_vec(X_vec) == X
     end
 end
 
@@ -224,21 +270,21 @@ end
 function print_adjoints(adjoint_ad, adjoint_fd, rtol, atol)
     @show typeof(adjoint_ad), typeof(adjoint_fd)
 
-    println("ad")
-    display(adjoint_ad)
-    println()
-
-    println("fd")
-    display(adjoint_fd)
-    println()
-
-    # adjoint_ad, adjoint_fd = to_vec(adjoint_ad)[1], to_vec(adjoint_fd)[1]
-    # println("atol is $atol, rtol is $rtol")
-    # println("ad, fd, abs, rel")
-    # abs_err = abs.(adjoint_ad .- adjoint_fd)
-    # rel_err = abs_err ./ adjoint_ad
-    # display([adjoint_ad adjoint_fd abs_err rel_err])
+    # println("ad")
+    # display(adjoint_ad)
     # println()
+
+    # println("fd")
+    # display(adjoint_fd)
+    # println()
+
+    adjoint_ad, adjoint_fd = to_vec(adjoint_ad)[1], to_vec(adjoint_fd)[1]
+    println("atol is $atol, rtol is $rtol")
+    println("ad, fd, abs, rel")
+    abs_err = abs.(adjoint_ad .- adjoint_fd)
+    rel_err = abs_err ./ adjoint_ad
+    display([adjoint_ad adjoint_fd abs_err rel_err])
+    println()
 end
 
 using BenchmarkTools

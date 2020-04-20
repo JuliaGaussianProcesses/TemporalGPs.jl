@@ -1,5 +1,8 @@
 using FiniteDifferences, TemporalGPs, Test
-using BlockDiagonals, FillArrays, LinearAlgebra, Random, Stheno, StaticArrays, Zygote
+using BlockDiagonals, FillArrays, Kronecker, LinearAlgebra, Random, Stheno, StaticArrays,
+    Zygote
+
+using Kronecker: KroneckerProduct
 
 include("test_util.jl")
 

@@ -6,3 +6,8 @@
 /dev/
 /docs/build/
 /docs/site/
+
+# Things in bench that shouldn't be tracked because they may contain large files.
+bench/dev
+bench/data
+bench/plots
