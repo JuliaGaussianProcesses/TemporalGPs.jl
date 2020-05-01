@@ -12,7 +12,7 @@ println("scalar_lgssm:")
         ]
         Dlats = [1, 3, 4]
         storages = [
-            # (name="dense storage", val=ArrayStorage(Float64)),
+            (name="dense storage", val=ArrayStorage(Float64)),
             (name="static storage", val=SArrayStorage(Float64)),
         ]
 
