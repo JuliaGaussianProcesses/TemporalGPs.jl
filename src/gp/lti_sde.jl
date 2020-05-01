@@ -5,7 +5,7 @@ A lightweight wrapper around a `GP` `f` that tells this package to handle infere
 Can be constructed via the `to_sde` function. Indexing into this object produces a
 `ScalarLGSSM`.
 """
-struct LTISDE{Tf<:GP{<:Stheno.ZeroMean}, Tstorage}
+struct LTISDE{Tf<:GP{<:Stheno.ZeroMean}, Tstorage<:StorageType}
     f::Tf
     storage::Tstorage
 end
