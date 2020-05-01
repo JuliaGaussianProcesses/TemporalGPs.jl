@@ -34,7 +34,8 @@ from_vector_observations(ys::AV{<:AV{T}}) where {T<:Real} = first.(ys)
 
 @adjoint function from_vector_observations(ys::AV{<:SVector{1, T}}) where {T<:Real}
     function pullback_from_vector_observations(Δ::AbstractVector{<:Real})
-        return (reinterpret(SVector{1, eltype(Δ)}, ys),)
+        return (SVector{1, eltype(Δ)}.(Δ),)
+        # return (reinterpret(SVector{1, eltype(Δ)}, Δ),)
     end
     return from_vector_observations(ys), pullback_from_vector_observations
 end
