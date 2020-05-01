@@ -48,6 +48,12 @@ dim_obs(ft::GaussMarkovModel) = size(first(ft.H), 1)
 
 dim_latent(ft::GaussMarkovModel) = size(first(ft.H), 2)
 
+storage_type(gmm::GaussMarkovModel{<:AV{Matrix{T}}}) where {T<:Real} = ArrayStorage(T)
+
+function storage_type(gmm::GaussMarkovModel{<:AV{<:SMatrix{D, D, T}}}) where {D, T<:Real}
+    return SArrayStorage(T)
+end
+
 """
     mean(gmm::GaussMarkovModel)
 

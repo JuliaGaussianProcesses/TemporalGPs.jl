@@ -27,6 +27,9 @@ println("gauss_markov:")
             random_tv_gmm(rng, Dlat, Dobs, N, storage.val) :
             random_ti_gmm(rng, Dlat, Dobs, N, storage.val)
 
+        @test eltype(gmm) == eltype(storage.val)
+        @test TemporalGPs.storage_type(gmm) == storage.val
+
         @testset "==" begin
             gmm_other = tv == true ?
                 random_tv_gmm(rng, Dlat, Dobs, N, storage.val) :
