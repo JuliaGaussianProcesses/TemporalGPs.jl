@@ -3,8 +3,7 @@ using Stheno: MeanFunction, ConstMean, ZeroMean, BaseKernel
 
 
 #
-# Generic constructors for base kernels. A kernel `k` is a base kernel if
-# kernel_trait(k) isa BaseKernel.
+# Generic constructors for base kernels.
 #
 
 function GaussMarkovModel(k::BaseKernel, t::AV{<:Real}, storage_type::StorageType)
