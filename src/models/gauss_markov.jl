@@ -10,11 +10,11 @@ f[t] = H[t] * x[t] + h[t]
 ```
 """
 struct GaussMarkovModel{
-    TA<:AbstractVector{<:AbstractMatrix},
-    Ta<:AbstractVector{<:AbstractVector},
-    TQ<:AbstractVector{<:AbstractMatrix},
-    TH<:AbstractVector{<:AbstractMatrix},
-    Th<:AbstractVector{<:AbstractVector},
+    TA<:AV{<:AM{<:Real}},
+    Ta<:AV{<:AV{<:Real}},
+    TQ<:AV{<:AM{<:Real}},
+    TH<:AV{<:AM{<:Real}},
+    Th<:AV{<:AV{<:Real}},
     Tx0<:Gaussian,
 }
     A::TA
