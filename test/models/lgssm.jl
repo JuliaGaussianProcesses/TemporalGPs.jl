@@ -53,6 +53,10 @@ println("lgssm:")
 
             gaussian_model = Gaussian(mean(model), cov(model) + 1e-6I)
 
+            # Verify that model properties are as requested.
+            @test eltype(model) == eltype(storage.val)
+            @test TemporalGPs.storage_type(model) == storage.val
+
             # Generate a sample from the model.
             y = rand(MersenneTwister(123456), model)
             y_gauss = rand(MersenneTwister(123456), gaussian_model)

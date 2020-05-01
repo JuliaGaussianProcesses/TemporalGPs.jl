@@ -16,7 +16,12 @@ Base.:(==)(x::LGSSM, y::LGSSM) = (x.gmm == y.gmm) && (x.Σ == y.Σ)
 Base.length(ft::LGSSM) = length(ft.gmm)
 
 dim_obs(ft::LGSSM) = dim_obs(ft.gmm)
+
 dim_latent(ft::LGSSM) = dim_latent(ft.gmm)
+
+Base.eltype(ft::LGSSM) = eltype(ft.gmm)
+
+storage_type(ft::LGSSM) = storage_type(ft.gmm)
 
 function Base.getindex(model::LGSSM, n::Int)
     gmm = model.gmm
