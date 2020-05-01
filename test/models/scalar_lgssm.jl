@@ -1,4 +1,4 @@
-using TemporalGPs: DenseStorage, StaticStorage, smooth, Gaussian, GaussMarkovModel
+using TemporalGPs: smooth, Gaussian, GaussMarkovModel
 
 println("scalar_lgssm:")
 @testset "scalar_lgssm" begin
@@ -12,8 +12,8 @@ println("scalar_lgssm:")
         ]
         Dlats = [1, 3, 4]
         storages = [
-            # (name="dense storage", val=DenseStorage()),
-            (name="static storage", val=StaticStorage()),
+            # (name="dense storage", val=ArrayStorage(Float64)),
+            (name="static storage", val=SArrayStorage(Float64)),
         ]
 
         @testset "($(ts.name), Dlat=$Dlat, $(storage.name))" for
@@ -22,7 +22,7 @@ println("scalar_lgssm:")
             storage in storages
 
             # Build LGSSM.
-            scalar_model = random_tv_scalar_lgssm(rng, Float64, Dlat, N, storage.val)
+            scalar_model = random_tv_scalar_lgssm(rng, Dlat, N, storage.val)
             model = scalar_model.model
             gmm = model.gmm
             Σs = model.Σ

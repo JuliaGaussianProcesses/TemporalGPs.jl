@@ -1,4 +1,4 @@
-using TemporalGPs: GaussMarkovModel, StaticStorage, DenseStorage
+using TemporalGPs: GaussMarkovModel
 
 println("to_gauss_markov:")
 @testset "to_gauss_markov" begin
@@ -44,8 +44,8 @@ println("to_gauss_markov:")
 
         # construct a Gauss-Markov model with either dense storage or static storage.
         storages = (
-            (name="dense storage", val=DenseStorage()),
-            (name="static storage", val=StaticStorage()),
+            (name="dense storage", val=ArrayStorage(Float64)),
+            (name="static storage", val=SArrayStorage(Float64)),
         )
 
         # Either regular spacing or irregular spacing in time.
@@ -74,11 +74,11 @@ println("to_gauss_markov:")
                 Dobs = size(first(ft.H), 1)
                 Dlat = size(first(ft.H), 2)
                 ΔA = map(_ -> randn(rng, Dlat, Dlat), 1:N)
-                ΔQ = map(_ -> random_nice_psd_matrix(rng, Float64, Dlat, storage.val), 1:N)
+                ΔQ = map(_ -> random_nice_psd_matrix(rng, Dlat, storage.val), 1:N)
                 ΔH = map(_ -> randn(rng, Dobs, Dlat), 1:N)
                 ΔH_sum = randn(rng, Dobs, Dlat)
                 Δm = randn(rng, size(ft.x0.m))
-                ΔP = random_nice_psd_matrix(rng, Float64, Dlat, storage.val)
+                ΔP = random_nice_psd_matrix(rng, Dlat, storage.val)
 
                 adjoint_test(
                     (θ) -> begin
@@ -96,7 +96,7 @@ println("to_gauss_markov:")
     @testset "static perf" begin
         k = Matern32()
         t = range(0.0; step=0.3, length=11)
-        @test (@ballocated TemporalGPs.GaussMarkovModel($k, $t, StaticStorage())) == 0
+        @test (@ballocated TemporalGPs.GaussMarkovModel($k, $t, SArrayStorage(Float64))) == 0
     end
 end
 

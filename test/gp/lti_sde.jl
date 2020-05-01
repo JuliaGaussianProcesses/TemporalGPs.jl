@@ -1,4 +1,4 @@
-using TemporalGPs: build_Σs, smooth, posterior_rand, DenseStorage, StaticStorage
+using TemporalGPs: build_Σs, smooth, posterior_rand
 
 _logistic(x) = 1 / (1 + exp(-x))
 
@@ -32,8 +32,8 @@ println("lti_sde:")
 
         # construct a Gauss-Markov model with either dense storage or static storage.
         storages = (
-            (name="dense storage", val=DenseStorage()),
-            (name="static storage", val=StaticStorage()),
+            (name="dense storage", val=ArrayStorage(Float64)),
+            (name="static storage", val=SArrayStorage(Float64)),
         )
 
         # Either regular spacing or irregular spacing in time.
@@ -91,7 +91,7 @@ println("lti_sde:")
 
     @testset "StaticArrays performance integration" begin
         rng = MersenneTwister(123456)
-        f = to_sde(GP(Matern32(), GPC()), StaticStorage())
+        f = to_sde(GP(Matern32(), GPC()), SArrayStorage(Float64))
         σ²_n = 0.54
 
         t = range(0.1; step=0.11, length=1_000_000)

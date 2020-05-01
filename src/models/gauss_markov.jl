@@ -2,7 +2,7 @@
     GaussMarkovModel
 
 Specifies a Gauss-Markov model. The transformation of it that you get to observe is
-specified by `H`.
+specified by `H` and `h`.
 ```julia
 x[0] ∼ x0
 x[t] = A[t] * x[t-1] + a[t] + ε[t], ε[t] ∼ N(0, Q)
@@ -10,11 +10,11 @@ f[t] = H[t] * x[t] + h[t]
 ```
 """
 struct GaussMarkovModel{
-    TA<:AV{<:AM{<:Real}},
-    Ta<:AV{<:AV{<:Real}},
-    TQ<:AV{<:AM{<:Real}},
-    TH<:AV{<:AM{<:Real}},
-    Th<:AV{<:AV{<:Real}},
+    TA<:AbstractVector{<:AbstractMatrix},
+    Ta<:AbstractVector{<:AbstractVector},
+    TQ<:AbstractVector{<:AbstractMatrix},
+    TH<:AbstractVector{<:AbstractMatrix},
+    Th<:AbstractVector{<:AbstractVector},
     Tx0<:Gaussian,
 }
     A::TA
@@ -25,6 +25,18 @@ struct GaussMarkovModel{
     x0::Tx0
 end
 
+function Base.eltype(
+    ::GaussMarkovModel{<:AbstractVector{TA}},
+) where {T<:Real, TA<:AbstractMatrix{T}}
+    return T
+end
+
+vector_type(::GaussMarkovModel{TA, <:AbstractVector{Tvec}}) where {TA, Tvec} = Tvec
+
+matrix_type(::GaussMarkovModel{<:AbstractVector{Tmat}}) where {Tmat} = Tmat
+
+observation_type(x::GaussMarkovModel) = vector_type(x)
+
 Base.length(ft::GaussMarkovModel) = length(ft.A)
 
 function Base.:(==)(x::GaussMarkovModel, y::GaussMarkovModel)
@@ -33,6 +45,7 @@ function Base.:(==)(x::GaussMarkovModel, y::GaussMarkovModel)
 end
 
 dim_obs(ft::GaussMarkovModel) = size(first(ft.H), 1)
+
 dim_latent(ft::GaussMarkovModel) = size(first(ft.H), 2)
 
 """

@@ -46,7 +46,7 @@ end
 (f::LTISDE)(x::SpaceTimeGrid) = f(x, 0.0)
 
 
-function GaussMarkovModel(k::Stheno.Sum, ts::SpaceTimeGrid, storage_type)
+function GaussMarkovModel(k::Stheno.Sum, ts::SpaceTimeGrid, storage_type::StorageType)
     model_l = GaussMarkovModel(k.kl, ts, storage_type)
     model_r = GaussMarkovModel(k.kr, ts, storage_type)
 

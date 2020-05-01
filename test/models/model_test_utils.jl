@@ -1,5 +1,4 @@
-using TemporalGPs: GaussMarkovModel, DenseStorage, StaticStorage, dim_latent, dim_obs,
-    LGSSM, ScalarLGSSM, Gaussian
+using TemporalGPs: GaussMarkovModel, dim_latent, dim_obs, LGSSM, ScalarLGSSM, Gaussian
 
 
 
@@ -32,12 +31,12 @@ to_static(model::LGSSM) = LGSSM(to_static(model.gmm), to_static.(model.Σ))
 # Generation of positive semi-definite matrices.
 #
 
-function random_nice_psd_matrix(rng::AbstractRNG, T, N::Integer, ::DenseStorage)
+function random_nice_psd_matrix(rng::AbstractRNG, N::Integer, ::ArrayStorage{T}) where {T}
 
     # Generate random positive definite matrix.
     U = UpperTriangular(randn(rng, T, N, N))
     S = U'U + T(1e-2) * I
-    S = pw(Matern12(), 5 .* randn(rng, T, N)) + T(1e-3) * I
+    S = Symmetric(pw(Matern12(), 5 .* randn(rng, T, N)) + T(1e-3) * I)
 
     # Centre (make eigenvals N(0, 2^2)) and bound the eigenvalues between 0 and 1.
     λ, Γ = eigen(S)
@@ -48,19 +47,19 @@ function random_nice_psd_matrix(rng::AbstractRNG, T, N::Integer, ::DenseStorage)
     return collect(Symmetric(Γ * Diagonal(λ) * Γ'))
 end
 
-function random_nice_psd_matrix(rng::AbstractRNG, T, N::Integer, ::StaticStorage)
-    return SMatrix{N, N, T}(random_nice_psd_matrix(rng, T, N, DenseStorage()))
+function random_nice_psd_matrix(rng::AbstractRNG, N::Integer, ::SArrayStorage{T}) where {T}
+    return SMatrix{N, N, T}(random_nice_psd_matrix(rng, N, ArrayStorage(T)))
 end
 
 @testset "random_nice_psd_matrix" begin
     rng = MersenneTwister(123456)
     storages = [
-        (name="dense storage", val=DenseStorage()),
-        (name="static storage", val=StaticStorage()),
+        (name="dense storage", val=ArrayStorage(Float64)),
+        (name="static storage", val=SArrayStorage(Float64)),
     ]
 
     @testset "$(storage.name)" for storage in storages
-        Σ = random_nice_psd_matrix(rng, Float64, 11, storage.val)
+        Σ = random_nice_psd_matrix(rng, 11, storage.val)
         @test all(eigvals(Σ) .> 0)
         @test all(eigvals(Σ) .< 1)
     end
@@ -72,14 +71,16 @@ end
 # Generation of GaussMarkovModels.
 #
 
-function random_tv_gmm(rng::AbstractRNG, T, Dlat::Int, Dobs::Int, N::Int, ::DenseStorage)
-    As = map(_ -> -random_nice_psd_matrix(rng, T, Dlat, DenseStorage()), 1:N)
+function random_tv_gmm(
+    rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::ArrayStorage{T},
+) where {T<:Real}
+    As = map(_ -> -random_nice_psd_matrix(rng, Dlat, s), 1:N)
     as = map(_ -> randn(rng, T, Dlat), 1:N)
     Hs = map(_ -> randn(rng, T, Dobs, Dlat), 1:N)
     hs = map(_ -> randn(rng, T, Dobs), 1:N)
     x0 = TemporalGPs.Gaussian(
         randn(rng, T, Dlat),
-        random_nice_psd_matrix(rng, T, Dlat, DenseStorage()),
+        random_nice_psd_matrix(rng, Dlat, s),
     )
 
     # For some reason this operation seems to be _incredibly_ inaccurate. My guess is that
@@ -90,18 +91,22 @@ function random_tv_gmm(rng::AbstractRNG, T, Dlat::Int, Dobs::Int, N::Int, ::Dens
     return GaussMarkovModel(As, as, Qs, Hs, hs, x0)
 end
 
-function random_tv_gmm(rng::AbstractRNG, T, Dlat::Int, Dobs::Int, N::Int, ::StaticStorage)
-    return to_static(random_tv_gmm(rng, T, Dlat, Dobs, N, DenseStorage()))
+function random_tv_gmm(
+    rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::SArrayStorage{T},
+) where {T<:Real}
+    return to_static(random_tv_gmm(rng, Dlat, Dobs, N, ArrayStorage(T)))
 end
 
-function random_ti_gmm(rng::AbstractRNG, T, Dlat::Int, Dobs::Int, N::Int, ::DenseStorage)
-    As = Fill(-random_nice_psd_matrix(rng, T, Dlat, DenseStorage()), N)
+function random_ti_gmm(
+    rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::ArrayStorage{T},
+) where {T<:Real}
+    As = Fill(-random_nice_psd_matrix(rng, Dlat, s), N)
     as = Fill(randn(rng, T, Dlat), N)
     Hs = Fill(randn(rng, T, Dobs, Dlat), N)
     hs = Fill(randn(rng, T, Dobs), N)
     x0 = TemporalGPs.Gaussian(
         randn(rng, T, Dlat),
-        random_nice_psd_matrix(rng, T, Dlat, DenseStorage()),
+        random_nice_psd_matrix(rng, Dlat, s),
     )
 
     # For some reason this operation seems to be _incredibly_ inaccurate. My guess is that
@@ -111,8 +116,10 @@ function random_ti_gmm(rng::AbstractRNG, T, Dlat::Int, Dobs::Int, N::Int, ::Dens
     return GaussMarkovModel(As, as, Qs, Hs, hs, x0)
 end
 
-function random_ti_gmm(rng::AbstractRNG, T, Dlat::Int, Dobs::Int, N::Int, ::StaticStorage)
-    return to_static(random_ti_gmm(rng, T, Dlat, Dobs, N, DenseStorage()))
+function random_ti_gmm(
+    rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::SArrayStorage{T},
+) where {T<:Real}
+    return to_static(random_ti_gmm(rng, Dlat, Dobs, N, ArrayStorage(T)))
 end
 
 
@@ -121,24 +128,24 @@ end
 # Generation of LGSSMs.
 #
 
-function random_tv_lgssm(rng::AbstractRNG, T, Dlat::Int, Dobs::Int, N::Int, storage)
-    gmm = random_tv_gmm(rng, T, Dlat, Dobs, N, storage)
-    Σ = map(_ -> random_nice_psd_matrix(rng, T, Dobs, storage), 1:N)
+function random_tv_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
+    gmm = random_tv_gmm(rng, Dlat, Dobs, N, storage)
+    Σ = map(_ -> random_nice_psd_matrix(rng, Dobs, storage), 1:N)
     return LGSSM(gmm, Σ)
 end
 
-function random_ti_lgssm(rng::AbstractRNG, T, Dlat::Int, Dobs::Int, N::Int, storage)
-    gmm = random_ti_gmm(rng, T, Dlat, Dobs, N, storage)
-    Σ = Fill(random_nice_psd_matrix(rng, T, Dobs, storage), N)
+function random_ti_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
+    gmm = random_ti_gmm(rng, Dlat, Dobs, N, storage)
+    Σ = Fill(random_nice_psd_matrix(rng, Dobs, storage), N)
     return LGSSM(gmm, Σ)
 end
 
-function random_tv_scalar_lgssm(rng::AbstractRNG, T, Dlat::Int, N::Int, storage)
-    return ScalarLGSSM(random_tv_lgssm(rng, T, Dlat, 1, N, storage))
+function random_tv_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
+    return ScalarLGSSM(random_tv_lgssm(rng, Dlat, 1, N, storage))
 end
 
-function random_ti_scalar_lgssm(rng::AbstractRNG, T, Dlat::Int, N::Int, storage)
-    return ScalarLGSSM(random_ti_lgssm(rng, T, Dlat, 1, N, storage))
+function random_ti_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
+    return ScalarLGSSM(random_ti_lgssm(rng, Dlat, 1, N, storage))
 end
 
 

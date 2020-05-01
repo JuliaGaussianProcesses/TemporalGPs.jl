@@ -8,15 +8,13 @@ module TemporalGPs
 
     import Stheno: mean, cov, pairwise, logpdf, AV, AM
 
-    # Used to specify whether to use Base.Array or StaticArray parameter storage.
-    abstract type StorageType end
-    struct DenseStorage <: StorageType end
-    struct StaticStorage <: StorageType end
+    export to_sde, SArrayStorage, ArrayStorage
 
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "zygote_rules.jl"))
     include(joinpath("util", "gaussian.jl"))
     include(joinpath("util", "mul.jl"))
+    include(joinpath("util", "storage_types.jl"))
 
     # Linear-Gaussian State Space Models.
     include(joinpath("models", "gauss_markov.jl"))

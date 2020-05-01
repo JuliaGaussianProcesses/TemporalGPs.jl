@@ -87,15 +87,15 @@ naive_predict(mf, Pf, A, a, Q) = A * mf + a, (A * Pf) * A' + Q
             rng = MersenneTwister(123456)
             A = storage.val(randn(rng, Dlat, Dlat))
             a = storage.val(randn(rng, Dlat))
-            Q = storage.val(random_nice_psd_matrix(rng, Float64, Dlat, DenseStorage()))
+            Q = storage.val(random_nice_psd_matrix(rng, Dlat, ArrayStorage(Float64)))
             U_Q = cholesky(Q).U
             H = storage.val(randn(rng, Dobs, Dlat))
             h = storage.val(randn(rng, Dobs))
-            S = storage.val(random_nice_psd_matrix(rng, Float64, Dobs, DenseStorage()))
+            S = storage.val(random_nice_psd_matrix(rng, Dobs, ArrayStorage(Float64)))
             U_S = cholesky(S).U
 
             m = storage.val(randn(rng, Dlat))
-            P = storage.val(random_nice_psd_matrix(rng, Float64, Dlat, DenseStorage()))
+            P = storage.val(random_nice_psd_matrix(rng, Dlat, ArrayStorage(Float64)))
             P = P isa Matrix ? Symmetric(P) : P
             U_P = cholesky(P).U
 

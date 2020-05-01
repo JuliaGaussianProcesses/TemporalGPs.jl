@@ -1,5 +1,3 @@
-export to_sde
-
 abstract type AbstractSSM end
 
 """
