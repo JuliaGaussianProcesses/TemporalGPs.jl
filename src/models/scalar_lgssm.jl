@@ -37,7 +37,6 @@ from_vector_observations(ys::AV{<:AV{T}}) where {T<:Real} = first.(ys)
 @adjoint function from_vector_observations(ys::AV{<:SVector{1, T}}) where {T<:Real}
     function pullback_from_vector_observations(Δ::AbstractVector{<:Real})
         return (SVector{1, eltype(Δ)}.(Δ),)
-        # return (reinterpret(SVector{1, eltype(Δ)}, Δ),)
     end
     return from_vector_observations(ys), pullback_from_vector_observations
 end
@@ -50,10 +49,6 @@ function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real}, f=copy_first
 end
 
 function decorrelate(model::ScalarLGSSM, ys::AbstractVector{<:Real}, f=copy_first)
-    # storage = storage_type(model)
-    # ys_vec = to_vector_observations(storage, ys)
-    # lml, αs = decorrelate(model.model, ys_vec, f)
-    # return lml, from_vector_observations(αs)
     return decorrelate(mutability(storage_type(model)), model, ys, f)
 end
 
