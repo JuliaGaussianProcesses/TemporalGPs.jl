@@ -1,6 +1,6 @@
 module TemporalGPs
 
-    using AutoPreallocation, BlockDiagonals, FillArrays, Kronecker, LinearAlgebra, Random,
+    using BlockDiagonals, FillArrays, Kronecker, LinearAlgebra, Random,
         StaticArrays, Stheno, Strided, Zygote, ZygoteRules
 
     using FillArrays: AbstractFill
