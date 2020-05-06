@@ -44,10 +44,6 @@ using TemporalGPs: RectilinearGrid, Separable
         validate_dims(ft_sde)
         @test length(ft_sde) == length(x.xr)
 
-        if k.val isa Stheno.Sum
-            @test ft_sde.gmm.A[1] isa BlockDiagonal
-        end
-
         y_naive = rand(MersenneTwister(123456), ft)
         y_sde = rand(MersenneTwister(123456), ft_sde)
         @test y_naive ≈ vcat(y_sde...)

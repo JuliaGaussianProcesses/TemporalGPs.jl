@@ -23,6 +23,8 @@ Base.eltype(ft::LGSSM) = eltype(ft.gmm)
 
 storage_type(ft::LGSSM) = storage_type(ft.gmm)
 
+Zygote.@nograd storage_type
+
 function Base.getindex(model::LGSSM, n::Int)
     gmm = model.gmm
     return (A=gmm.A[n], a=gmm.a[n], Q=gmm.Q[n], H=gmm.H[n], h=gmm.h[n], Σ=model.Σ[n])
@@ -37,67 +39,6 @@ function cov(model::LGSSM)
 end
 
 
-
-#
-# decorrelate
-#
-
-@inline function step_decorrelate(model, x::Gaussian, y::AV{<:Real})
-    mp, Pp = predict(x.m, x.P, model.A, model.a, model.Q)
-    mf, Pf, lml, α = update_decorrelate(mp, Pp, model.H, model.h, model.Σ, y)
-    return lml, α, Gaussian(mf, Pf)
-end
-
-@inline function update_decorrelate(mp, Pp, H::AM, h::AV, Σ::AM, y::AV{<:Real})
-    V = _compute_V(H, Pp)
-    S_1 = V * H' + Σ
-    S = cholesky(Symmetric(S_1))
-    U = S.U
-    B = U' \ V
-    α = U' \ (y - H * mp - h)
-
-    mf = mp + B'α
-    Pf = _compute_Pf(Pp, B)
-    lml = -(length(y) * log(2π) + logdet(S) + α'α) / 2
-    return mf, Pf, lml, α
-end
-
-function _compute_V(H::AM, Pp::AM)
-    return H * Pp
-end
-function _compute_V(H::Matrix, Pp::Matrix)
-    return H * Symmetric(Pp)
-end
-
-_compute_Pf(Pp::AM, B::AM) = Pp - B'B
-function _compute_Pf(Pp::Matrix, B::Matrix)
-    return Symmetric(BLAS.syrk!('U', 'T', -1.0, B, 1.0, collect(Symmetric(Pp))))
-end
-
-
-
-#
-# correlate
-#
-
-@inline function step_correlate(model, x::Gaussian, α::AV{<:Real})
-    mp, Pp = predict(x.m, x.P, model.A, model.a, model.Q)
-    mf, Pf, lml, y = update_correlate(mp, Pp, model.H, model.h, model.Σ, α)
-    return lml, y, Gaussian(mf, Pf)
-end
-
-@inline function update_correlate(mp, Pp, H::AM, h::AV, Σ::AM, α::AV{<:Real})
-    V = _compute_V(H, Pp)
-    S = cholesky(Symmetric(V * H' + Σ))
-    B = S.U' \ V
-    y = S.U'α + H * mp + h
-
-    mf = mp + B'α
-    Pf = _compute_Pf(Pp, B)
-    lml = -(length(y) * log(2π) + logdet(S) + α'α) / 2
-    return mf, Pf, lml, y
-end
-
 # Convert a latent Gaussian marginal into an observed Gaussian marginal.
 to_observed(H::AM, h::AV, x::Gaussian) = Gaussian(H * x.m + h, H * x.P * H')
 
@@ -111,6 +52,7 @@ intermediate quantities.
 function smooth(model::LGSSM, ys::AbstractVector)
 
     lml, x_filter = filter(model, ys)
+    ε = convert(eltype(model), 1e-12)
 
     # Smooth
     x_smooth = Vector{typeof(last(x_filter))}(undef, length(ys))
@@ -119,7 +61,7 @@ function smooth(model::LGSSM, ys::AbstractVector)
         x = x_filter[k]
         x′ = predict(model[k + 1], x_filter[k])
 
-        U = cholesky(Symmetric(x′.P + 1e-12I)).U
+        U = cholesky(Symmetric(x′.P + ε * I)).U
         Gt = U \ (U' \ (model.gmm.A[k + 1] * x.P))
         x_smooth[k] = Gaussian(
             _compute_ms(x.m, Gt, x_smooth[k + 1].m, x′.m),
@@ -204,37 +146,15 @@ end
 
 
 #
-# High-level inference stuff that you really only want to have to write once...
+# This dispatch to methods specialised to the array type used to represent the LGSSM.
 #
 
-pick_first(a, b) = a
-get_pb(::typeof(pick_first)) = Δ->(Δ, nothing)
+function decorrelate(model::LGSSM, ys::AbstractVector, f=copy_first)
+    return decorrelate(mutability(storage_type(model)), model, ys, f)
+end
 
-pick_last(a, b) = b
-get_pb(::typeof(pick_last)) = Δ->(nothing, Δ)
-
-
-for (foo, step_foo) in [
-    (:correlate, :step_correlate),
-    (:decorrelate, :step_decorrelate),
-]
-    @eval function $foo(model::LGSSM, αs::AV{<:AV{<:Real}}, f=pick_first)
-        @assert length(model) == length(αs)
-
-        # Process first latent.
-        lml, y, x = $step_foo(model[1], model.gmm.x0, first(αs))
-        v = f(y, x)
-        vs = Vector{typeof(v)}(undef, length(model))
-        vs[1] = v
-
-        # Process remaining latents.
-        @inbounds for t in 2:length(model)
-            lml_, y, x = $step_foo(model[t], x, αs[t])
-            lml += lml_
-            vs[t] = f(y, x)
-        end
-        return lml, vs
-    end
+function correlate(model::LGSSM, αs::AbstractVector, f=copy_first)
+    return correlate(mutability(storage_type(model)), model, αs, f)
 end
 
 
@@ -277,7 +197,7 @@ function logpdf_and_rand(rng::AbstractRNG, model::LGSSM)
 end
 
 function rand_αs(rng::AbstractRNG, model::LGSSM, _)
-    return [randn(rng, dim_obs(model)) for _ in 1:length(model)]
+    return [randn(rng, eltype(model), dim_obs(model)) for _ in 1:length(model)]
 end
 
 function rand_αs(
@@ -285,5 +205,5 @@ function rand_αs(
     model::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}},
     ::Val{D},
 ) where {D}
-    return [randn(rng, SVector{D}) for _ in 1:length(model)]
+    return [randn(rng, SVector{D, eltype(model)}) for _ in 1:length(model)]
 end

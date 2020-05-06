@@ -20,7 +20,7 @@ function (f::LTISDE)(t::AV{<:Real}, σ²s::AV{<:Real})
 end
 (f::LTISDE)(t::AV, Σ::Diagonal{<:Real}) = f(t, Σ.diag)
 (f::LTISDE)(t::AV, σ²::Real) = f(t, Fill(σ², length(t)))
-(f::LTISDE)(t::AV) = f(t, zero(eltype(t)))
+(f::LTISDE)(t::AV) = f(t, zero(eltype(f.storage)))
 
 
 

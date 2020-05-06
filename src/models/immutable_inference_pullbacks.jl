@@ -68,15 +68,25 @@ function _accum_at(Δxs::NamedTuple{(:gmm, :Σ)}, n::Int, Δx)
     )
 end
 
+function get_pb(::typeof(copy_first))
+    copy_first_pullback(Δ) = (copy(Δ), nothing)
+    copy_first_pullback(Δ::Nothing) = (nothing, nothing)
+    return copy_first_pullback
+end
 
+get_pb(::typeof(pick_last)) = Δ->(nothing, Δ)
 
 for (foo, step_foo, step_foo_pullback) in [
     (:correlate, :step_correlate, :step_correlate_pullback),
     (:decorrelate, :step_decorrelate, :step_decorrelate_pullback),
 ]
     # Standard rrule a la ChainRulesCore.
-    @eval @adjoint function $foo(model::LGSSM, ys::AV{<:AV{<:Real}}, f=pick_first)
-
+    @eval @adjoint function $foo(
+        ::Immutable,
+        model::LGSSM,
+        ys::AV{<:AV{<:Real}},
+        f=copy_first,
+    )
         @assert length(model) == length(ys)
 
         # Process first observation.
@@ -124,7 +134,7 @@ for (foo, step_foo, step_foo_pullback) in [
                 Σ = Δmodel.Σ,
             )
 
-            return Δmodel, Δys, nothing
+            return nothing, Δmodel, Δys, nothing
         end
     end
 end
@@ -176,6 +186,35 @@ AtA_pullback(A::AbstractMatrix{<:Real}) = A'A, Δ->(A * (Δ + Δ'),)
 # substantial pullbacks
 #
 
+@adjoint function predict(m::AV, P::AM, A::AM, a::AV, Q::AM)
+    return predict_pullback(m, P, A, a, Q)
+end
+
+function predict_pullback(m::AV, P::AM, A::AM, a::AV, Q::AM)
+    mp = A * m + a # 1
+    T = A * P # 2
+    Pp = T * A' + Q # 3
+    return (mp, Pp), function(Δ)
+        Δmp = Δ[1]
+        ΔPp = Δ[2]
+
+        # 3
+        ΔQ = ΔPp
+        ΔA = ΔPp' * T
+        ΔT = ΔPp * A
+
+        # 2
+        ΔA += ΔT * P'
+        ΔP = A'ΔT
+
+        # 1
+        ΔA += Δmp * m'
+        Δm = A'Δmp
+        Δa = Δmp
+
+        return Δm, ΔP, ΔA, Δa, ΔQ
+    end
+end
 
 @adjoint function step_decorrelate(model, x::Gaussian, y::AV{<:Real})
     return step_decorrelate_pullback(model, x, y)

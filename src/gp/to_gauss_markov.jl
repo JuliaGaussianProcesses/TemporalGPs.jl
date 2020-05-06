@@ -6,7 +6,11 @@ using Stheno: MeanFunction, ConstMean, ZeroMean, BaseKernel
 # Generic constructors for base kernels.
 #
 
-function GaussMarkovModel(k::BaseKernel, t::AV{<:Real}, storage_type::StorageType)
+function GaussMarkovModel(
+    k::BaseKernel,
+    t::AV{<:Real},
+    storage_type::StorageType{T},
+) where {T<:Real}
 
     # Compute stationary distribution and sde.
     x0 = stationary_distribution(k, storage_type)
@@ -15,16 +19,20 @@ function GaussMarkovModel(k::BaseKernel, t::AV{<:Real}, storage_type::StorageTyp
 
     # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
     t = vcat([first(t) - 1], t)
-    As = map(Δt -> time_exp(F, Δt), diff(t))
-    as = Fill(Zeros(size(first(As), 1)), length(As))
+    As = map(Δt -> time_exp(F, T(Δt)), diff(t))
+    as = Fill(Zeros{T}(size(first(As), 1)), length(As))
     Qs = map(A -> P - A * P * A', As)
     Hs = Fill(H, length(As))
-    hs = Fill(Zeros(size(H, 1)), length(As))
+    hs = Fill(Zeros{T}(size(H, 1)), length(As))
 
     return GaussMarkovModel(As, as, Qs, Hs, hs, x0)
 end
 
-function GaussMarkovModel(k::BaseKernel, t::StepRangeLen, storage_type::StorageType)
+function GaussMarkovModel(
+    k::BaseKernel,
+    t::StepRangeLen,
+    storage_type::StorageType{T},
+) where {T<:Real}
 
     # Compute stationary distribution and sde.
     x0 = stationary_distribution(k, storage_type)
@@ -32,20 +40,21 @@ function GaussMarkovModel(k::BaseKernel, t::StepRangeLen, storage_type::StorageT
     F, q, H = to_sde(k, storage_type)
 
     # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
-    A = time_exp(F, step(t))
+    A = time_exp(F, T(step(t)))
     As = Fill(A, length(t))
-    as = Fill(Zeros(size(F, 1)), length(t))
+    as = Fill(Zeros{T}(size(F, 1)), length(t))
     Q = P - A * P * A'
     Qs = Fill(Q, length(t))
     Hs = Fill(H, length(t))
-    hs = Fill(Zeros(size(H, 1)), length(As))
+    hs = Fill(Zeros{T}(size(H, 1)), length(As))
 
     return GaussMarkovModel(As, as, Qs, Hs, hs, x0)
 end
 
 # Fallback definitions for most base kernels.
 function to_sde(k::BaseKernel, ::ArrayStorage{T}) where {T<:Real}
-    return map(collect, to_sde(k, SArrayStorage(T)))
+    F, q, H = to_sde(k, SArrayStorage(T))
+    return collect(F), q, collect(H)
 end
 
 function stationary_distribution(k::BaseKernel, ::ArrayStorage{T}) where {T<:Real}
@@ -119,7 +128,7 @@ end
 function to_sde(k::Matern52, ::SArrayStorage{T}) where {T<:Real}
     λ = sqrt(5)
     F = SMatrix{3, 3, T}(0, 0, -λ^3, 1, 0, -3λ^2, 0, 1, -3λ)
-    q = 8 * λ^5 / 3
+    q = convert(T, 8 * λ^5 / 3)
     H = SMatrix{1, 3, T}(1, 0, 0)
     return F, q, H
 end
@@ -186,17 +195,25 @@ function GaussMarkovModel(k::Stheno.Sum, ts::AV, storage_type::StorageType)
         hcat.(model_l.H, model_r.H),
         model_l.h + model_r.h,
         Gaussian(
-            collect(vcat(model_l.x0.m, model_r.x0.m)),
+            vcat(model_l.x0.m, model_r.x0.m),
             blk_diag(model_l.x0.P, model_r.x0.P),
         ),
     )
 end
 
-function blk_diag(A, B)
+Base.vcat(x::Zeros{T, 1}, y::Zeros{T, 1}) where {T} = Zeros{T}(length(x) + length(y))
+
+function blk_diag(A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T}
     return hvcat(
         (2, 2),
-        A, zeros(size(A, 1), size(B, 2)), zeros(size(B, 1), size(A, 2)), B,
+        A, zeros(T, size(A, 1), size(B, 2)), zeros(T, size(B, 1), size(A, 2)), B,
     )
+end
+
+function blk_diag(A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T}
+    zero_AB = zeros(SMatrix{DA, DB, T})
+    zero_BA = zeros(SMatrix{DB, DA, T})
+    return [[A zero_AB]; [zero_BA B]]
 end
 
 Zygote.@adjoint function blk_diag(A, B)

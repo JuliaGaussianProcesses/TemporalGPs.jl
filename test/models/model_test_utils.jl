@@ -1,4 +1,5 @@
-using TemporalGPs: GaussMarkovModel, dim_latent, dim_obs, LGSSM, ScalarLGSSM, Gaussian
+using TemporalGPs: GaussMarkovModel, dim_latent, dim_obs, LGSSM, ScalarLGSSM, Gaussian,
+    StorageType
 
 
 
@@ -70,6 +71,14 @@ end
 #
 # Generation of GaussMarkovModels.
 #
+
+function random_gaussian(rng::AbstractRNG, dim::Int, s::ArrayStorage{T}) where {T<:Real}
+    return Gaussian(randn(rng, T, dim), Symmetric(random_nice_psd_matrix(rng, dim, s)))
+end
+
+function random_gaussian(rng::AbstractRNG, dim::Int, s::SArrayStorage{T}) where {T<:Real}
+    return to_static(random_gaussian(rng, dim, ArrayStorage{T}))
+end
 
 function random_tv_gmm(
     rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::ArrayStorage{T},
@@ -189,4 +198,40 @@ end
 function validate_dims(model::ScalarLGSSM)
     validate_dims(model.model)
     return nothing
+end
+
+
+
+#
+# Validate that all parameter containers are of the expected types.
+#
+
+validate_types(::Any, ::StorageType) = @test false
+
+validate_types(::T, ::StorageType{T}) where {T<:Real} = @test true
+
+validate_types(::Vector{T}, ::ArrayStorage{T}) where {T} = @test true
+
+validate_types(::Matrix{T}, ::ArrayStorage{T}) where {T} = @test true
+
+validate_types(::Zeros{T}, ::ArrayStorage{T}) where {T} = @test true
+
+validate_types(::SVector{D, T} where {D}, ::SArrayStorage{T}) where {T} = @test true
+
+validate_types(::SMatrix{D1, D2, T} where {D1, D2}, ::SArrayStorage{T}) where {T} = @test true
+
+validate_types(::Zeros{T}, ::SArrayStorage{T}) where {T} = @test true
+
+function validate_types(ft::GaussMarkovModel, s::StorageType)
+    validate_types(first(ft.A), s)
+    validate_types(first(ft.a), s)
+    validate_types(first(ft.Q), s)
+    validate_types(first(ft.H), s)
+    validate_types(first(ft.h), s)
+    validate_types(ft.x0, s)
+end
+
+function validate_types(x::Gaussian, s::StorageType)
+    validate_types(x.m, s)
+    validate_types(x.P, s)
 end

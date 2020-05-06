@@ -2,12 +2,15 @@ using Pkg
 Pkg.activate(".")
 Pkg.instantiate()
 
-using BenchmarkTools, BlockDiagonals, DataFrames, DrWatson, FillArrays, LinearAlgebra,
-    PGFPlotsX, Random, Stheno, TemporalGPs, Zygote
+using BenchmarkTools, BlockDiagonals, FillArrays, LinearAlgebra, Random, Stheno,
+    TemporalGPs, Zygote
+
+using DataFrames, DrWatson, PGFPlotsX
 
 using TemporalGPs: AV, AM, Separable, RectilinearGrid, LGSSM, GaussMarkovModel
 
-const n_blas_threads = Sys.CPU_THREADS;
+# const n_blas_threads = Sys.CPU_THREADS;
+const n_blas_threads = 4;
 BLAS.set_num_threads(n_blas_threads);
 
 const exp_dir_name = "lgssm"
@@ -279,3 +282,43 @@ let
         end
     end
 end
+
+
+#
+# Hacked together benchmarks for playing around.
+#
+
+rng = MersenneTwister(123456);
+Ts = [1, 10, 100, 1_000];
+N_space = 500;
+N_blocks = 1;
+
+model = dense_dynamics_constructor(rng, N_space, 100, N_blocks);
+y = rand(rng, model);
+@benchmark rand($rng, $model)
+@benchmark logpdf($model, $y)
+
+using Profile, ProfileView
+
+@profview logpdf(model, y)
+@profview logpdf(model, y)
+
+
+
+# Test simple things quickly.
+rng = MersenneTwister(123456);
+T = 1_000_000;
+x = range(0.0; step=0.3, length=T);
+f = GP(Matern52() + Matern52() + Matern52() + Matern52(), GPC());
+fx_sde_dense = to_sde(f)(x);
+fx_sde_static = to_sde(f, SArrayStorage(Float64))(x);
+
+y = rand(fx_sde_static);
+@benchmark logpdf($fx_sde_dense, $y)
+@benchmark logpdf($fx_sde_static, $y)
+
+
+using Profile, ProfileView
+
+@profview logpdf(fx_sde_dense, y)
+@profview logpdf(fx_sde_dense, y)

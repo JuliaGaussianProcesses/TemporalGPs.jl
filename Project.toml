@@ -4,6 +4,7 @@ authors = ["willtebbutt <wt0881@my.bristol.ac.uk>"]
 version = "0.1.0"
 
 [deps]
+AutoPreallocation = "e7028de2-df94-4053-9fdc-99272086b8d4"
 BlockDiagonals = "0a1fb500-61f7-11e9-3c65-f5ef3456f9f0"
 FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
 Kronecker = "2c470bb0-bcc8-11e8-3dad-c9649493f05e"
@@ -22,7 +23,7 @@ FiniteDifferences = "0.9.6"
 Kronecker = "0.4"
 StaticArrays = "0.12"
 Stheno = "0.6.3"
-Zygote = "0.4.9"
+Zygote = "= 0.4.15"
 ZygoteRules = "0.2"
 julia = "1.4"
 

@@ -12,6 +12,8 @@ end
 
 Base.length(model::ScalarLGSSM) = length(model.model)
 
+Base.eltype(model::ScalarLGSSM) = eltype(model.model)
+
 dim_obs(model::ScalarLGSSM) = 1
 
 dim_latent(model::ScalarLGSSM) = dim_latent(model.model)
@@ -40,26 +42,35 @@ from_vector_observations(ys::AV{<:AV{T}}) where {T<:Real} = first.(ys)
     return from_vector_observations(ys), pullback_from_vector_observations
 end
 
-function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real}, f=pick_first)
+function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real}, f=copy_first)
     storage = storage_type(model)
     αs_vec = to_vector_observations(storage, αs)
     lml, ys = correlate(model.model, αs_vec, f)
     return lml, from_vector_observations(ys)
 end
 
-function decorrelate(model::ScalarLGSSM, ys::AbstractVector{<:Real}, f=pick_first)
+function decorrelate(model::ScalarLGSSM, ys::AbstractVector{<:Real}, f=copy_first)
+    # storage = storage_type(model)
+    # ys_vec = to_vector_observations(storage, ys)
+    # lml, αs = decorrelate(model.model, ys_vec, f)
+    # return lml, from_vector_observations(αs)
+    return decorrelate(mutability(storage_type(model)), model, ys, f)
+end
+
+function decorrelate(mut, model::ScalarLGSSM, ys::AbstractVector{<:Real}, f=copy_first)
     storage = storage_type(model)
     ys_vec = to_vector_observations(storage, ys)
-    lml, αs = decorrelate(model.model, ys_vec, f)
+    lml, αs = decorrelate(mut, model.model, ys_vec, f)
     return lml, from_vector_observations(αs)
 end
+
 
 function whiten(model::ScalarLGSSM, ys::AbstractVector{<:Real})
     return last(decorrelate(model, ys))
 end
 
 function rand(rng::AbstractRNG, model::ScalarLGSSM)
-    αs = randn(rng, length(model))
+    αs = randn(rng, eltype(model), length(model))
     return last(correlate(model, αs))
 end
 
@@ -68,7 +79,7 @@ function unwhiten(model::ScalarLGSSM, αs::AbstractVector{<:Real})
 end
 
 function logpdf_and_rand(rng::AbstractRNG, model::ScalarLGSSM)
-    αs = randn(rng, length(model))
+    αs = randn(rng, eltype(model), length(model))
     return correlate(model, αs)
 end
 

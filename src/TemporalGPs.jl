@@ -1,7 +1,7 @@
 module TemporalGPs
 
-    using BlockDiagonals, FillArrays, Kronecker, LinearAlgebra, Random, StaticArrays,
-        Stheno, Strided, Zygote, ZygoteRules
+    using AutoPreallocation, BlockDiagonals, FillArrays, Kronecker, LinearAlgebra, Random,
+        StaticArrays, Stheno, Strided, Zygote, ZygoteRules
 
     using FillArrays: AbstractFill
     using Kronecker: KroneckerProduct
@@ -18,9 +18,14 @@ module TemporalGPs
 
     # Linear-Gaussian State Space Models.
     include(joinpath("models", "gauss_markov.jl"))
-    include(joinpath("models", "predict.jl"))
     include(joinpath("models", "lgssm.jl"))
-    include(joinpath("models", "lgssm_pullbacks.jl"))
+
+    include(joinpath("models", "immutable_inference.jl"))
+    include(joinpath("models", "immutable_inference_pullbacks.jl"))
+
+    include(joinpath("models", "mutable_inference.jl"))
+    include(joinpath("models", "mutable_inference_pullbacks.jl"))
+
     include(joinpath("models", "scalar_lgssm.jl"))
 
     # Converting GPs to Linear-Gaussian SSMs.

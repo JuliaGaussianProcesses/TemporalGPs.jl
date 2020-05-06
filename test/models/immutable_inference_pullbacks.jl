@@ -28,7 +28,7 @@ end
 
 naive_predict(mf, Pf, A, a, Q) = A * mf + a, (A * Pf) * A' + Q
 
-@testset "lgssm_pullbacks" begin
+@testset "immutable_inference_pullbacks" begin
     @testset "$N" for N in [1, 2, 3]
 
         rng = MersenneTwister(123456)
