@@ -21,7 +21,7 @@ using DrWatson: @dict, @tagsave
 using LinearAlgebra
 LinearAlgebra.BLAS.set_num_threads(1)
 
-const exp_dir_name = "simple_timings"
+const exp_dir_name = "single_output_gps"
 const data_dir = joinpath(datadir(), exp_dir_name)
 
 
@@ -35,21 +35,34 @@ function build(::Val{:naive}, k_base, σ², l, x, σ²_n)
 end
 
 # Basic lgssm implementation.
-function build(::Val{:lgssm}, k_base, σ², l, x, σ²_n)
+function build(::Val{:heap}, k_base, σ², l, x, σ²_n)
     f = build_gp(k_base, σ², l)
     return to_sde(f)(x, σ²_n)
 end
 
 # Stack-allocated arrays lgssm implementation.
-function build(::Val{Symbol("static-lgssm")}, k_base, σ², l, x, σ²_n)
+function build(::Val{:stack}, k_base, σ², l, x, σ²_n)
     f = build_gp(k_base, σ², l)
     return to_sde(f, SArrayStorage(Float64))(x, σ²_n)
+end
+
+# Basic lgssm implementation.
+function build(::Val{:heapF32}, k_base, σ², l, x, σ²_n)
+    f = build_gp(k_base, σ², l)
+    return to_sde(f, ArrayStorage(Float32))(x, Float32(σ²_n))
+end
+
+# Stack-allocated arrays lgssm implementation.
+function build(::Val{:stackF32}, k_base, σ², l, x, σ²_n)
+    f = build_gp(k_base, σ², l)
+    return to_sde(f, SArrayStorage(Float32))(x, Float32(σ²_n))
 end
 
 # Generic logpdf computation.
 function build_and_logpdf(val::Val, k_base, σ², l, x, σ²_n, y)
     return logpdf(build(val, k_base, σ², l, x, σ²_n), y)
 end
+
 
 
 # Specify which experiments to run.
@@ -67,17 +80,44 @@ tagsave(
         # ],
         :Ns => [
             2, 5, 10,
-            20, 50, 100,
+            # 20, 50, 100,
         ],
         :kernels => [
-            (k=Matern12(), sym=:Matern12, name="Matern12"),
-            (k=Matern32(), sym=:Matern32, name="Matern32"),
+            # (k=Matern12(), sym=:Matern12, name="Matern12"),
+            # (k=Matern32(), sym=:Matern32, name="Matern32"),
             (k=Matern52(), sym=:Matern52, name="Matern52"),
         ],
         :implementations => [
-            (name="naive", val=Val(:naive), colour="blue", marker="square*"),
-            (name="lgssm", val=Val(:lgssm), colour="black", marker="*"),
-            (name="static-lgssm", val=Val(Symbol("static-lgssm")), colour="red", marker="triangle*"),
+            (
+                name="naive",
+                val=Val(:naive),
+                colour="blue",
+                marker="square*",
+            ),
+            (
+                name="heap",
+                val=Val(:heap),
+                colour="black",
+                marker="*",
+            ),
+            (
+                name="stack",
+                val=Val(:stack),
+                colour="red",
+                marker="triangle*",
+            ),
+            (
+                name="heap-F32",
+                val=Val(:heapF32),
+                colour="green",
+                marker="*",
+            ),
+            (
+                name="stack-F32",
+                val=Val(:stackF32),
+                colour="purple",
+                marker="triangle*",
+            ),
         ]
     )
 )
@@ -105,7 +145,8 @@ let
         σ², l, σ²_n = 1.0, 2.3, 0.5
         k = kernel.k
         rng = MersenneTwister(123456)
-        y = rand(rng, build(Val(Symbol("static-lgssm")), k, σ², l, x, σ²_n)))
+        # y = rand(rng, build(Val(:stack), k, σ², l, x, σ²_n))
+        y = rand(rng, build(impl.val, k, σ², l, x, σ²_n))
 
         # Generate results including construction of GP.
         results = @benchmark(build_and_logpdf($(impl.val), $k, $σ², $l, $x, $σ²_n, $y))
@@ -257,9 +298,7 @@ let
                             ymode=ymode,
                             xlabel="N",
                             ylabel="time (s)",
-                            legend_to_name="legend:$(string(field))",
-                            legend_columns=3,
-                            transpose_legend,
+                            # legend_to_name="legend:$(string(field))",
                             xmajorgrids,
                             ymajorgrids,
                             width="0.48\\textwidth",
@@ -271,7 +310,6 @@ let
                             xmax=1e8,
                         },
                         plots[!, field], # lhs plot
-                        plots[!, :legend_entry],
                         { # style for rhs plot
                             xmode=xmode,
                             ymode=ymode,
@@ -285,8 +323,17 @@ let
                             xtick=x_ticks,
                             xmin=0,
                             xmax=1e8,
+                            legend_style =
+                            {
+                                font = "\\tiny",
+                                at = Coordinate(1 + 0.1, 1),
+                                anchor = "north west",
+                                legend_columns = 1,
+                            },
+                            transpose_legend,
                         },
                         plots[!, grad_field], # rhs plot
+                        plots[!, :legend_entry],
                     )
                 ),
             )
@@ -374,9 +421,11 @@ let
     end
 
     # Write results plots to results directory.
+    plots_dir = joinpath(plotsdir(), exp_dir_name)
+    mkpath(plots_dir)
     for plot in plots_to_save
         pgfsave(
-            joinpath(plotsdir(), exp_dir_name, plot.name * ".tex"),
+            joinpath(plots_dir, plot.name * ".tex"),
             plot.data;
             include_preamble=true,
         )
