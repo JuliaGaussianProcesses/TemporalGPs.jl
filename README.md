@@ -21,14 +21,14 @@ f_naive = GP(Matern32(), GPC())
 f = to_sde(f_naive)
 
 # Project onto finite-dimensional distribution as usual.
-x = range(-5.0, 5.0; length=1000)
+x = range(-5.0, 5.0; length=10_000_000)
 fx = f(x, 0.1)
 
 # Sample from the prior as usual.
-y = rand(fx_ssm)
+y = rand(fx)
 
 # Compute the log marginal likelihood of the data as usual.
-logpdf(fx_ssm, y)
+logpdf(fx, y)
 ```
 
 
@@ -37,9 +37,9 @@ logpdf(fx_ssm, y)
 
 There are a couple of ways that `TemporalGPs.jl` can represent things internally. In particular, it can use regular Julia `Vector` and `Matrix` objects, or the `StaticArrays.jl` package to optimise in certain cases. The default is the former. To employ the latter, just add an extra argument to the `to_sde` function:
 ```julia
-f = to_sde(f_naive, TemporalGPs.StaticStorage())
+f = to_sde(f_naive, SArrayStorage(Float64))
 ```
-See the benchmarking results below for the effect that this can have.
+This tells TemporalGPs that you want all parameters of `f` and anything derived from it to be a subtype of a `SArray` with element-type `Float64`, rather than (for example) a `Matrix{Float64}`s and `Vector{Float64}`. The decision made here can have quite a dramatic effect on performance, as shown in the graph below.
 
 
 
@@ -47,7 +47,7 @@ See the benchmarking results below for the effect that this can have.
 
 ![](/examples/preliminary-benchmarks.png)
 
-"naive" timings are with the usual [Stheno.jl](https://github.com/willtebbutt/Stheno.jl/) inference routines, and is the default implementation for GPs. "lgssm" timings are conducted using `ssm` with no additional arguments. "static-lgssm" uses the `TemporalGPs.StaticStorage()` option discussed above.
+"naive" timings are with the usual [Stheno.jl](https://github.com/willtebbutt/Stheno.jl/) inference routines, and is the default implementation for GPs. "lgssm" timings are conducted using `ssm` with no additional arguments. "static-lgssm" uses the `SArray{Float64}` option discussed above.
 
 Gradient computations use Zygote. Custom adjoints have been implemented to achieve this level of performance.
 

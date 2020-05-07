@@ -1,4 +1,4 @@
-using TemporalGPs: StaticStorage, predict
+using TemporalGPs: predict
 
 naive_predict(mf, Pf, A, a, Q) = A * mf + a, (A * Pf) * A' + Q
 
@@ -16,7 +16,7 @@ println("predict:")
         @testset "$Dlat, $(T.T)" for Dlat in Dlats, T in Ts
 
             # Construct a Gauss-Markov model and pull out the relevant paramters.
-            gmm = random_tv_gmm(rng, T.T, Dlat, 1, 1, StaticStorage())
+            gmm = random_tv_gmm(rng, Dlat, 1, 1, SArrayStorage(T.T))
             A = first(gmm.A)
             a = first(gmm.a)
             Q = first(gmm.Q)
@@ -78,11 +78,12 @@ println("predict:")
         @testset "Matrix - $Dlat, $(T.T)" for Dlat in Dlats, T in Ts
 
             # Generate parameters for a transition model.
+            storage = ArrayStorage(T.T)
             A = randn(rng, T.T, Dlat, Dlat)
             a = randn(rng, T.T, Dlat)
-            Q = random_nice_psd_matrix(rng, T.T, Dlat, DenseStorage())
+            Q = random_nice_psd_matrix(rng, Dlat, storage)
             mf = randn(rng, T.T, Dlat)
-            Pf = Symmetric(random_nice_psd_matrix(rng, T.T, Dlat, DenseStorage()))
+            Pf = Symmetric(random_nice_psd_matrix(rng, Dlat, storage))
 
             # Check agreement with the naive implementation.
             mp, Pp = predict(mf, Pf, A, a, Q)
@@ -142,14 +143,14 @@ println("predict:")
             a = randn(rng, T.T, Dlat)
 
             Qs = map(
-                _ -> random_nice_psd_matrix(rng, T.T, Dlat_block, DenseStorage()),
+                _ -> random_nice_psd_matrix(rng, Dlat_block, ArrayStorage(T.T)),
                 1:n_blocks,
             )
             Q = BlockDiagonal(Qs)
 
             # Generate filtering (input) distribution.
             mf = randn(rng, T.T, Dlat)
-            Pf = Symmetric(random_nice_psd_matrix(rng, T.T, Dlat, DenseStorage()))
+            Pf = Symmetric(random_nice_psd_matrix(rng, Dlat, ArrayStorage(T.T)))
 
             # Check that predicting twice gives exactly the same answer.
             let
@@ -209,6 +210,7 @@ println("predict:")
         @testset "KroneckerProduct - $N, $D, $(T.T)" for N in Ns, D in Ds, T in Ts
 
             rng = MersenneTwister(123456)
+            storage = ArrayStorage(T.T)
 
             # Compute the total number of dimensions.
             Dlat = N * D
@@ -219,13 +221,13 @@ println("predict:")
 
             a = randn(rng, T.T, Dlat)
 
-            K_N = random_nice_psd_matrix(rng, T.T, N, DenseStorage())
-            Q_D = random_nice_psd_matrix(rng, T.T, D, DenseStorage())
+            K_N = random_nice_psd_matrix(rng, N, storage)
+            Q_D = random_nice_psd_matrix(rng, D, storage)
             Q = collect(K_N ⊗ Q_D)
 
             # Generate filtering (input) distribution.
             mf = randn(rng, T.T, Dlat)
-            Pf = Symmetric(random_nice_psd_matrix(rng, T.T, Dlat, DenseStorage()))
+            Pf = Symmetric(random_nice_psd_matrix(rng, Dlat, storage))
 
             # Generate corresponding dense dynamics.
             A_dense = collect(A)
@@ -303,6 +305,7 @@ println("predict:")
             T in Ts
 
             rng = MersenneTwister(123456)
+            storage = ArrayStorage(T.T)
 
             Dlat = N * D * N_blocks
 
@@ -313,12 +316,12 @@ println("predict:")
 
             a = randn(rng, T.T, N * D * N_blocks)
 
-            Qs = [random_nice_psd_matrix(rng, T.T, N * D, DenseStorage()) for _ in 1:N_blocks]
+            Qs = [random_nice_psd_matrix(rng, N * D, storage) for _ in 1:N_blocks]
             Q = BlockDiagonal(Qs)
 
             # Generate filtering (input) distribution.
             mf = randn(rng, T.T, Dlat)
-            Pf = Symmetric(random_nice_psd_matrix(rng, T.T, Dlat, DenseStorage()))
+            Pf = Symmetric(random_nice_psd_matrix(rng, Dlat, storage))
 
             # Generate corresponding dense dynamics.
             A_dense = collect(A)

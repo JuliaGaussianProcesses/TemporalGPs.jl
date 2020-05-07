@@ -6,8 +6,8 @@ println("gauss_markov:")
     Ns = [1, 3, 11]
     tvs = [true, false]
     storages = [
-        (name="dense", val=DenseStorage()),
-        (name="static", val=StaticStorage()),
+        (name="Array{Float64}", val=ArrayStorage(Float64)),
+        (name="SArray{Float64}", val=SArrayStorage(Float64)),
     ]
 
     function test_name(tv, Dlat, Dobs, N, storage)
@@ -24,13 +24,16 @@ println("gauss_markov:")
 
         rng = MersenneTwister(123456)
         gmm = tv == true ?
-            random_tv_gmm(rng, Float64, Dlat, Dobs, N, storage.val) :
-            random_ti_gmm(rng, Float64, Dlat, Dobs, N, storage.val)
+            random_tv_gmm(rng, Dlat, Dobs, N, storage.val) :
+            random_ti_gmm(rng, Dlat, Dobs, N, storage.val)
+
+        @test eltype(gmm) == eltype(storage.val)
+        @test TemporalGPs.storage_type(gmm) == storage.val
 
         @testset "==" begin
             gmm_other = tv == true ?
-                random_tv_gmm(rng, Float64, Dlat, Dobs, N, storage.val) :
-                random_ti_gmm(rng, Float64, Dlat, Dobs, N, storage.val)
+                random_tv_gmm(rng, Dlat, Dobs, N, storage.val) :
+                random_ti_gmm(rng, Dlat, Dobs, N, storage.val)
             @test gmm == gmm
             @test gmm != gmm_other
         end

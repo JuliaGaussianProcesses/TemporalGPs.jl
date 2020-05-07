@@ -1,6 +1,12 @@
-using TemporalGPs: build_Σs, smooth, posterior_rand, DenseStorage, StaticStorage
+using TemporalGPs: build_Σs, smooth, posterior_rand
 
 _logistic(x) = 1 / (1 + exp(-x))
+
+# Some hacks to ensure element types make sense.
+_to_T(T) = ()
+_to_T(T, x::Real) = (T(x),)
+_to_T(T, x::AbstractVector{<:Real}) = (T.(x),)
+_to_T(T, X::Diagonal{<:Real}) = (T.(X),)
 
 println("lti_sde:")
 @testset "lti_sde" begin
@@ -32,8 +38,10 @@ println("lti_sde:")
 
         # construct a Gauss-Markov model with either dense storage or static storage.
         storages = (
-            (name="dense storage", val=DenseStorage()),
-            (name="static storage", val=StaticStorage()),
+            (name="dense storage Float64", val=ArrayStorage(Float64), tol=1e-9),
+            (name="static storage Float64", val=SArrayStorage(Float64), tol=1e-9),
+            (name="dense storage Float32", val=ArrayStorage(Float32), tol=1e-4),
+            (name="static storage Float32", val=SArrayStorage(Float32), tol=1e-4),
         )
 
         # Either regular spacing or irregular spacing in time.
@@ -54,11 +62,13 @@ println("lti_sde:")
             storage in storages,
             σ² in σ²s
 
+            s = _to_T(eltype(storage.val), σ².val...)
+
             f = GP(k, GPC())
-            ft = f(t.val, σ².val...)
+            ft = f(t.val, s...)
 
             f_sde = to_sde(f, storage.val)
-            ft_sde = f_sde(t.val, σ².val...)
+            ft_sde = f_sde(t.val, s...)
 
             validate_dims(ft_sde)
 
@@ -70,10 +80,10 @@ println("lti_sde:")
             y_sde = rand(MersenneTwister(123456), ft_sde)
             @test y ≈ y_sde
 
-            @test logpdf(ft, y) ≈ logpdf(ft_sde, y)
+            @test logpdf(ft, y) ≈ logpdf(ft_sde, y_sde)
 
 
-            _, y_smooth, _ = smooth(ft_sde, y)
+            _, y_smooth, _ = smooth(ft_sde, y_sde)
 
             # Check posterior marginals
             m_ssm = [first(y.m) for y in y_smooth]
@@ -84,14 +94,15 @@ println("lti_sde:")
             m_exact = mean.(f′_marginals)
             σ²_exact = std.(f′_marginals).^2
 
-            @test isapprox(m_ssm, m_exact; atol=1e-9, rtol=1e-9)
-            @test isapprox(σ²_ssm, σ²_exact; atol=1e-9, rtol=1e-9)
+            tol = storage.tol
+            @test isapprox(m_ssm, m_exact; atol=tol, rtol=tol)
+            @test isapprox(σ²_ssm, σ²_exact; atol=tol, rtol=tol)
         end
     end
 
     @testset "StaticArrays performance integration" begin
         rng = MersenneTwister(123456)
-        f = to_sde(GP(Matern32(), GPC()), StaticStorage())
+        f = to_sde(GP(Matern32(), GPC()), SArrayStorage(Float64))
         σ²_n = 0.54
 
         t = range(0.1; step=0.11, length=1_000_000)

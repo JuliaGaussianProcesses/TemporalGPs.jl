@@ -1,8 +1,6 @@
-using TemporalGPs: smooth, StaticStorage, DenseStorage, predict,
-    update_decorrelate, step_decorrelate, update_correlate, step_correlate, LGSSM,
-    GaussMarkovModel, Gaussian
-# using TemporalGPs: update_correlate_pullback, update_decorrelate_pullback,
-#     step_decorrelate_pullback
+using TemporalGPs: smooth, predict, update_decorrelate, step_decorrelate, update_correlate,
+    step_correlate, LGSSM, GaussMarkovModel, Gaussian
+
 using Stheno: GP, GPC
 using Zygote, StaticArrays
 
@@ -14,7 +12,7 @@ println("lgssm:")
         Dlat = 3
         Dobs = 2
         N = 5
-        model = random_tv_lgssm(rng, Float64, Dlat, Dobs, N, DenseStorage())
+        model = random_tv_lgssm(rng, Dlat, Dobs, N, ArrayStorage(Float64))
         @test mean(model) == mean(model.gmm)
 
         P = cov(model)
@@ -30,8 +28,10 @@ println("lgssm:")
         Dlats = [1, 3, 4]
         Dobss = [1, 2, 5]
         storages = [
-            (name="dense storage", val=DenseStorage()),
-            (name="static storage", val=StaticStorage()),
+            (name="dense storage Float64", val=ArrayStorage(Float64)),
+            (name="static storage Float64", val=SArrayStorage(Float64)),
+            (name="dense storage Float32", val=ArrayStorage(Float32)),
+            (name="static storage Float32", val=SArrayStorage(Float32)),
         ]
 
         @testset "(time_varying=$tv, Dlat=$Dlat, Dobs=$Dobs, $(storage.name))" for
@@ -45,29 +45,39 @@ println("lgssm:")
 
             # Build LGSSM.
             model = tv ?
-                random_tv_lgssm(rng, Float64, Dlat, Dobs, N, storage.val) :
-                random_ti_lgssm(rng, Float64, Dlat, Dobs, N, storage.val)
+                random_tv_lgssm(rng, Dlat, Dobs, N, storage.val) :
+                random_ti_lgssm(rng, Dlat, Dobs, N, storage.val)
             gmm = model.gmm
             Σs = model.Σ
             As, as, Qs, Hs, hs, x = gmm.A, gmm.a, gmm.Q, gmm.H, gmm.h, gmm.x0
 
-            gaussian_model = Gaussian(mean(model), cov(model) + 1e-6I)
+            ε = convert(eltype(model), 1e-6)
+            gaussian_model = Gaussian(mean(model), cov(model) + ε * I)
+
+            # Verify that model properties are as requested.
+            @test eltype(model) == eltype(storage.val)
+            @test TemporalGPs.storage_type(model) == storage.val
 
             # Generate a sample from the model.
             y = rand(MersenneTwister(123456), model)
             y_gauss = rand(MersenneTwister(123456), gaussian_model)
             @test vcat(y...) ≈ y_gauss atol=1e-3 rtol=1e-3
+            @test y isa AbstractVector{<:AbstractVector{eltype(model)}}
 
             # Compute the log marginal likelihood of the observation.
             @test logpdf(model, y) ≈ logpdf(gaussian_model, vcat(y...)) atol=1e-4 rtol=1e-4
+            @test logpdf(model, y) isa eltype(model)
 
             # Verify that whiten and unwhiten are each others inverse.
             α = TemporalGPs.whiten(model, y)
             @test TemporalGPs.unwhiten(model, α) ≈ y
+            @test α isa AbstractVector{<:AbstractVector{eltype(model)}}
 
             lml_, y_ = TemporalGPs.logpdf_and_rand(MersenneTwister(123456), model)
             @test lml_ ≈ logpdf(model, y)
             @test y_ ≈ y
+            @test lml_ isa eltype(model)
+            @test y_ isa AbstractVector{<:AbstractVector{eltype(model)}}
 
             # Verify posterior marginal computation and sampling.
             let
@@ -123,69 +133,72 @@ println("lgssm:")
             sqrt_Qs = map(Q->cholesky(Symmetric(Q + 1e-2I)).U, Qs)
             sqrt_Σs = map(Σ->cholesky(Symmetric(Σ)).U, Σs)
 
-            # Verify the gradients w.r.t. sampling from the model.
-            adjoint_test(
-                (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs) -> begin
-                    Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
-                    Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
-                    P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
-                    x = Gaussian(m, P)
-                    gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
-                    model = LGSSM(gmm, Σs)
-                    return rand(MersenneTwister(123456), model)
-                end,
-                [randn(rng, Dobs) for _ in 1:N],
-                As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs;
-                rtol=1e-6, atol=1e-6,
-            )
+            if eltype(model) == Float64
 
-            # Verify the gradients w.r.t. computing the logpdf of the model.
-            adjoint_test(
-                (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs, y) -> begin
-                    Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
-                    Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
-                    P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
-                    x = Gaussian(m, P)
-                    gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
-                    model = LGSSM(gmm, Σs)
-                    return logpdf(model, y)
-                end,
-                randn(rng),
-                As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
-                atol=1e-6, rtol=1e-6,
-            )
+                # Verify the gradients w.r.t. sampling from the model.
+                adjoint_test(
+                    (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs) -> begin
+                        Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
+                        Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
+                        P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
+                        x = Gaussian(m, P)
+                        gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
+                        model = LGSSM(gmm, Σs)
+                        return rand(MersenneTwister(123456), model)
+                    end,
+                    [randn(rng, Dobs) for _ in 1:N],
+                    As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs;
+                    rtol=1e-6, atol=1e-6,
+                )
 
-            # Verify the gradients w.r.t. whiten
-            adjoint_test(
-                (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs, y) -> begin
-                    Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
-                    Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
-                    P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
-                    x = Gaussian(m, P)
-                    gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
-                    model = LGSSM(gmm, Σs)
-                    return TemporalGPs.whiten(model, y)
-                end,
-                [randn(rng, Dobs) for _ in 1:N],
-                As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
-                atol=1e-6, rtol=1e-6,
-            )
+                # Verify the gradients w.r.t. computing the logpdf of the model.
+                adjoint_test(
+                    (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs, y) -> begin
+                        Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
+                        Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
+                        P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
+                        x = Gaussian(m, P)
+                        gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
+                        model = LGSSM(gmm, Σs)
+                        return logpdf(model, y)
+                    end,
+                    randn(rng),
+                    As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
+                    atol=1e-6, rtol=1e-6,
+                )
 
-            # Verify the gradients w.r.t. unwhiten
-            adjoint_test(
-                (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs, α) -> begin
-                    Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
-                    Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
-                    P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
-                    x = Gaussian(m, P)
-                    gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
-                    model = LGSSM(gmm, Σs)
-                    return TemporalGPs.unwhiten(model, α)
-                end,
-                [randn(rng, Dobs) for _ in 1:N],
-                As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
-                atol=1e-6, rtol=1e-6,
-            )
+                # Verify the gradients w.r.t. whiten
+                adjoint_test(
+                    (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs, y) -> begin
+                        Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
+                        Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
+                        P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
+                        x = Gaussian(m, P)
+                        gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
+                        model = LGSSM(gmm, Σs)
+                        return TemporalGPs.whiten(model, y)
+                    end,
+                    [randn(rng, Dobs) for _ in 1:N],
+                    As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
+                    atol=1e-6, rtol=1e-6,
+                )
+
+                # Verify the gradients w.r.t. unwhiten
+                adjoint_test(
+                    (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs, α) -> begin
+                        Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
+                        Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
+                        P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
+                        x = Gaussian(m, P)
+                        gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
+                        model = LGSSM(gmm, Σs)
+                        return TemporalGPs.unwhiten(model, α)
+                    end,
+                    [randn(rng, Dobs) for _ in 1:N],
+                    As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
+                    atol=1e-6, rtol=1e-6,
+                )
+            end
         end
     end
 end

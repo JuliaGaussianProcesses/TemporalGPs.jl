@@ -1,4 +1,4 @@
-using TemporalGPs: RectilinearGrid, Separable, DenseStorage
+using TemporalGPs: RectilinearGrid, Separable
 
 @testset "to_gauss_markov" begin
     rng = MersenneTwister(123456)
@@ -6,7 +6,6 @@ using TemporalGPs: RectilinearGrid, Separable, DenseStorage
     Nt = 5
     x = RectilinearGrid(randn(rng, Nr), sort(randn(rng, Nt)))
     k = Separable(EQ(), Matern32())
-    storage = DenseStorage()
     σ² = 0.1
 
     k_sep = Separable(EQ(), Matern32())
@@ -44,10 +43,6 @@ using TemporalGPs: RectilinearGrid, Separable, DenseStorage
 
         validate_dims(ft_sde)
         @test length(ft_sde) == length(x.xr)
-
-        if k.val isa Stheno.Sum
-            @test ft_sde.gmm.A[1] isa BlockDiagonal
-        end
 
         y_naive = rand(MersenneTwister(123456), ft)
         y_sde = rand(MersenneTwister(123456), ft_sde)

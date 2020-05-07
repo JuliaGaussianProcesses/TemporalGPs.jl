@@ -13,6 +13,8 @@ struct Gaussian{Tm, TP}
     P::TP
 end
 
+dim(x::Gaussian) = length(x.m)
+
 Random.rand(rng::AbstractRNG, x::Gaussian) = vec(rand(rng, x, 1))
 
 function Random.rand(rng::AbstractRNG, x::Gaussian, S::Int)
@@ -28,3 +30,5 @@ function Stheno.logpdf(x::Gaussian, Y::AbstractMatrix{<:Real})
 end
 
 Base.:(==)(x::Gaussian, y::Gaussian) = x.m == y.m && x.P == y.P
+
+Base.copy(x::Gaussian) = Gaussian(copy(x.m), copy(x.P))

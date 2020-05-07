@@ -18,9 +18,14 @@ include("test_util.jl")
     include(joinpath("models", "model_test_utils.jl"))
     @testset "models" begin
         include(joinpath("models", "gauss_markov.jl"))
-        include(joinpath("models", "predict.jl"))
         include(joinpath("models", "lgssm.jl"))
-        include(joinpath("models", "lgssm_pullbacks.jl"))
+
+        include(joinpath("models", "immutable_inference.jl"))
+        include(joinpath("models", "immutable_inference_pullbacks.jl"))
+
+        include(joinpath("models", "mutable_inference.jl"))
+        include(joinpath("models", "mutable_inference_pullbacks.jl"))
+
         include(joinpath("models", "scalar_lgssm.jl"))
     end
 
