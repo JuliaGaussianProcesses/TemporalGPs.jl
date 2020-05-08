@@ -8,13 +8,14 @@ module TemporalGPs
 
     import Stheno: mean, cov, pairwise, logpdf, AV, AM
 
-    export to_sde, SArrayStorage, ArrayStorage
+    export to_sde, SArrayStorage, ArrayStorage, RegularSpacing
 
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "zygote_rules.jl"))
     include(joinpath("util", "gaussian.jl"))
     include(joinpath("util", "mul.jl"))
     include(joinpath("util", "storage_types.jl"))
+    include(joinpath("util", "regular_data.jl"))
 
     # Linear-Gaussian State Space Models.
     include(joinpath("models", "gauss_markov.jl"))

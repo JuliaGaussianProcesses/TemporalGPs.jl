@@ -13,6 +13,7 @@ include("test_util.jl")
         include(joinpath("util", "zygote_rules.jl"))
         include(joinpath("util", "gaussian.jl"))
         include(joinpath("util", "mul.jl"))
+        include(joinpath("util", "regular_data.jl"))
     end
 
     include(joinpath("models", "model_test_utils.jl"))
