@@ -30,7 +30,7 @@ end
 
 function GaussMarkovModel(
     k::BaseKernel,
-    t::StepRangeLen,
+    t::Union{StepRangeLen, RegularSpacing},
     storage_type::StorageType{T},
 ) where {T<:Real}
 

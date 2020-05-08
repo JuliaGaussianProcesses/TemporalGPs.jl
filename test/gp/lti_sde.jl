@@ -47,6 +47,7 @@ println("lti_sde:")
         # Either regular spacing or irregular spacing in time.
         ts = (
             (name="irregular spacing", val=sort(rand(rng, N))),
+            (name="regular spacing", val=RegularSpacing(0.0, 0.3, N)),
             # (name="regular spacing", val=range(0.0; step=0.3, length=N)),
         )
 
@@ -82,6 +83,32 @@ println("lti_sde:")
 
             @test logpdf(ft, y) ≈ logpdf(ft_sde, y_sde)
 
+            if eltype(storage.val) == Float64
+                if t.val isa Vector
+                    adjoint_test(
+                        (t, y) -> begin
+                            _f = to_sde(GP(k, GPC()))
+                            _ft = f(t, s...)
+                            return logpdf(_ft, y)
+                        end,
+                        randn(eltype(storage.val)),
+                        t.val, y;
+                        atol=1e-6, rtol=1e-6,
+                    )
+                else
+                    adjoint_test(
+                        (Δt, y) -> begin
+                            _t = RegularSpacing(t.val.t0, Δt, length(t.val))
+                            _f = to_sde(GP(k, GPC()))
+                            _ft = _f(_t, s...)
+                            return logpdf(_ft, y)
+                        end,
+                        randn(eltype(storage.val)),
+                        t.val.Δt, y;
+                        atol=1e-6, rtol=1e-6,
+                    )
+                end
+            end
 
             _, y_smooth, _ = smooth(ft_sde, y_sde)
 
