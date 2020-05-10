@@ -30,6 +30,15 @@ println("gauss_markov:")
         @test eltype(gmm) == eltype(storage.val)
         @test TemporalGPs.storage_type(gmm) == storage.val
 
+        @test length(gmm) == N
+        @test getindex(gmm, N) == (
+            A = gmm.A[N],
+            a = gmm.a[N],
+            Q = gmm.Q[N],
+            H = gmm.H[N],
+            h = gmm.h[N],
+        )
+
         @testset "==" begin
             gmm_other = tv == true ?
                 random_tv_gmm(rng, Dlat, Dobs, N, storage.val) :

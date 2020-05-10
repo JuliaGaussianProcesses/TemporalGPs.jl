@@ -39,6 +39,16 @@ observation_type(x::GaussMarkovModel) = vector_type(x)
 
 Base.length(ft::GaussMarkovModel) = length(ft.A)
 
+function Base.getindex(ft::GaussMarkovModel, n::Int)
+    return (
+        A = ft.A[n],
+        a = ft.a[n],
+        Q = ft.Q[n],
+        H = ft.H[n],
+        h = ft.h[n],
+    )
+end
+
 function Base.:(==)(x::GaussMarkovModel, y::GaussMarkovModel)
     return (x.A == y.A) && (x.a == y.a) && (x.Q == y.Q) && (x.H == y.H) &&
         (x.h == y.h) && (x.x0 == y.x0)
