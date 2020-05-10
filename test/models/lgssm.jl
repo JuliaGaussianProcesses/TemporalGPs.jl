@@ -58,6 +58,9 @@ println("lgssm:")
             @test eltype(model) == eltype(storage.val)
             @test TemporalGPs.storage_type(model) == storage.val
 
+            @test length(model) == N
+            @test getindex(model, N) == (gmm = model.gmm[N], Σ = model.Σ[N])
+
             # Generate a sample from the model.
             y = rand(MersenneTwister(123456), model)
             y_gauss = rand(MersenneTwister(123456), gaussian_model)

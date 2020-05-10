@@ -48,15 +48,17 @@ end
 # step decorrelate / correlate
 #
 
-@inline function step_decorrelate(model, x::Gaussian, y::AV{<:Real})
-    mp, Pp = predict(x.m, x.P, model.A, model.a, model.Q)
-    mf, Pf, lml, α = update_decorrelate(mp, Pp, model.H, model.h, model.Σ, y)
+@inline function step_decorrelate(model::NamedTuple{(:gmm, :Σ)}, x::Gaussian, y::AV{<:Real})
+    gmm = model.gmm
+    mp, Pp = predict(x.m, x.P, gmm.A, gmm.a, gmm.Q)
+    mf, Pf, lml, α = update_decorrelate(mp, Pp, gmm.H, gmm.h, model.Σ, y)
     return lml, α, Gaussian(mf, Pf)
 end
 
-@inline function step_correlate(model, x::Gaussian, α::AV{<:Real})
-    mp, Pp = predict(x.m, x.P, model.A, model.a, model.Q)
-    mf, Pf, lml, y = update_correlate(mp, Pp, model.H, model.h, model.Σ, α)
+@inline function step_correlate(model::NamedTuple{(:gmm, :Σ)}, x::Gaussian, α::AV{<:Real})
+    gmm = model.gmm
+    mp, Pp = predict(x.m, x.P, gmm.A, gmm.a, gmm.Q)
+    mf, Pf, lml, y = update_correlate(mp, Pp, gmm.H, gmm.h, model.Σ, α)
     return lml, y, Gaussian(mf, Pf)
 end
 

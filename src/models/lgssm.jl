@@ -29,10 +29,7 @@ function is_of_storage_type(ft::LGSSM, s::StorageType)
     return is_of_storage_type((ft.gmm, ft.Σ), s)
 end
 
-function Base.getindex(model::LGSSM, n::Int)
-    gmm = model.gmm
-    return (A=gmm.A[n], a=gmm.a[n], Q=gmm.Q[n], H=gmm.H[n], h=gmm.h[n], Σ=model.Σ[n])
-end
+Base.getindex(model::LGSSM, n::Int) = (gmm = model.gmm[n], Σ = model.Σ[n])
 
 mean(model::LGSSM) = mean(model.gmm)
 
@@ -105,7 +102,10 @@ function _compute_Ps(
     return Symmetric(Pf + Gt' * (Ps′ - Pp′) * Gt)
 end
 
-predict(model, x) = Gaussian(predict(x.m, x.P, model.A, model.a, model.Q)...)
+function predict(model::NamedTuple{(:gmm, :Σ)}, x)
+    gmm = model.gmm
+    return Gaussian(predict(x.m, x.P, gmm.A, gmm.a, gmm.Q)...)
+end
 
 """
     posterior_rand(rng::AbstractRNG, model::LGSSM, ys::Vector{<:AV{<:Real}})
