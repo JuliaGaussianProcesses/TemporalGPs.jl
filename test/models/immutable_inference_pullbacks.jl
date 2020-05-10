@@ -18,7 +18,6 @@ using TemporalGPs:
 
 naive_predict(mf, Pf, A, a, Q) = A * mf + a, (A * Pf) * A' + Q
 
-using InteractiveUtils
 function verify_pullback(f_pullback, input, Δoutput, storage)
     output, _pb = f_pullback(input...)
     Δinput = _pb(Δoutput)
