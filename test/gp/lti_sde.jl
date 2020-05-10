@@ -132,7 +132,7 @@ println("lti_sde:")
         f = to_sde(GP(Matern32(), GPC()), SArrayStorage(Float64))
         σ²_n = 0.54
 
-        t = range(0.1; step=0.11, length=1_000_000)
+        t = range(0.1; step=0.11, length=1_000)
         ft = f(t, σ²_n)
         y = collect(rand(rng, ft))
 
