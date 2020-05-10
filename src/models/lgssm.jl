@@ -25,6 +25,10 @@ storage_type(ft::LGSSM) = storage_type(ft.gmm)
 
 Zygote.@nograd storage_type
 
+function is_of_storage_type(ft::LGSSM, s::StorageType)
+    return is_of_storage_type((ft.gmm, ft.Σ), s)
+end
+
 function Base.getindex(model::LGSSM, n::Int)
     gmm = model.gmm
     return (A=gmm.A[n], a=gmm.a[n], Q=gmm.Q[n], H=gmm.H[n], h=gmm.h[n], Σ=model.Σ[n])

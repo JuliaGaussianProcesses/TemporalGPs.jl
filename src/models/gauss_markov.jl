@@ -54,6 +54,10 @@ function storage_type(gmm::GaussMarkovModel{<:AV{<:SMatrix{D, D, T}}}) where {D,
     return SArrayStorage(T)
 end
 
+function is_of_storage_type(gmm::GaussMarkovModel, s::StorageType)
+    return is_of_storage_type((gmm.A, gmm.a, gmm.Q, gmm.H, gmm.h, gmm.x0), s)
+end
+
 """
     mean(gmm::GaussMarkovModel)
 
