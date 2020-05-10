@@ -74,6 +74,13 @@ end
     return a * x, mul_Real_StepRangeLen_adjoint
 end
 
+@adjoint function Base.getindex(x::Fill, n::Int)
+    function getindex_FillArray(Δ)
+        return ((value = Δ, axes = nothing), nothing)
+    end
+    return x[n], getindex_FillArray
+end
+
 @adjoint function step(x::StepRangeLen)
     return step(x), Δ -> ((ref=nothing, step=Δ, len=nothing, offset=nothing),)
 end

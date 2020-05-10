@@ -62,6 +62,11 @@ using TemporalGPs: time_exp
         adjoint_test(y->reinterpret(T, y), Δα, y)
         adjoint_test(α->reinterpret(Float64, α), Δy, α)
     end
+    @testset "getindex(::Fill, ::Int)" begin
+        N = 11
+        val = randn(5, 3)
+        adjoint_test(val -> getindex(Fill(val, N), 3), randn(size(val)), val)
+    end
     @testset "BlockDiagonal" begin
         rng = MersenneTwister(123456)
         Ns = [3, 4, 1]
