@@ -29,6 +29,9 @@ function is_of_storage_type(ft::LGSSM, s::StorageType)
     return is_of_storage_type((ft.gmm, ft.Σ), s)
 end
 
+is_time_invariant(model::LGSSM) = false
+is_time_invariant(model::LGSSM{<:GaussMarkovModel, <:Fill}) = is_time_invariant(model.gmm)
+
 Base.getindex(model::LGSSM, n::Int) = (gmm = model.gmm[n], Σ = model.Σ[n])
 
 mean(model::LGSSM) = mean(model.gmm)

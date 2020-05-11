@@ -2,6 +2,7 @@ using TemporalGPs: smooth, predict, update_decorrelate, step_decorrelate, update
     step_correlate, LGSSM, GaussMarkovModel, Gaussian
 
 using Stheno: GP, GPC
+using TemporalGPs: storage_type, is_of_storage_type, is_time_invariant
 using Zygote, StaticArrays
 
 println("lgssm:")
@@ -56,10 +57,13 @@ println("lgssm:")
 
             # Verify that model properties are as requested.
             @test eltype(model) == eltype(storage.val)
-            @test TemporalGPs.storage_type(model) == storage.val
+            @test storage_type(model) == storage.val
 
             @test length(model) == N
             @test getindex(model, N) == (gmm = model.gmm[N], Σ = model.Σ[N])
+
+            @test is_of_storage_type(model, storage.val)
+            @test is_time_invariant(model) == 1 - tv
 
             # Generate a sample from the model.
             y = rand(MersenneTwister(123456), model)
