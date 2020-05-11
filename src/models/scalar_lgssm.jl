@@ -24,6 +24,10 @@ mean(model::ScalarLGSSM) = mean(model.model)
 
 cov(model::ScalarLGSSM) = cov(model.model)
 
+is_of_storage_type(model::ScalarLGSSM, s::StorageType) = is_of_storage_type(model.model, s)
+
+is_time_invariant(model::ScalarLGSSM) = is_time_invariant(model.model)
+
 # Converts a vector of observations to a vector of 1-vectors.
 to_vector_observations(::ArrayStorage{T}, y::AV{T}) where {T<:Real} = [[y_] for y_ in y]
 
