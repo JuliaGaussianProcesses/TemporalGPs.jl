@@ -1,3 +1,7 @@
+# This file contains a collection of optimisations for use with reveerse-mode AD. 
+# Consequently, it is not necessary to understand the contents of this file to understand
+# the package as a whole.
+
 using TemporalGPs:
     is_of_storage_type,
     Gaussian,
@@ -123,7 +127,6 @@ end
             # Specify LGSSM initial state distribution.
             m = random_vector(rng, Dlat, storage.val)
             P = random_nice_psd_matrix(rng, Dlat, storage.val)
-            P = P isa Matrix ? Symmetric(P) : P
             U_P = cholesky(P).U
 
             # Specify input-output pairs.
@@ -144,10 +147,10 @@ end
                     adjoint_test(
                         (mp, U_Pp, H, h, U_S, α) -> begin
                             U_Pp = UpperTriangular(U_Pp)
-                            Pp = collect(Symmetric(U_Pp'U_Pp))
+                            Pp = U_Pp'U_Pp
 
                             U_S = UpperTriangular(U_S)
-                            S = collect(Symmetric(U_S'U_S))
+                            S = U_S'U_S
 
                             return update_correlate(mp, Pp, H, h, S, α)
                         end,
@@ -176,10 +179,10 @@ end
                     adjoint_test(
                         (mp, U_Pp, H, h, U_S, y) -> begin
                             U_Pp = UpperTriangular(U_Pp)
-                            Pp = collect(Symmetric(U_Pp'U_Pp))
+                            Pp = U_Pp'U_Pp
 
                             U_S = UpperTriangular(U_S)
-                            _S = collect(Symmetric(U_S'U_S))
+                            _S = U_S'U_S
 
                             return update_decorrelate(mp, Pp, H, h, _S, y)
                         end,
@@ -213,16 +216,10 @@ end
                             U_Pf = UpperTriangular(U_Pf)
 
                             model = (
-                                gmm = (
-                                    A=A,
-                                    a=a,
-                                    Q=collect(Symmetric(U_Q'U_Q)),
-                                    H=H,
-                                    h=h,
-                                ),
-                                Σ=collect(Symmetric(U_S'U_S)),
+                                gmm = (A=A, a=a, Q=U_Q'U_Q, H=H, h=h),
+                                Σ=U_S'U_S,
                             )
-                            x_ = Gaussian(mf, collect(Symmetric(U_Pf'U_Pf)))
+                            x_ = Gaussian(mf, U_Pf'U_Pf)
                             return step_correlate(model, x_, α)
                         end,
                         Δoutput,
@@ -253,13 +250,13 @@ end
                     adjoint_test(
                         (A, a, U_Q, H, h, U_S, mf, U_Pf, y) -> begin
                             U_Q = UpperTriangular(Q)
-                            Q = collect(Symmetric(U_Q'U_Q))
+                            Q = U_Q'U_Q
 
                             U_S = UpperTriangular(U_S)
-                            S = collect(Symmetric(U_S'U_S))
+                            S = U_S'U_S
 
                             U_Pf = UpperTriangular(U_Pf)
-                            Pf = collect(Symmetric(U_Pf'U_Pf))
+                            Pf = U_Pf'U_Pf
 
                             model = (gmm=(A=A, a=a, Q=Q, H=H, h=h), Σ=S)
                             x = Gaussian(mf, Pf)

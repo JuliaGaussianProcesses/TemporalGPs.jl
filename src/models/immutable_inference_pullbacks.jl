@@ -81,9 +81,9 @@ end
 
 get_pb(::typeof(pick_last)) = Δ->(nothing, Δ)
 
-for (foo, foo_pullback, step_foo_pullback) in [
-    (:correlate, :correlate_pullback, :step_correlate_pullback),
-    (:decorrelate, :decorrelate_pullback, :step_decorrelate_pullback),
+for (foo, step_foo, foo_pullback, step_foo_pullback) in [
+    (:correlate, :step_correlate, :correlate_pullback, :step_correlate_pullback),
+    (:decorrelate, :step_decorrelate, :decorrelate_pullback, :step_decorrelate_pullback),
 ]
     @eval @adjoint function $foo(
         ::Immutable,
@@ -97,27 +97,33 @@ for (foo, foo_pullback, step_foo_pullback) in [
     # Standard rrule a la ChainRulesCore.
     @eval function $foo_pullback(::Immutable, model::LGSSM, ys::AV{<:AV{<:Real}}, f)
         @assert length(model) == length(ys)
+        T = length(model)
+
+
+        # Pre-allocate for filtering distributions. The indexing is slightly different for
+        # these than for other quantities. In particular, xs[t] := x_{t-1}.
+        xs = Vector{typeof(model.gmm.x0)}(undef, T + 1)
+        xs[1] = model.gmm.x0 # the filtering distribution at t = 0
 
         # Process first observation.
-        (lml, α, x), pb = $step_foo_pullback(model[1], model.gmm.x0, first(ys))
-        v = f(α, x)
+        lml, α, x = $step_foo(model[1], xs[1], first(ys))
+        xs[2] = x # the filtering distribution at t = 1
 
-        # Allocate for remainder of operation.
-        vs = Vector{typeof(v)}(undef, length(model))
-        pullbacks = Vector{typeof(pb)}(undef, length(ys))
+        # Allocate for remainder of operations.
+        v = f(α, x)
+        vs = Vector{typeof(v)}(undef, T)
         vs[1] = v
-        pullbacks[1] = pb
 
         # Process remaining observations.
-        for t in 2:length(ys)
-            (lml_, α, x), pb = $step_foo_pullback(model[t], x, ys[t])
+        for t in 2:T
+            lml_, α, x = $step_foo(model[t], xs[t], ys[t])
+            xs[t + 1] = x # the filtering distribution at t = t.
             lml += lml_
             vs[t] = f(α, x)
-            pullbacks[t] = pb
         end
 
         function foo_pullback(Δ::Tuple{Any, Nothing})
-            return foo_pullback((first(Δ), Fill(nothing, length(vs))))
+            return foo_pullback((first(Δ), Fill(nothing, T)))
         end
 
         function foo_pullback(Δ::Tuple{Any, AbstractVector})
@@ -125,18 +131,21 @@ for (foo, foo_pullback, step_foo_pullback) in [
             Δlml = Δ[1]
             Δvs = Δ[2]
 
-            # Compute the pullback through the last element of the chain.
-            Δys = Vector{eltype(ys)}(undef, length(ys))
+            # Compute the pullback through the last element of the chain to get
+            # initialisations for cotangents to accumulate.
+            Δys = Vector{eltype(ys)}(undef, T)
             (Δα, Δx__) = get_pb(f)(last(Δvs))
-            Δmodel_at_T, Δx, Δy = last(pullbacks)((Δlml, Δα, Δx__))
+            _, pullback_last = $step_foo_pullback(model[T], xs[T], ys[T])
+            Δmodel_at_T, Δx, Δy = pullback_last((Δlml, Δα, Δx__))
             Δmodel = get_adjoint_storage(model, Δmodel_at_T)
-            Δys[end] = Δy
+            Δys[T] = Δy
 
             # Work backwards through the chain.
-            for t in reverse(1:length(ys)-1)
+            for t in reverse(1:T-1)
                 Δα, Δx__ = get_pb(f)(Δvs[t])
                 Δx_ = Zygote.accum(Δx, Δx__)
-                Δmodel_at_t, Δx, Δy = pullbacks[t]((Δlml, Δα, Δx_))
+                _, pullback_t = $step_foo_pullback(model[t], xs[t], ys[t])
+                Δmodel_at_t, Δx, Δy = pullback_t((Δlml, Δα, Δx_))
                 Δmodel = _accum_at(Δmodel, t, Δmodel_at_t)
                 Δys[t] = Δy
             end
