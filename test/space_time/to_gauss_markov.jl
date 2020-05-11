@@ -1,14 +1,11 @@
-using TemporalGPs: RectilinearGrid, Separable
+using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type, is_time_invariant
 
 @testset "to_gauss_markov" begin
     rng = MersenneTwister(123456)
     Nr = 3
     Nt = 5
-    x = RectilinearGrid(randn(rng, Nr), sort(randn(rng, Nt)))
-    k = Separable(EQ(), Matern32())
-    σ² = 0.1
 
-    k_sep = Separable(EQ(), Matern32())
+    k_sep = 1.5 * Separable(stretch(EQ(), 1.4), stretch(Matern32(), 1.3))
 
     σ²s = [
         (name="scalar", val=(0.1,)),
@@ -18,21 +15,20 @@ using TemporalGPs: RectilinearGrid, Separable
     kernels = [
         (name="separable", val=k_sep),
         (name="sum-separable", val=k_sep + k_sep),
-        (
-            name="sum-separable-stretched",
-            val=k_sep + Separable(EQ(), stretch(Matern32(), 0.9)),
-        ),
-        (
-            name="separable-scaled",
-            val=0.5 * k_sep,
-        ),
-        (
-            name="mixed-separable",
-            val=0.5 * k_sep + 0.3 * Separable(EQ(), stretch(Matern32(), 0.95)),
-        ),
     ]
 
-    @testset "k = $(k.name), σ²=$(σ².val)" for k in kernels, σ² in σ²s
+    ts = (
+        (name="irregular spacing", val=sort(rand(rng, Nt))),
+        (name="regular spacing", val=RegularSpacing(0.0, 0.3, Nt)),
+    )
+
+    @testset "k = $(k.name), σ²=$(σ².val), t=$(t.name)" for
+        k in kernels,
+        σ² in σ²s,
+        t in ts
+
+        r = randn(rng, Nr)
+        x = RectilinearGrid(r, t.val)
 
         f = GP(k.val, GPC())
         ft = f(collect(x), σ².val...)
@@ -40,6 +36,10 @@ using TemporalGPs: RectilinearGrid, Separable
 
         f_sde = to_sde(f)
         ft_sde = f_sde(x, σ².val...)
+
+        should_be_time_invariant = (t.val isa Vector) ? false : true
+        @test is_time_invariant(ft_sde) == should_be_time_invariant
+        @test is_of_storage_type(ft_sde, ArrayStorage(Float64))
 
         validate_dims(ft_sde)
         @test length(ft_sde) == length(x.xr)
@@ -49,5 +49,18 @@ using TemporalGPs: RectilinearGrid, Separable
         @test y_naive ≈ vcat(y_sde...)
 
         @test logpdf(ft, y_naive) ≈ logpdf(ft_sde, y_sde)
+
+        if t.val isa RegularSpacing
+            adjoint_test(
+                (r, Δt, y) -> begin
+                    x = RectilinearGrid(r, RegularSpacing(t.val.t0, Δt, Nt))
+                    _f = to_sde(GP(k.val, GPC()))
+                    _ft = _f(x, σ².val...)
+                    return logpdf(_ft, y)
+                end,
+                randn(rng),
+                r, t.val.Δt, y_sde;
+            )
+        end
     end
 end

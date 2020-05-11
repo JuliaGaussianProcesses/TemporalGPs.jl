@@ -24,12 +24,9 @@ end
 
 get_adjoint_storage(x::Fill, init) = (value=init,)
 
-# This is a slightly weird adjoint. The fields don't directly correspond to fields of the
-# LGSSM. This is because this object is always accessed via `getindex` in this
-# functionality. To make life simple, this somewhat unintuitive hack was necessary.
-function get_adjoint_storage(x::LGSSM, Δx::NamedTuple{(:A, :a, :Q, :H, :h, :Σ)})
+function get_adjoint_storage(x::LGSSM, Δx::NamedTuple{(:gmm, :Σ)})
     return (
-        gmm = get_adjoint_storage(x.gmm, (A=Δx.A, a=Δx.a, Q=Δx.Q, H=Δx.H, h=Δx.h)),
+        gmm = get_adjoint_storage(x.gmm, Δx.gmm),
         Σ = get_adjoint_storage(x.Σ, Δx.Σ),
     )
 end
@@ -44,14 +41,22 @@ function get_adjoint_storage(x::GaussMarkovModel, Δx::NamedTuple{(:A, :a, :Q, :
     )
 end
 
-function _accum_at(Δxs::Vector, n::Int, Δx)
+# Diagonal type constraint for the compiler's benefit.
+@inline function _accum_at(Δxs::Vector{T}, n::Int, Δx::T) where {T}
     Δxs[n] = Δx
     return Δxs
 end
 
-_accum_at(Δxs::NamedTuple{(:value,)}, n::Int, Δx) = (value=Δxs.value + Δx,)
+# Diagonal type constraint for the compiler's benefit.
+@inline function _accum_at(Δxs::NamedTuple{(:value,), Tuple{T}}, n::Int, Δx::T) where {T}
+    return (value=Δxs.value + Δx,)
+end
 
-function _accum_at(Δxs::NamedTuple{(:A, :a, :Q, :H, :h)}, n::Int, Δx)
+@inline function _accum_at(
+    Δxs::NamedTuple{(:A, :a, :Q, :H, :h)},
+    n::Int,
+    Δx::NamedTuple{(:A, :a, :Q, :H, :h)},
+)
     return (
         A = _accum_at(Δxs.A, n, Δx.A),
         a = _accum_at(Δxs.a, n, Δx.a),
@@ -61,9 +66,9 @@ function _accum_at(Δxs::NamedTuple{(:A, :a, :Q, :H, :h)}, n::Int, Δx)
     )
 end
 
-function _accum_at(Δxs::NamedTuple{(:gmm, :Σ)}, n::Int, Δx)
-    return(
-        gmm = _accum_at(Δxs.gmm, n, (A=Δx.A, a=Δx.a, Q=Δx.Q, H=Δx.H, h=Δx.h)),
+function _accum_at(Δxs::NamedTuple{(:gmm, :Σ)}, n::Int, Δx::NamedTuple{(:gmm, :Σ)})
+    return (
+        gmm = _accum_at(Δxs.gmm, n, Δx.gmm),
         Σ = _accum_at(Δxs.Σ, n, Δx.Σ),
     )
 end
@@ -76,17 +81,21 @@ end
 
 get_pb(::typeof(pick_last)) = Δ->(nothing, Δ)
 
-for (foo, step_foo, step_foo_pullback) in [
-    (:correlate, :step_correlate, :step_correlate_pullback),
-    (:decorrelate, :step_decorrelate, :step_decorrelate_pullback),
+for (foo, foo_pullback, step_foo_pullback) in [
+    (:correlate, :correlate_pullback, :step_correlate_pullback),
+    (:decorrelate, :decorrelate_pullback, :step_decorrelate_pullback),
 ]
-    # Standard rrule a la ChainRulesCore.
     @eval @adjoint function $foo(
         ::Immutable,
         model::LGSSM,
         ys::AV{<:AV{<:Real}},
         f=copy_first,
     )
+        return $foo_pullback(Immutable(), model, ys, f)
+    end
+
+    # Standard rrule a la ChainRulesCore.
+    @eval function $foo_pullback(::Immutable, model::LGSSM, ys::AV{<:AV{<:Real}}, f)
         @assert length(model) == length(ys)
 
         # Process first observation.
@@ -107,35 +116,41 @@ for (foo, step_foo, step_foo_pullback) in [
             pullbacks[t] = pb
         end
 
-        return (lml, vs), function(Δ)
+        function foo_pullback(Δ::Tuple{Any, Nothing})
+            return foo_pullback((first(Δ), Fill(nothing, length(vs))))
+        end
+
+        function foo_pullback(Δ::Tuple{Any, AbstractVector})
 
             Δlml = Δ[1]
-            Δvs = Δ[2] === nothing ? Fill(nothing, length(vs)) : Δ[2]
+            Δvs = Δ[2]
 
             # Compute the pullback through the last element of the chain.
             Δys = Vector{eltype(ys)}(undef, length(ys))
-            (Δα, Δx) = get_pb(f)(last(Δvs))
-            Δmodel_at_T, Δx, Δy = last(pullbacks)((Δlml, Δα, Δx))
+            (Δα, Δx__) = get_pb(f)(last(Δvs))
+            Δmodel_at_T, Δx, Δy = last(pullbacks)((Δlml, Δα, Δx__))
             Δmodel = get_adjoint_storage(model, Δmodel_at_T)
             Δys[end] = Δy
 
             # Work backwards through the chain.
             for t in reverse(1:length(ys)-1)
-                Δα, Δx_ = get_pb(f)(Δvs[t])
-                Δx = Zygote.accum(Δx, Δx_)
-                Δmodel_at_t, Δx, Δy = pullbacks[t]((Δlml, Δα, Δx))
+                Δα, Δx__ = get_pb(f)(Δvs[t])
+                Δx_ = Zygote.accum(Δx, Δx__)
+                Δmodel_at_t, Δx, Δy = pullbacks[t]((Δlml, Δα, Δx_))
                 Δmodel = _accum_at(Δmodel, t, Δmodel_at_t)
                 Δys[t] = Δy
             end
 
             # Merge all gradient info associated with the model into the same place.
-            Δmodel = (
+            Δmodel_ = (
                 gmm = merge(Δmodel.gmm, (x0=Δx,)),
                 Σ = Δmodel.Σ,
             )
 
-            return nothing, Δmodel, Δys, nothing
+            return nothing, Δmodel_, Δys, nothing
         end
+
+        return (lml, vs), foo_pullback
     end
 end
 
@@ -186,21 +201,25 @@ AtA_pullback(A::AbstractMatrix{<:Real}) = A'A, Δ->(A * (Δ + Δ'),)
 # substantial pullbacks
 #
 
-@adjoint function predict(m::AV, P::AM, A::AM, a::AV, Q::AM)
-    return predict_pullback(m, P, A, a, Q)
-end
+@adjoint predict(m, P, A, a, Q) = predict_pullback(m, P, A, a, Q)
 
-function predict_pullback(m::AV, P::AM, A::AM, a::AV, Q::AM)
+function predict_pullback(
+    m::AbstractVector{T},
+    P::AbstractMatrix{T},
+    A::AbstractMatrix{T},
+    a::AbstractVector{T},
+    Q::AbstractMatrix{T},
+) where {T<:Real}
     mp = A * m + a # 1
-    T = A * P # 2
-    Pp = T * A' + Q # 3
+    tmp = A * P # 2
+    Pp = tmp * A' + Q # 3
     return (mp, Pp), function(Δ)
         Δmp = Δ[1]
         ΔPp = Δ[2]
 
         # 3
         ΔQ = ΔPp
-        ΔA = ΔPp' * T
+        ΔA = ΔPp' * tmp
         ΔT = ΔPp * A
 
         # 2
@@ -220,12 +239,16 @@ end
     return step_decorrelate_pullback(model, x, y)
 end
 
-function step_decorrelate_pullback(model, x::Gaussian, y::AV{<:Real})
-
+function step_decorrelate_pullback(
+    model::NamedTuple{(:gmm, :Σ)},
+    x::Gaussian,
+    y::AV{<:Real},
+)
     # Evaluate function, keeping track of derivatives.
-    (mp, Pp), predict_pb = predict_pullback(x.m, x.P, model.A, model.a, model.Q)
+    gmm = model.gmm
+    (mp, Pp), predict_pb = predict_pullback(x.m, x.P, gmm.A, gmm.a, gmm.Q)
     (mf, Pf, lml, α), update_decorrelate_pb = 
-        update_decorrelate_pullback(mp, Pp, model.H, model.h, model.Σ, y)
+        update_decorrelate_pullback(mp, Pp, gmm.H, gmm.h, model.Σ, y)
 
     return (lml, α, Gaussian(mf, Pf)), function(Δ)
 
@@ -239,7 +262,10 @@ function step_decorrelate_pullback(model, x::Gaussian, y::AV{<:Real})
         Δmf, ΔPf, ΔA, Δa, ΔQ = predict_pb((Δmp, ΔPp))
 
         Δx = (m=Δmf, P=ΔPf)
-        Δmodel = (A=ΔA, a=Δa, Q=ΔQ, H=ΔH, h=Δh, Σ=ΔΣ)
+        Δmodel = (
+            gmm = (A=ΔA, a=Δa, Q=ΔQ, H=ΔH, h=Δh),
+            Σ=ΔΣ,
+        )
         return Δmodel, Δx, Δy
     end
 end
@@ -248,7 +274,14 @@ end
     return update_decorrelate_pullback(m, P, H, h, Σ, y)
 end
 
-function update_decorrelate_pullback(mp, Pp, H::AM, h::AV, Σ::AM, y::AV{<:Real})
+function update_decorrelate_pullback(
+    mp::AbstractVector{T},
+    Pp::AbstractMatrix{T},
+    H::AbstractMatrix{T},
+    h::AbstractVector{T},
+    Σ::AbstractMatrix{T},
+    y::AbstractVector{T},
+) where {T<:Real}
 
     V = H * Pp # 1
     S_1 = V * H' + Σ # 2
@@ -263,7 +296,7 @@ function update_decorrelate_pullback(mp, Pp, H::AM, h::AV, Σ::AM, y::AV{<:Real}
     Pf = Pp - BtB # 9
 
     logdet_S, logdet_S_pb = logdet_pullback(S) # 10
-    lml = -(length(y) * log(2π) + logdet_S + α'α) / 2 # 11
+    lml = -(length(y) * T(log(2π)) + logdet_S + α'α) / 2 # 11
 
     return (mf, Pf, lml, α), function(Δ)
         Δmf, ΔPf, Δlml, Δα = Δ
@@ -339,23 +372,27 @@ end
 function step_correlate_pullback(model, x::Gaussian, α::AV{<:Real})
 
     # Evaluate function, keeping track of derivatives.
-    (mp, Pp), predict_pb = predict_pullback(x.m, x.P, model.A, model.a, model.Q)
+    gmm = model.gmm
+    (mp, Pp), predict_pb = predict_pullback(x.m, x.P, gmm.A, gmm.a, gmm.Q)
     (mf, Pf, lml, y), update_decorrelate_pb = 
-        update_correlate_pullback(mp, Pp, model.H, model.h, model.Σ, α)
+        update_correlate_pullback(mp, Pp, gmm.H, gmm.h, model.Σ, α)
 
     return (lml, y, Gaussian(mf, Pf)), function(Δ)
 
         # Unpack stuff.
         Δlml, Δy, Δx = Δ
-        Δmf = Δx === nothing ? zeros(size(mp)) : Δx.m
-        ΔPf = Δx === nothing ? zeros(size(Pp)) : Δx.P
+        Δmf = Δx === nothing ? zero(mp) : Δx.m
+        ΔPf = Δx === nothing ? zero(Pp) : Δx.P
 
         # Backprop through stuff.
         Δmp, ΔPp, ΔH, Δh, ΔΣ, Δα = update_decorrelate_pb((Δmf, ΔPf, Δlml, Δy))
         Δmf, ΔPf, ΔA, Δa, ΔQ = predict_pb((Δmp, ΔPp))
 
         Δx = (m=Δmf, P=ΔPf)
-        Δmodel = (A=ΔA, a=Δa, Q=ΔQ, H=ΔH, h=Δh, Σ=ΔΣ)
+        Δmodel = (
+            gmm = (A=ΔA, a=Δa, Q=ΔQ, H=ΔH, h=Δh),
+            Σ=ΔΣ,
+        )
         return Δmodel, Δx, Δα
     end
 end
@@ -364,7 +401,14 @@ end
     return update_correlate_pullback(mp, Pp, H, h, Σ, α)
 end
 
-function update_correlate_pullback(mp, Pp, H::AM, h::AV, Σ::AM, α::AV{<:Real})
+function update_correlate_pullback(
+    mp::AbstractVector{T},
+    Pp::AbstractMatrix{T},
+    H::AbstractMatrix{T},
+    h::AbstractVector{T},
+    Σ::AbstractMatrix{T},
+    α::AbstractVector{T},
+) where {T<:Real}
 
     V = H * Pp # 1
     S_1 = V * H' + Σ # 2
@@ -378,7 +422,7 @@ function update_correlate_pullback(mp, Pp, H::AM, h::AV, Σ::AM, α::AV{<:Real})
     Pf = Pp - BtB # 8
 
     logdet_S, logdet_S_pb = logdet_pullback(S) # 9
-    lml = -(length(y) * log(2π) + logdet_S + α'α) / 2 # 10
+    lml = -(length(y) * T(log(2π)) + logdet_S + α'α) / 2 # 10
 
     return (mf, Pf, lml, y), function(Δ)
         Δmf, ΔPf, Δlml, Δy = Δ

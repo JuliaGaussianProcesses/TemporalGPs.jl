@@ -157,8 +157,8 @@ end
 function GaussMarkovModel(k::Stheno.Scaled, ts::AV, storage_type::StorageType)
     model = GaussMarkovModel(k.k, ts, storage_type)
     σ = sqrt(convert(eltype(storage_type), only(k.σ²)))
-    Hs = map(n->σ * model.H[n], 1:length(model.H))
-    hs = map(n->σ * model.h[n], 1:length(model.h))
+    Hs = map(H->σ * H, model.H)
+    hs = map(h->σ * h, model.h)
     return GaussMarkovModel(model.A, model.a, model.Q, Hs, hs, model.x0)
 end
 
@@ -178,6 +178,8 @@ function apply_stretch(a, ts::StepRangeLen)
     return a * ts
 end
 
+apply_stretch(a, ts::RegularSpacing) = RegularSpacing(a * ts.t0, a * ts.Δt, ts.N)
+
 
 
 #
@@ -189,10 +191,10 @@ function GaussMarkovModel(k::Stheno.Sum, ts::AV, storage_type::StorageType)
     model_r = GaussMarkovModel(k.kr, ts, storage_type)
 
     return GaussMarkovModel(
-        blk_diag.(model_l.A, model_r.A),
-        vcat.(model_l.a, model_r.a),
-        blk_diag.(model_l.Q, model_r.Q),
-        hcat.(model_l.H, model_r.H),
+        map(blk_diag, model_l.A, model_r.A),
+        map(vcat, model_l.a, model_r.a),
+        map(blk_diag, model_l.Q, model_r.Q),
+        map(hcat, model_l.H, model_r.H),
         model_l.h + model_r.h,
         Gaussian(
             vcat(model_l.x0.m, model_r.x0.m),

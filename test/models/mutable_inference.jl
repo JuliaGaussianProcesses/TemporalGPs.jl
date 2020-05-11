@@ -30,7 +30,7 @@
         Σ = random_nice_psd_matrix(rng, Dobs, storage)
         y = randn(rng, T.T, Dobs)
 
-        model = (A=A, a=a, Q=Q, H=H, h=h, Σ=Σ)
+        model = (gmm=(A=A, a=a, Q=Q, H=H, h=h), Σ=Σ)
 
         @testset "predict!" begin
             mp_naive, Pp_naive = TemporalGPs.predict(mf, Pf, A, a, Q)

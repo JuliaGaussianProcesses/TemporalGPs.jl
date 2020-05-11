@@ -39,6 +39,16 @@ observation_type(x::GaussMarkovModel) = vector_type(x)
 
 Base.length(ft::GaussMarkovModel) = length(ft.A)
 
+function Base.getindex(ft::GaussMarkovModel, n::Int)
+    return (
+        A = ft.A[n],
+        a = ft.a[n],
+        Q = ft.Q[n],
+        H = ft.H[n],
+        h = ft.h[n],
+    )
+end
+
 function Base.:(==)(x::GaussMarkovModel, y::GaussMarkovModel)
     return (x.A == y.A) && (x.a == y.a) && (x.Q == y.Q) && (x.H == y.H) &&
         (x.h == y.h) && (x.x0 == y.x0)
@@ -53,6 +63,14 @@ storage_type(gmm::GaussMarkovModel{<:AV{Matrix{T}}}) where {T<:Real} = ArrayStor
 function storage_type(gmm::GaussMarkovModel{<:AV{<:SMatrix{D, D, T}}}) where {D, T<:Real}
     return SArrayStorage(T)
 end
+
+function is_of_storage_type(gmm::GaussMarkovModel, s::StorageType)
+    return is_of_storage_type((gmm.A, gmm.a, gmm.Q, gmm.H, gmm.h, gmm.x0), s)
+end
+
+is_time_invariant(gmm::GaussMarkovModel) = false
+is_time_invariant(gmm::GaussMarkovModel{<:Fill, <:Fill, <:Fill, <:Fill, <:Fill}) = true
+
 
 """
     mean(gmm::GaussMarkovModel)

@@ -1,4 +1,4 @@
-using TemporalGPs: smooth, Gaussian, GaussMarkovModel
+using TemporalGPs: smooth, Gaussian, GaussMarkovModel, is_of_storage_type, is_time_invariant
 
 println("scalar_lgssm:")
 @testset "scalar_lgssm" begin
@@ -29,18 +29,13 @@ println("scalar_lgssm:")
     rng = MersenneTwister(123456)
     N = 3
 
-    time_points = [
-        (name="regular spacing", val=range(0.0; step=0.3, length=N)),
-        (name="irregular spacing", val=sort(rand(rng, N))),
-    ]
     Dlats = [1, 3, 4]
     storages = [
         (name="dense storage", val=ArrayStorage(Float64)),
         (name="static storage", val=SArrayStorage(Float64)),
     ]
 
-    @testset "($(ts.name), Dlat=$Dlat, $(storage.name))" for
-        ts in time_points,
+    @testset "(Dlat=$Dlat, $(storage.name))" for
         Dlat in Dlats,
         storage in storages
 
@@ -50,6 +45,9 @@ println("scalar_lgssm:")
         gmm = model.gmm
         Σs = model.Σ
         As, as, Qs, Hs, hs, x = gmm.A, gmm.a, gmm.Q, gmm.H, gmm.h, gmm.x0
+
+        @test is_of_storage_type(scalar_model, storage.val)
+        @test is_time_invariant(scalar_model) == false
 
         # Generate a sample from the model.
         y = rand(MersenneTwister(123456), scalar_model)

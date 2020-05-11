@@ -25,6 +25,10 @@ function to_vec(x::Fill)
     return x_vec, Fill_from_vec
 end
 
+function to_vec(x::Union{Zeros, Ones})
+    return Vector{eltype(x)}(undef, 0), _ -> x
+end
+
 function to_vec(x::Base.ReinterpretArray)
     return to_vec(collect(x))
 end
@@ -153,6 +157,12 @@ end
             @test x_vec isa Vector{Float64}
             @test back(x_vec) == x
         end
+    end
+    @testset "Zeros{T}" for T in [Float32, Float64]
+        x = Zeros{T}(4)
+        x_vec, back = to_vec(x)
+        @test x_vec isa Vector{eltype(x)}
+        @test back(x_vec) == x
     end
     @testset "gaussian" begin
         @testset "Gaussian" begin
@@ -289,7 +299,7 @@ end
 
 using BenchmarkTools
 
-function benchmark_adjoint(f, ȳ, args...; disp=true)
+function benchmark_adjoint(f, ȳ, args...; disp=false)
     disp && println("primal")
     primal = @benchmark $f($args...)
     if disp
@@ -316,12 +326,17 @@ function benchmark_adjoint(f, ȳ, args...; disp=true)
     return primal, forward_pass, reverse_pass
 end
 
-function adjoint_allocs(f, ȳ, args...; disp=true)
-    primal = @allocated f(args...)
-    forward_pass = @allocated Zygote.pullback(f, args...)
+function adjoint_allocs(f, ȳ, args...)
 
-    y, back = Zygote.pullback(f, args...)
-    reverse_pass = @allocated back(ȳ)
+    # Execute primal evaluation.
+    primal = allocs(@benchmark $f($args...))
+
+    # Execute forwards-pass.
+    _, back = Zygote.pullback(f, args...)
+    forward_pass = allocs(@benchmark Zygote.pullback($f, $args...))
+
+    # Execute reverse-pass.
+    reverse_pass = allocs(@benchmark $back($ȳ))
 
     return primal, forward_pass, reverse_pass
 end

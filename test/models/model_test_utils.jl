@@ -32,6 +32,22 @@ to_static(model::LGSSM) = LGSSM(to_static(model.gmm), to_static.(model.Σ))
 # Generation of positive semi-definite matrices.
 #
 
+function random_vector(rng::AbstractRNG, N::Int, ::ArrayStorage{T}) where {T<:Real}
+    return randn(rng, T, N)
+end
+
+function random_vector(rng::AbstractRNG, N::Int, ::SArrayStorage{T}) where {T<:Real}
+    return SVector{N}(randn(rng, T, N))
+end
+
+function random_matrix(rng::AbstractRNG, M::Int, N::Int, ::ArrayStorage{T}) where {T<:Real}
+    return randn(rng, T, M, N)
+end
+
+function random_matrix(rng::AbstractRNG, M::Int, N::Int, ::SArrayStorage{T}) where {T<:Real}
+    return SMatrix{M, N}(randn(rng, T, M, N))
+end
+
 function random_nice_psd_matrix(rng::AbstractRNG, N::Integer, ::ArrayStorage{T}) where {T}
 
     # Generate random positive definite matrix.

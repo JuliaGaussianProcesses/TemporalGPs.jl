@@ -1,5 +1,8 @@
 using Zygote: @adjoint, accum
 
+# Not a rule, but a helpful utility.
+show_grad_type(x, S) = Zygote.hook(x̄ -> ((@show S, typeof(x̄)); x̄), x)
+
 @adjoint function SVector{D}(x::AbstractVector) where {D}
     return SVector{D}(x), Δ::AbstractVector -> (convert(typeof(x), Δ),)
 end
@@ -108,4 +111,36 @@ end
         return (Δ.blocks,)
     end
     return BlockDiagonal(blocks), BlockDiagonal_pullback
+end
+
+@adjoint function Base.map(f::Tf, x::Fill) where {Tf}
+    y_el, back = Zygote._pullback(f, x.value)
+    function map_Fill_pullback(Δ::NamedTuple{(:value,)})
+        Δf, Δx_el = back(Δ.value)
+        return Δf, (value = Δx_el,)
+    end
+    return Fill(y_el, size(x)), map_Fill_pullback
+end
+
+function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf}
+    @assert size(x1) == size(x2)
+    y_el = f(x1.value, x2.value)
+    return Fill(y_el, size(x1))
+end
+
+Zygote.@adjoint function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf}
+    @assert size(x1) == size(x2)
+    y_el, back = Zygote._pullback(f, x1.value, x2.value)
+    function map_Fill_pullback(Δ::NamedTuple{(:value,)})
+        Δf, Δx1_el, Δx2_el = back(Δ.value)
+        return (Δf, (value = Δx1_el,), (value = Δx2_el,))
+    end
+    return Fill(y_el, size(x1)), map_Fill_pullback
+end
+
+@adjoint function Base.getindex(x::Fill, n::Int)
+    function getindex_FillArray(Δ)
+        return ((value = Δ, axes = nothing), nothing)
+    end
+    return x[n], getindex_FillArray
 end

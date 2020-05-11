@@ -48,7 +48,6 @@ println("lti_sde:")
         ts = (
             (name="irregular spacing", val=sort(rand(rng, N))),
             (name="regular spacing", val=RegularSpacing(0.0, 0.3, N)),
-            # (name="regular spacing", val=range(0.0; step=0.3, length=N)),
         )
 
         σ²s = (
@@ -70,6 +69,10 @@ println("lti_sde:")
 
             f_sde = to_sde(f, storage.val)
             ft_sde = f_sde(t.val, s...)
+
+            hetero_noise = σ².val isa Tuple{Union{Vector, Diagonal}}
+            should_be_time_invariant = (t.val isa Vector || hetero_noise) ? false : true
+            @test is_time_invariant(ft_sde) == should_be_time_invariant
 
             validate_dims(ft_sde)
 
@@ -132,7 +135,7 @@ println("lti_sde:")
         f = to_sde(GP(Matern32(), GPC()), SArrayStorage(Float64))
         σ²_n = 0.54
 
-        t = range(0.1; step=0.11, length=1_000_000)
+        t = range(0.1; step=0.11, length=1_000)
         ft = f(t, σ²_n)
         y = collect(rand(rng, ft))
 

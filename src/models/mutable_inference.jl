@@ -45,7 +45,7 @@ function step_decorrelate!(
     α::Vector{T},
     x_filter_next::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
     x_filter::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
-    model,
+    model::NamedTuple{(:gmm, :Σ)},
     y::Vector{<:Real},
 ) where {T<:Real}
 
@@ -55,9 +55,10 @@ function step_decorrelate!(
     x_predict = Gaussian(mp, Symmetric(Pp))
 
     # Compute next filtering distribution.
-    x_predict = predict!(x_predict, x_filter, model.A, model.a, model.Q)
+    gmm = model.gmm
+    x_predict = predict!(x_predict, x_filter, gmm.A, gmm.a, gmm.Q)
     x_filter_next, lml, α = update_decorrelate!(
-        α, x_filter_next, x_predict, model.H, model.h, model.Σ, y,
+        α, x_filter_next, x_predict, gmm.H, gmm.h, model.Σ, y,
     )
     return lml, α, x_filter_next
 end

@@ -1,5 +1,8 @@
 using Kronecker: KroneckerProduct
 
+my_I(T, N) = Matrix{T}(I, N, N)
+Zygote.@nograd my_I
+
 function GaussMarkovModel(k::Separable, x::SpaceTimeGrid, storage)
 
     # Compute spatial covariance, and temporal GaussMarkovModel.
@@ -10,12 +13,12 @@ function GaussMarkovModel(k::Separable, x::SpaceTimeGrid, storage)
 
     # Produce a new GaussMarkovModel over the spatial locations specified.
     Nr = length(r)
-    Nt = length(t)
-    A = map(A -> kron(Eye(Nr), A), gmm_time.A)
-    a = repeat.(gmm_time.a, Nr)
+    ident = my_I(eltype(storage), Nr)
+    A = map(A -> kron(ident, A), gmm_time.A)
+    a = map(a -> repeat(a, Nr), gmm_time.a)
     Q = map(Q -> kron(Kr, Q), gmm_time.Q)
-    H = kron.(Ref(Eye(Nr)), gmm_time.H)
-    h = repeat.(gmm_time.h, Nr)
+    H = map(H -> kron(ident, H), gmm_time.H)
+    h = map(h -> repeat(h, Nr), gmm_time.h)
     x = Gaussian(
         repeat(gmm_time.x0.m, Nr),
         kron(Kr, gmm_time.x0.P),
