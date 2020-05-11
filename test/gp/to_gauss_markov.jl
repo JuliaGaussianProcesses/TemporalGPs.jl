@@ -77,9 +77,9 @@ println("to_gauss_markov:")
         )
 
         @testset "$(kernel_info.name), $(storage.name), $(t.name)" for
-                kernel_info in kernels_info,
-                storage in storages,
-                t in ts
+            kernel_info in kernels_info,
+            storage in storages,
+            t in ts
 
             # Convert all parameters to appropriate element type.
             θ = map(eltype(storage.val), kernel_info.θ)
@@ -87,6 +87,9 @@ println("to_gauss_markov:")
             # Construct Gauss-Markov model.
             k = kernel_info.ctor(θ...)
             ft = GaussMarkovModel(k, t.val, storage.val)
+
+            should_be_time_invariant = (t.val isa Vector) ? false : true
+            @test is_time_invariant(ft) == should_be_time_invariant
 
             validate_types(ft, storage.val)
             validate_dims(ft)
