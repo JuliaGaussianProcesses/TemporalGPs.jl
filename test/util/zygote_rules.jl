@@ -89,4 +89,21 @@ using TemporalGPs: time_exp
         end
         adjoint_test(foo, ȳ, randn(rng), x)
     end
+    @testset "map(f, x1::Fill, x2::Fill)" begin
+        rng = MersenneTwister(123456)
+        N = 5
+        x1 = Fill(randn(rng, 3, 4), 3)
+        x2 = Fill(randn(rng, 3, 4), 3)
+        ȳ = (value = randn(rng, 3, 4),)
+
+        @test map(+, x1, x2) == map(+, collect(x1), collect(x2))
+        adjoint_test((x1, x2) -> map(+, x1, x2), ȳ, x1, x2)
+
+        adjoint_test((x1, x2) -> map((z1, z2) -> sin.(z1 .* z2), x1, x2), ȳ, x1, x2)
+
+        foo = (a, x1, x2) -> begin
+            return map((z1, z2) -> a * sin.(z1 .* z2), x1, x2)
+        end
+        adjoint_test(foo, ȳ, randn(rng), x1, x2)
+    end
 end

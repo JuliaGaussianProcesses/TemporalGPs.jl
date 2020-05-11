@@ -117,11 +117,27 @@ end
     return BlockDiagonal(blocks), BlockDiagonal_pullback
 end
 
-@adjoint function map(f::Tf, x::Fill) where {Tf}
+@adjoint function Base.map(f::Tf, x::Fill) where {Tf}
     y_el, back = Zygote._pullback(f, x.value)
     function map_Fill_pullback(Δ::NamedTuple{(:value,)})
         Δf, Δx_el = back(Δ.value)
         return Δf, (value = Δx_el,)
     end
     return Fill(y_el, size(x)), map_Fill_pullback
+end
+
+function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf}
+    @assert size(x1) == size(x2)
+    y_el = f(x1.value, x2.value)
+    return Fill(y_el, size(x1))
+end
+
+Zygote.@adjoint function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf}
+    @assert size(x1) == size(x2)
+    y_el, back = Zygote._pullback(f, x1.value, x2.value)
+    function map_Fill_pullback(Δ::NamedTuple{(:value,)})
+        Δf, Δx1_el, Δx2_el = back(Δ.value)
+        return (Δf, (value = Δx1_el,), (value = Δx2_el,))
+    end
+    return Fill(y_el, size(x1)), map_Fill_pullback
 end
