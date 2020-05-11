@@ -103,10 +103,7 @@ function random_tv_gmm(
     as = map(_ -> randn(rng, T, Dlat), 1:N)
     Hs = map(_ -> randn(rng, T, Dobs, Dlat), 1:N)
     hs = map(_ -> randn(rng, T, Dobs), 1:N)
-    x0 = TemporalGPs.Gaussian(
-        randn(rng, T, Dlat),
-        random_nice_psd_matrix(rng, Dlat, s),
-    )
+    x0 = random_gaussian(rng, Dlat, s)
 
     # For some reason this operation seems to be _incredibly_ inaccurate. My guess is that
     # the numerics are horrible for some reason, but I'm not sure why. Hence we add a pretty
@@ -129,10 +126,7 @@ function random_ti_gmm(
     as = Fill(randn(rng, T, Dlat), N)
     Hs = Fill(randn(rng, T, Dobs, Dlat), N)
     hs = Fill(randn(rng, T, Dobs), N)
-    x0 = TemporalGPs.Gaussian(
-        randn(rng, T, Dlat),
-        random_nice_psd_matrix(rng, Dlat, s),
-    )
+    x0 = random_gaussian(rng, Dlat, s)
 
     # For some reason this operation seems to be _incredibly_ inaccurate. My guess is that
     # the numerics are horrible for some reason, but I'm not sure why. Hence we add a pretty
