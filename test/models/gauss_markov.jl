@@ -1,9 +1,12 @@
+using TemporalGPs: storage_type, is_of_storage_type, is_time_invariant
+
 println("gauss_markov:")
 @testset "gauss_markov" begin
 
     Dlats = [1, 3, 5, 7]
     Dobss = [1, 2, 6, 7]
     Ns = [1, 3, 11]
+
     tvs = [true, false]
     storages = [
         (name="Array{Float64}", val=ArrayStorage(Float64)),
@@ -28,7 +31,7 @@ println("gauss_markov:")
             random_ti_gmm(rng, Dlat, Dobs, N, storage.val)
 
         @test eltype(gmm) == eltype(storage.val)
-        @test TemporalGPs.storage_type(gmm) == storage.val
+        @test storage_type(gmm) == storage.val
 
         @test length(gmm) == N
         @test getindex(gmm, N) == (
@@ -38,6 +41,9 @@ println("gauss_markov:")
             H = gmm.H[N],
             h = gmm.h[N],
         )
+
+        @test is_of_storage_type(gmm, storage.val)
+        @test is_time_invariant(gmm) == 1 - tv
 
         @testset "==" begin
             gmm_other = tv == true ?

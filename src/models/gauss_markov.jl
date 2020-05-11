@@ -68,6 +68,10 @@ function is_of_storage_type(gmm::GaussMarkovModel, s::StorageType)
     return is_of_storage_type((gmm.A, gmm.a, gmm.Q, gmm.H, gmm.h, gmm.x0), s)
 end
 
+is_time_invariant(gmm::GaussMarkovModel) = false
+is_time_invariant(gmm::GaussMarkovModel{<:Fill, <:Fill, <:Fill, <:Fill, <:Fill}) = true
+
+
 """
     mean(gmm::GaussMarkovModel)
 
