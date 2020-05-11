@@ -83,5 +83,10 @@ using TemporalGPs: time_exp
 
         ȳ = (value = randn(rng, 3, 4),)
         adjoint_test(x -> map(x -> map(z -> sin(z), x), x), ȳ, x)
+
+        foo = (a, x) -> begin
+            return map(x -> a * x, x)
+        end
+        adjoint_test(foo, ȳ, randn(rng), x)
     end
 end
