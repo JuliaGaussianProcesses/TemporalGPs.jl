@@ -14,8 +14,6 @@ function is_of_storage_type(xs::Union{Tuple, NamedTuple}, s::StorageType)
     return all(map(x -> is_of_storage_type(x, s), xs))
 end
 
-is_of_storage_type(X::Symmetric, s::StorageType) = is_of_storage_type(X.data, s)
-
 is_of_storage_type(x::Gaussian, s::StorageType) = is_of_storage_type((x.m, x.P), s)
 
 

@@ -60,6 +60,7 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type, is_time_invar
                 end,
                 randn(rng),
                 r, t.val.Δt, y_sde;
+                atol=1e-8, rtol=1e-8,
             )
         end
     end

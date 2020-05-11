@@ -10,10 +10,10 @@ function decorrelate(::Mutable, model::LGSSM, ys::AbstractVector, f=copy_first)
     # Pre-allocate for intermediates.
     α = Vector{eltype(first(ys))}(undef, length(first(ys)))
     x0 = model.gmm.x0
-    x0_sym = Gaussian(x0.m, Symmetric(x0.P))
+    x0_sym = Gaussian(x0.m, x0.P)
     mf = copy(x0.m)
     Pf = copy(x0.P)
-    x = Gaussian(mf, Symmetric(Pf))
+    x = Gaussian(mf, Pf)
 
     # Process first latent.
     (lml, α, x) = step_decorrelate!(α, x, x0_sym, model[1], ys[1])
@@ -31,11 +31,11 @@ function decorrelate(::Mutable, model::LGSSM, ys::AbstractVector, f=copy_first)
 end
 
 """
-    step_decorrelate!(
+    function step_decorrelate!(
         α::Vector{T},
-        x_filter_next::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
-        x_filter::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
-        model,
+        x_filter_next::Gaussian{Vector{T}, Matrix{T}},
+        x_filter::Gaussian{Vector{T}, Matrix{T}},
+        model::NamedTuple{(:gmm, :Σ)},
         y::Vector{<:Real},
     ) where {T<:Real}
 
@@ -43,8 +43,8 @@ Mutating version of `step_decorrelate`. Mutates both `α` and `x_filter_next`.
 """
 function step_decorrelate!(
     α::Vector{T},
-    x_filter_next::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
-    x_filter::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
+    x_filter_next::Gaussian{Vector{T}, Matrix{T}},
+    x_filter::Gaussian{Vector{T}, Matrix{T}},
     model::NamedTuple{(:gmm, :Σ)},
     y::Vector{<:Real},
 ) where {T<:Real}
@@ -52,7 +52,7 @@ function step_decorrelate!(
     # Preallocate for predictive distribution.
     mp = Vector{T}(undef, dim(x_filter))
     Pp = Matrix{T}(undef, dim(x_filter), dim(x_filter))
-    x_predict = Gaussian(mp, Symmetric(Pp))
+    x_predict = Gaussian(mp, Pp)
 
     # Compute next filtering distribution.
     gmm = model.gmm
@@ -65,8 +65,8 @@ end
 
 """
     predict!(
-        x_predict::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
-        x_filter::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
+        x_predict::Gaussian{Vector{T}, Matrix{T}},
+        x_filter::Gaussian{Vector{T}, Matrix{T}},
         A::Matrix{T},
         a::Vector{T},
         Q::Matrix{T},
@@ -75,8 +75,8 @@ end
 Mutatiing version of `predict`. Modifies `x_predict`.
 """
 function predict!(
-    x_predict::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
-    x_filter::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
+    x_predict::Gaussian{Vector{T}, Matrix{T}},
+    x_filter::Gaussian{Vector{T}, Matrix{T}},
     A::Matrix{T},
     a::AbstractVector{T},
     Q::Matrix{T},
@@ -90,8 +90,8 @@ function predict!(
     APf = Matrix{T}(undef, size(A))
     mul!(APf, A, x_filter.P)
 
-    x_predict.P .= Symmetric(Q)
-    mul!(x_predict.P.data, APf, A', one(T), one(T))
+    x_predict.P .= Q
+    mul!(x_predict.P, APf, A', one(T), one(T))
 
     return x_predict
 end
@@ -99,8 +99,8 @@ end
 """
     update_decorrelate!(
         α::Vector{T},
-        x_filter::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
-        x_predict::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
+        x_filter::Gaussian{Vector{T}, Matrix{T}},
+        x_predict::Gaussian{Vector{T}, Matrix{T}},
         H::Matrix{T},
         h::Vector{T},
         Σ::Matrix{T},
@@ -111,14 +111,15 @@ Mutating version of `update_decorrelate`. Modifies `α` and `x_filter`.
 """
 function update_decorrelate!(
     α::Vector{T},
-    x_filter::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
-    x_predict::Gaussian{Vector{T}, Symmetric{T, Matrix{T}}},
+    x_filter::Gaussian{Vector{T}, Matrix{T}},
+    x_predict::Gaussian{Vector{T}, Matrix{T}},
     H::Matrix{T},
     h::AbstractVector{T},
     Σ::AbstractMatrix{T},
     y::AbstractVector{T},
 ) where {T<:Real}
-    V = _compute_V(H, x_predict.P)
+
+    V = H * x_predict.P
     S_1 = V * H' + Σ
     S = cholesky(Symmetric(S_1))
     U = S.U
@@ -132,16 +133,16 @@ function update_decorrelate!(
     mul!(x_filter.m, B', α, one(T), one(T))
 
     # x_filter.P .= x_predict.P - B'B
-    x_filter.P.data .= x_predict.P.data
-    Pf = _compute_Pf!(x_filter.P, B)
+    x_filter.P .= x_predict.P
+    _compute_Pf!(x_filter.P, B)
 
     # Compute log marginal probablilty of observation `y`.
-    lml = -(length(y) * log(2π) + logdet(S) + α'α) / 2
+    lml = -(length(y) * T(log(2π)) + logdet(S) + α'α) / 2
 
     return x_filter, lml, α
 end
 
 # Old method. Considering removing.
-function _compute_Pf!(Pp::Symmetric{T, Matrix{T}}, B::Matrix{T}) where {T<:Real}
-    BLAS.syrk!('U', 'T', -1.0, B, 1.0, Pp.data)
+function _compute_Pf!(Pp::Matrix{T}, B::Matrix{T}) where {T<:Real}
+    LinearAlgebra.copytri!(BLAS.syrk!('U', 'T', -1.0, B, 1.0, Pp), 'U')
 end
