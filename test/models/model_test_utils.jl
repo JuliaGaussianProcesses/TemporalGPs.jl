@@ -49,14 +49,7 @@ end
 # Generation of Gaussians.
 #
 
-function random_gaussian(rng::AbstractRNG, dim::Int, s::ArrayStorage)
-    return Gaussian(
-        random_vector(rng, dim, s),
-        Symmetric(random_nice_psd_matrix(rng, dim, s)),
-    )
-end
-
-function random_gaussian(rng::AbstractRNG, dim::Int, s::SArrayStorage)
+function random_gaussian(rng::AbstractRNG, dim::Int, s::StorageType)
     return Gaussian(random_vector(rng, dim, s), random_nice_psd_matrix(rng, dim, s))
 end
 
@@ -71,13 +64,13 @@ function random_tv_gmm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::Storag
     As = map(_ -> -random_nice_psd_matrix(rng, Dlat, s), 1:N)
     as = map(_ -> random_vector(rng, Dlat, s), 1:N)
     Hs = map(_ -> random_matrix(rng, Dobs, Dlat, s), 1:N)
-    hs = map(_ -> random_vector(rng, Dobs, T), 1:N)
+    hs = map(_ -> random_vector(rng, Dobs, s), 1:N)
     x0 = random_gaussian(rng, Dlat, s)
 
     # For some reason this operation seems to be _incredibly_ inaccurate. My guess is that
     # the numerics are horrible for some reason, but I'm not sure why. Hence we add a pretty
     # large constant to the diagonal to ensure that all Qs are positive definite.
-    Qs = map(n -> x0.P - Symmetric(As[n] * x0.P * As[n]') + T(1e-1) * I, 1:N)
+    Qs = map(n -> x0.P - Symmetric(As[n] * x0.P * As[n]') + eltype(s)(1e-1) * I, 1:N)
 
     return GaussMarkovModel(As, as, Qs, Hs, hs, x0)
 end
@@ -85,15 +78,15 @@ end
 function random_ti_gmm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::StorageType)
 
     As = Fill(-random_nice_psd_matrix(rng, Dlat, s), N)
-    as = Fill(random_vector(rng, Dlat, T), N)
-    Hs = Fill(random_matrix(rng, Dobs, Dlat, T), N)
-    hs = Fill(random_vector(rng, Dobs, T), N)
+    as = Fill(random_vector(rng, Dlat, s), N)
+    Hs = Fill(random_matrix(rng, Dobs, Dlat, s), N)
+    hs = Fill(random_vector(rng, Dobs, s), N)
     x0 = random_gaussian(rng, Dlat, s)
 
     # For some reason this operation seems to be _incredibly_ inaccurate. My guess is that
     # the numerics are horrible for some reason, but I'm not sure why. Hence we add a pretty
     # large constant to the diagonal to ensure that all Qs are positive definite.
-    Qs = Fill(x0.P - As[1] * x0.P * As[1]' + T(1e-1) * I, N)
+    Qs = Fill(x0.P - As[1] * x0.P * As[1]' + eltype(s)(1e-1) * I, N)
     return GaussMarkovModel(As, as, Qs, Hs, hs, x0)
 end
 
