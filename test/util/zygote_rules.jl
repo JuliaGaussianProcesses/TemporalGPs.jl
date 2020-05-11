@@ -74,4 +74,14 @@ using TemporalGPs: time_exp
         ΔX = (blocks=map(N -> randn(rng, N, N), Ns),)
         adjoint_test(BlockDiagonal, ΔX, Xs)
     end
+    @testset "map(f, x::Fill)" begin
+        rng = MersenneTwister(123456)
+        N = 5
+        x = Fill(randn(rng, 3, 4), 4)
+        ȳ = (value = randn(rng),)
+        adjoint_test(x -> map(sum, x), ȳ, x)
+
+        ȳ = (value = randn(rng, 3, 4),)
+        adjoint_test(x -> map(x -> map(z -> sin(z), x), x), ȳ, x)
+    end
 end
