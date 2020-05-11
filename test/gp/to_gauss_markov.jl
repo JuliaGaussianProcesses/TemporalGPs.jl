@@ -1,4 +1,4 @@
-using TemporalGPs: GaussMarkovModel
+using TemporalGPs: GaussMarkovModel, is_time_invariant
 
 println("to_gauss_markov:")
 @testset "to_gauss_markov" begin
@@ -73,7 +73,7 @@ println("to_gauss_markov:")
         # Either regular spacing or irregular spacing in time.
         ts = (
             (name="irregular spacing", val=sort(rand(rng, N))),
-            (name="regular spacing", val=range(0.0; step=0.3, length=N)),
+            (name="regular spacing", val=RegularSpacing(0.0, 0.3, N)),
         )
 
         @testset "$(kernel_info.name), $(storage.name), $(t.name)" for
@@ -99,24 +99,31 @@ println("to_gauss_markov:")
                 @test cov(ft) ≈ pw(k, t.val, t.val)
 
                 # Ensure that it's possible to backprop through construction.
-                if length(kernel_info.θ) > 0 && t.val isa Vector
+                if length(kernel_info.θ) > 0
+
                     N = length(ft)
                     Dobs = size(first(ft.H), 1)
                     Dlat = size(first(ft.H), 2)
-                    ΔA = map(_ -> randn(rng, Dlat, Dlat), 1:N)
-                    ΔQ = map(_ -> random_nice_psd_matrix(rng, Dlat, storage.val), 1:N)
-                    ΔH = map(_ -> randn(rng, Dobs, Dlat), 1:N)
-                    ΔH_sum = randn(rng, Dobs, Dlat)
-                    Δm = randn(rng, size(ft.x0.m))
+
+                    ΔA = t.val isa Vector ?
+                        map(_ -> random_matrix(rng, Dlat, Dlat, storage.val), 1:N) :
+                        (value = random_matrix(rng, Dlat, Dlat, storage.val), )
+
+                    ΔQ = t.val isa Vector ?
+                        map(_ -> random_nice_psd_matrix(rng, Dlat, storage.val), 1:N) :
+                        (value = random_nice_psd_matrix(rng, Dlat, storage.val), )
+
+                    ΔH = (value = random_matrix(rng, Dobs, Dlat, storage.val),)
+                    Δm = random_vector(rng, length(ft.x0.m), storage.val)
                     ΔP = random_nice_psd_matrix(rng, Dlat, storage.val)
 
                     adjoint_test(
                         (θ) -> begin
                             k = kernel_info.ctor(θ...)
                             ft = GaussMarkovModel(k, t.val, storage.val)
-                            return (ft.A, ft.Q, sum(ft.H), ft.x0.m, ft.x0.P)
+                            return (ft.A, ft.Q, ft.H, ft.x0.m, ft.x0.P)
                         end,
-                        (ΔA, ΔQ, ΔH_sum, Δm, ΔP),
+                        (ΔA, ΔQ, ΔH, Δm, ΔP),
                         θ;
                     )
                 end
