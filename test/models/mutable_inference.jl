@@ -1,57 +1,59 @@
+using TemporalGPs: is_of_storage_type
+
 @testset "mutable_inference" begin
     rng = MersenneTwister(123456)
     Dlats = [1, 3]
     Dobss = [1, 2]
     Ts = [
         # (T=Float32, atol=1e-5, rtol=1e-5),
-        (T=Float64, atol=1e-9, rtol=1e-9),
+        (storage=ArrayStorage(Float64), atol=1e-9, rtol=1e-9),
     ]
 
-    @testset "Matrix - $Dlat, $Dobs, $(T.T)" for Dlat in Dlats, Dobs in Dobss, T in Ts
+    @testset "Matrix - $Dlat, $Dobs, $(T.storage)" for Dlat in Dlats, Dobs in Dobss, T in Ts
+
+        storage = T.storage
 
         # Generate parameters for a transition model.
-        storage = ArrayStorage(T.T)
-        A = randn(rng, T.T, Dlat, Dlat)
-        a = randn(rng, T.T, Dlat)
+        A = random_matrix(rng, Dlat, Dlat, storage)
+        a = random_vector(rng, Dlat, storage)
         Q = random_nice_psd_matrix(rng, Dlat, storage)
 
-        mf = randn(rng, T.T, Dlat)
-        Pf = Symmetric(random_nice_psd_matrix(rng, Dlat, storage))
+        mf = random_vector(rng, Dlat, storage)
+        Pf = random_nice_psd_matrix(rng, Dlat, storage)
         xf = Gaussian(mf, Pf)
 
-        mp = randn(rng, T.T, Dlat)
-        Pp = Symmetric(random_nice_psd_matrix(rng, Dlat, storage))
+        mp = random_vector(rng, Dlat, storage)
+        Pp = random_nice_psd_matrix(rng, Dlat, storage)
         xp = Gaussian(mp, Pp)
 
         # Generate parameters for emission model.
-        α = randn(rng, T.T, Dobs)
-        H = randn(rng, T.T, Dobs, Dlat)
-        h = randn(rng, T.T, Dobs)
+        α = random_vector(rng, Dobs, storage)
+        H = random_matrix(rng, Dobs, Dlat, storage)
+        h = random_vector(rng, Dobs, storage)
         Σ = random_nice_psd_matrix(rng, Dobs, storage)
-        y = randn(rng, T.T, Dobs)
+        y = random_vector(rng, Dobs, storage)
 
         model = (gmm=(A=A, a=a, Q=Q, H=H, h=h), Σ=Σ)
 
         @testset "predict!" begin
             mp_naive, Pp_naive = TemporalGPs.predict(mf, Pf, A, a, Q)
             xp = TemporalGPs.predict!(xp, xf, A, a, Q)
-            
+
             @test xp.m ≈ mp_naive
             @test xp.P ≈ Pp_naive
-            @test xp.m isa Vector{T.T}
-            @test xp.P isa Symmetric{T.T, Matrix{T.T}}
+            @test is_of_storage_type(xp, storage)
         end
 
         @testset "update_decorrelate!" begin
             mf′_naive, Pf′_naive, lml_naive, α_naive = TemporalGPs.update_decorrelate(
                 mp, Pp, H, h, Σ, y,
             )
-            xf′, lml, α = TemporalGPs.update_decorrelate!(α, xf, xp, H, h, Σ, y)
+
+            xf′, lml, α = TemporalGPs.update_decorrelate!(α, copy(xf), xp, H, h, Σ, y)
 
             @test xf′.m ≈ mf′_naive
             @test xf′.P ≈ Pf′_naive
-            @test xf′.m isa Vector{T.T}
-            @test xf′.P isa Symmetric{T.T, Matrix{T.T}}
+            @test is_of_storage_type(xf′, storage)
             @test α ≈ α_naive
             @test lml ≈ lml_naive
         end

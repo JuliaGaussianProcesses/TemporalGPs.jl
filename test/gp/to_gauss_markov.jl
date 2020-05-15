@@ -1,4 +1,4 @@
-using TemporalGPs: GaussMarkovModel, is_time_invariant
+using TemporalGPs: GaussMarkovModel, is_time_invariant, is_of_storage_type
 
 println("to_gauss_markov:")
 @testset "to_gauss_markov" begin
@@ -20,12 +20,12 @@ println("to_gauss_markov:")
 
         @testset "$kernel, $(storage.name)" for kernel in kernels, storage in storages
             F, q, H = TemporalGPs.to_sde(kernel, storage.val)
-            validate_types(F, storage.val)
-            validate_types(q, storage.val)
-            validate_types(H, storage.val)
+            @test is_of_storage_type(F, storage.val)
+            @test is_of_storage_type(q, storage.val)
+            @test is_of_storage_type(H, storage.val)
 
             x = TemporalGPs.stationary_distribution(kernel, storage.val)
-            validate_types(x, storage.val)
+            @test is_of_storage_type(x, storage.val)
         end
     end
 
@@ -91,7 +91,7 @@ println("to_gauss_markov:")
             should_be_time_invariant = (t.val isa Vector) ? false : true
             @test is_time_invariant(ft) == should_be_time_invariant
 
-            validate_types(ft, storage.val)
+            is_of_storage_type(ft, storage.val)
             validate_dims(ft)
 
             # Check that the covariances agree, only for high-ish precision.

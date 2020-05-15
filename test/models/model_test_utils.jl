@@ -1,30 +1,5 @@
 using TemporalGPs: GaussMarkovModel, dim_latent, dim_obs, LGSSM, ScalarLGSSM, Gaussian,
-    StorageType
-
-
-
-#
-# Convert things containing arrays into things containing StaticArrays.
-#
-
-to_static(x::AbstractVector{<:Number}) = SVector{length(x)}(x)
-
-to_static(X::AbstractMatrix{<:Number}) = SMatrix{size(X, 1), size(X, 2)}(X)
-
-to_static(x::Gaussian) = Gaussian(to_static(x.m), to_static(x.P))
-
-function to_static(gmm::GaussMarkovModel)
-    return GaussMarkovModel(
-        to_static.(gmm.A),
-        to_static.(gmm.a),
-        to_static.(gmm.Q),
-        to_static.(gmm.H),
-        to_static.(gmm.h),
-        TemporalGPs.Gaussian(to_static(gmm.x0.m), to_static(gmm.x0.P)),
-    )
-end
-
-to_static(model::LGSSM) = LGSSM(to_static(model.gmm), to_static.(model.Σ))
+    StorageType, is_time_invariant, is_of_storage_type
 
 
 
@@ -68,18 +43,14 @@ function random_nice_psd_matrix(rng::AbstractRNG, N::Integer, ::SArrayStorage{T}
     return SMatrix{N, N, T}(random_nice_psd_matrix(rng, N, ArrayStorage(T)))
 end
 
-@testset "random_nice_psd_matrix" begin
-    rng = MersenneTwister(123456)
-    storages = [
-        (name="dense storage", val=ArrayStorage(Float64)),
-        (name="static storage", val=SArrayStorage(Float64)),
-    ]
 
-    @testset "$(storage.name)" for storage in storages
-        Σ = random_nice_psd_matrix(rng, 11, storage.val)
-        @test all(eigvals(Σ) .> 0)
-        @test all(eigvals(Σ) .< 1)
-    end
+
+#
+# Generation of Gaussians.
+#
+
+function random_gaussian(rng::AbstractRNG, dim::Int, s::StorageType)
+    return Gaussian(random_vector(rng, dim, s), random_nice_psd_matrix(rng, dim, s))
 end
 
 
@@ -88,63 +59,35 @@ end
 # Generation of GaussMarkovModels.
 #
 
-function random_gaussian(rng::AbstractRNG, dim::Int, s::ArrayStorage{T}) where {T<:Real}
-    return Gaussian(randn(rng, T, dim), Symmetric(random_nice_psd_matrix(rng, dim, s)))
-end
+function random_tv_gmm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::StorageType)
 
-function random_gaussian(rng::AbstractRNG, dim::Int, s::SArrayStorage{T}) where {T<:Real}
-    return to_static(random_gaussian(rng, dim, ArrayStorage{T}))
-end
-
-function random_tv_gmm(
-    rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::ArrayStorage{T},
-) where {T<:Real}
     As = map(_ -> -random_nice_psd_matrix(rng, Dlat, s), 1:N)
-    as = map(_ -> randn(rng, T, Dlat), 1:N)
-    Hs = map(_ -> randn(rng, T, Dobs, Dlat), 1:N)
-    hs = map(_ -> randn(rng, T, Dobs), 1:N)
-    x0 = TemporalGPs.Gaussian(
-        randn(rng, T, Dlat),
-        random_nice_psd_matrix(rng, Dlat, s),
-    )
+    as = map(_ -> random_vector(rng, Dlat, s), 1:N)
+    Hs = map(_ -> random_matrix(rng, Dobs, Dlat, s), 1:N)
+    hs = map(_ -> random_vector(rng, Dobs, s), 1:N)
+    x0 = random_gaussian(rng, Dlat, s)
 
     # For some reason this operation seems to be _incredibly_ inaccurate. My guess is that
     # the numerics are horrible for some reason, but I'm not sure why. Hence we add a pretty
     # large constant to the diagonal to ensure that all Qs are positive definite.
-    Qs = map(n -> x0.P - Symmetric(As[n] * x0.P * As[n]') + T(1e-1) * I, 1:N)
+    Qs = map(n -> x0.P - Symmetric(As[n] * x0.P * As[n]') + eltype(s)(1e-1) * I, 1:N)
 
     return GaussMarkovModel(As, as, Qs, Hs, hs, x0)
 end
 
-function random_tv_gmm(
-    rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::SArrayStorage{T},
-) where {T<:Real}
-    return to_static(random_tv_gmm(rng, Dlat, Dobs, N, ArrayStorage(T)))
-end
+function random_ti_gmm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::StorageType)
 
-function random_ti_gmm(
-    rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::ArrayStorage{T},
-) where {T<:Real}
     As = Fill(-random_nice_psd_matrix(rng, Dlat, s), N)
-    as = Fill(randn(rng, T, Dlat), N)
-    Hs = Fill(randn(rng, T, Dobs, Dlat), N)
-    hs = Fill(randn(rng, T, Dobs), N)
-    x0 = TemporalGPs.Gaussian(
-        randn(rng, T, Dlat),
-        random_nice_psd_matrix(rng, Dlat, s),
-    )
+    as = Fill(random_vector(rng, Dlat, s), N)
+    Hs = Fill(random_matrix(rng, Dobs, Dlat, s), N)
+    hs = Fill(random_vector(rng, Dobs, s), N)
+    x0 = random_gaussian(rng, Dlat, s)
 
     # For some reason this operation seems to be _incredibly_ inaccurate. My guess is that
     # the numerics are horrible for some reason, but I'm not sure why. Hence we add a pretty
     # large constant to the diagonal to ensure that all Qs are positive definite.
-    Qs = Fill(x0.P - As[1] * x0.P * As[1]' + T(1e-1) * I, N)
+    Qs = Fill(x0.P - As[1] * x0.P * As[1]' + eltype(s)(1e-1) * I, N)
     return GaussMarkovModel(As, as, Qs, Hs, hs, x0)
-end
-
-function random_ti_gmm(
-    rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::SArrayStorage{T},
-) where {T<:Real}
-    return to_static(random_ti_gmm(rng, Dlat, Dobs, N, ArrayStorage(T)))
 end
 
 
@@ -216,38 +159,71 @@ function validate_dims(model::ScalarLGSSM)
     return nothing
 end
 
-
-
-#
-# Validate that all parameter containers are of the expected types.
-#
-
-validate_types(::Any, ::StorageType) = @test false
-
-validate_types(::T, ::StorageType{T}) where {T<:Real} = @test true
-
-validate_types(::Vector{T}, ::ArrayStorage{T}) where {T} = @test true
-
-validate_types(::Matrix{T}, ::ArrayStorage{T}) where {T} = @test true
-
-validate_types(::Zeros{T}, ::ArrayStorage{T}) where {T} = @test true
-
-validate_types(::SVector{D, T} where {D}, ::SArrayStorage{T}) where {T} = @test true
-
-validate_types(::SMatrix{D1, D2, T} where {D1, D2}, ::SArrayStorage{T}) where {T} = @test true
-
-validate_types(::Zeros{T}, ::SArrayStorage{T}) where {T} = @test true
-
-function validate_types(ft::GaussMarkovModel, s::StorageType)
-    validate_types(first(ft.A), s)
-    validate_types(first(ft.a), s)
-    validate_types(first(ft.Q), s)
-    validate_types(first(ft.H), s)
-    validate_types(first(ft.h), s)
-    validate_types(ft.x0, s)
+function __verify_model_properties(model, Dlat, Dobs, N, storage_type, should_be_invariant)
+    @test is_of_storage_type(model, storage_type)
+    @test length(model) == N
+    @test dim_obs(model) == Dobs
+    @test dim_latent(model) == Dlat
+    @test is_time_invariant(model) == should_be_invariant
+    validate_dims(model)
 end
 
-function validate_types(x::Gaussian, s::StorageType)
-    validate_types(x.m, s)
-    validate_types(x.P, s)
+function __verify_model_properties(model, Dlat, N, storage_type, should_be_invariant)
+    return __verify_model_properties(model, Dlat, 1, N, storage_type, should_be_invariant)
+end
+
+@testset "model_test_utils" begin
+    storages = [
+        (name="dense storage", val=ArrayStorage(Float64)),
+        (name="static storage", val=SArrayStorage(Float64)),
+    ]
+    @testset "storage = $(storage.name)" for storage in storages
+        @testset "random_vector" begin
+            rng = MersenneTwister(123456)
+            a = random_vector(rng, 3, storage.val)
+            @test is_of_storage_type(a, storage.val)
+            @test length(a) == 3
+        end
+        @testset "random_matrix" begin
+            rng = MersenneTwister(123456)
+            A = random_matrix(rng, 4, 3, storage.val)
+            @test is_of_storage_type(A, storage.val)
+            @test size(A) == (4, 3)
+        end
+        @testset "random_nice_psd_matrix" begin
+            rng = MersenneTwister(123456)
+            Σ = random_nice_psd_matrix(rng, 11, storage.val)
+            @test all(eigvals(Σ) .> 0)
+            @test all(eigvals(Σ) .< 1)
+            @test is_of_storage_type(Σ, storage.val)
+        end
+        @testset "random_gaussian" begin
+            rng = MersenneTwister(123456)
+            x = random_gaussian(rng, 3, storage.val)
+            @test is_of_storage_type(x, storage.val)
+            @test length(x.m) == 3
+            @test size(x.P) == (3, 3)
+            @test all(eigvals(x.P) .> 0) 
+        end
+        @testset "$model_type" for (generator, model_type, is_time_invariant) in [
+            (random_tv_gmm, GaussMarkovModel, false),
+            (random_ti_gmm, GaussMarkovModel, true),
+            (random_tv_lgssm, LGSSM, false),
+            (random_ti_lgssm, LGSSM, true),
+        ]
+            rng = MersenneTwister(123456)
+            model = generator(rng, 4, 2, 10, storage.val)
+            @test model isa model_type
+            __verify_model_properties(model, 4, 2, 10, storage.val, is_time_invariant)
+        end
+        @testset "ScalarLGSSM - $is_time_invariant" for (generator, is_time_invariant) in [
+            (random_tv_scalar_lgssm, false),
+            (random_ti_scalar_lgssm, true),
+        ]
+            rng = MersenneTwister(123456)
+            model = generator(rng, 4, 10, storage.val)
+            @test model isa ScalarLGSSM
+            __verify_model_properties(model, 4, 10, storage.val, is_time_invariant)
+        end
+    end
 end

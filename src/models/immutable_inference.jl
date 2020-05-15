@@ -75,7 +75,8 @@ end
 @inline function update_decorrelate(
     mp::AV{T}, Pp::AM{T}, H::AM{T}, h::AV{T}, Σ::AM{T}, y::AV{T},
 ) where {T<:Real}
-    V = _compute_V(H, Pp)
+
+    V = H * Pp
     S_1 = V * H' + Σ
     S = cholesky(Symmetric(S_1))
     U = S.U
@@ -92,7 +93,7 @@ end
     mp::AV{T}, Pp::AM{T}, H::AM{T}, h::AV{T}, Σ::AM{T}, α::AV{T},
 ) where {T<:Real}
 
-    V = _compute_V(H, Pp)
+    V = H * Pp
     S = cholesky(Symmetric(V * H' + Σ))
     B = S.U' \ V
     y = S.U'α + H * mp + h
@@ -103,16 +104,9 @@ end
     return mf, Pf, lml, y
 end
 
-function _compute_V(H::AM{T}, Pp::AM{T}) where {T<:Real}
-    return H * Pp
-end
-
-function _compute_V(H::Matrix{T}, Pp::Matrix{T}) where {T<:Real}
-    return H * Symmetric(Pp)
-end
-
 _compute_Pf(Pp::AM{T}, B::AM{T}) where {T<:Real} = Pp - B'B
 
 function _compute_Pf(Pp::Matrix{T}, B::Matrix{T}) where {T<:Real}
-    return Symmetric(BLAS.syrk!('U', 'T', -one(T), B, one(T), collect(Symmetric(Pp))))
+    # Copy of Pp is necessary to ensure that the memory isn't modified.
+    return LinearAlgebra.copytri!(BLAS.syrk!('U', 'T', -one(T), B, one(T), copy(Pp)), 'U')
 end
