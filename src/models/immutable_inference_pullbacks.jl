@@ -1,7 +1,9 @@
 #
 # This file contains pullbacks for stuff in generic.jl. These are purely performance
 # optimisations for algorithmic differentiation, and in no way important for understanding
-# the structure of the package, or its functionality.
+# the structure of the package, or its functionality. This code should be readable if you're
+# familiar with the naming conventions in the rest of the package. Otherwise it might be a
+# bit terse.
 #
 
 function Zygote.accum(a::UpperTriangular, b::UpperTriangular)

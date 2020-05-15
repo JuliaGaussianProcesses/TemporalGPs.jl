@@ -110,3 +110,6 @@ function _compute_Pf(Pp::Matrix{T}, B::Matrix{T}) where {T<:Real}
     # Copy of Pp is necessary to ensure that the memory isn't modified.
     return LinearAlgebra.copytri!(BLAS.syrk!('U', 'T', -one(T), B, one(T), copy(Pp)), 'U')
 end
+
+# Optimisation single-output case.
+LinearAlgebra.logdet(S::Cholesky{T,SArray{Tuple{1,1},T,2,1}} where {T}) = S.factors[1]
