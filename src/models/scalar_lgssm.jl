@@ -73,6 +73,11 @@ function rand(rng::AbstractRNG, model::ScalarLGSSM)
     return last(correlate(model, αs))
 end
 
+function logpdf(model::ScalarLGSSM, y::AbstractVector{<:Real})
+    ys = to_vector_observations(storage_type(model), y)
+    return first(decorrelate(model.model, ys))
+end
+
 function unwhiten(model::ScalarLGSSM, αs::AbstractVector{<:Real})
     return last(correlate(model, αs))
 end
