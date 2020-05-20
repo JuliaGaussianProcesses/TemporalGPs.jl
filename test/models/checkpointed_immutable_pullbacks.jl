@@ -21,27 +21,33 @@ using TemporalGPs:
     y = rand(model)
     _, α = TemporalGPs.decorrelate(model, y)
 
-    # Perform filtering / gradient propagation with no checkpointing.
-    (lml_naive, ys_naive), pb_naive = correlate_pullback(Immutable(), model, α, copy_first)
+    @testset "$(name)" for (name, foo_pullback) in [
+        ("correlate", correlate_pullback),
+        ("decorrelate", decorrelate_pullback),
+    ]
 
-    # Perform filtering / gradient propagation with checkpointing.
-    (lml_checkpoint, ys_checkpoint), pb_checkpoint = correlate_pullback(
-        Checkpointed(),
-        Immutable(),
-        model,
-        α,
-        copy_first,
-    )
+        # Perform filtering / gradient propagation with no checkpointing.
+        (lml_naive, ys_naive), pb_naive = foo_pullback(Immutable(), model, α, copy_first)
 
-    @test lml_naive ≈ lml_checkpoint
-    @test ys_naive == ys_checkpoint
+        # Perform filtering / gradient propagation with checkpointing.
+        (lml_checkpoint, ys_checkpoint), pb_checkpoint = foo_pullback(
+            Checkpointed(),
+            Immutable(),
+            model,
+            α,
+            copy_first,
+        )
 
-    Δlml = randn()
-    Δys = [randn(Dobs) for _ in 1:N]
+        @test lml_naive ≈ lml_checkpoint
+        @test ys_naive == ys_checkpoint
 
-    _, Δmodel_naive, Δαs_naive, _ = pb_naive((Δlml, Δys))
-    _, _, Δmodel_checkpoint, Δαs_checkpoint = pb_checkpoint((Δlml, Δys))
+        Δlml = randn()
+        Δys = [randn(Dobs) for _ in 1:N]
 
-    @test Δmodel_naive == Δmodel_checkpoint
-    @test Δαs_naive == Δαs_checkpoint
+        _, Δmodel_naive, Δαs_naive, _ = pb_naive((Δlml, Δys))
+        _, _, Δmodel_checkpoint, Δαs_checkpoint = pb_checkpoint((Δlml, Δys))
+
+        @test Δmodel_naive == Δmodel_checkpoint
+        @test Δαs_naive == Δαs_checkpoint
+    end
 end
