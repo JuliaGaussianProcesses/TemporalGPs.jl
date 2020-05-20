@@ -1,6 +1,5 @@
 using TemporalGPs:
     Immutable,
-    Checkpointed,
     correlate,
     decorrelate,
     correlate_pullback,
@@ -17,6 +16,8 @@ using TemporalGPs:
     storage = ArrayStorage(Float64)
     model = random_ti_lgssm(rng, Dlat, Dobs, N, storage)
 
+    model_checkpointed = checkpointed(model)
+
     # Generate data for correlate / decorrelate operations.
     y = rand(model)
     _, α = TemporalGPs.decorrelate(model, y)
@@ -31,9 +32,8 @@ using TemporalGPs:
 
         # Perform filtering / gradient propagation with checkpointing.
         (lml_checkpoint, ys_checkpoint), pb_checkpoint = foo_pullback(
-            Checkpointed(),
             Immutable(),
-            model,
+            model_checkpointed,
             α,
             copy_first,
         )
@@ -45,9 +45,24 @@ using TemporalGPs:
         Δys = [randn(Dobs) for _ in 1:N]
 
         _, Δmodel_naive, Δαs_naive, _ = pb_naive((Δlml, Δys))
-        _, _, Δmodel_checkpoint, Δαs_checkpoint = pb_checkpoint((Δlml, Δys))
+        _, Δmodel_checkpoint, Δαs_checkpoint = pb_checkpoint((Δlml, Δys))
 
-        @test Δmodel_naive == Δmodel_checkpoint
+        @test Δmodel_naive == Δmodel_checkpoint.model
         @test Δαs_naive == Δαs_checkpoint
+
+    end
+    @testset "logpdf" begin
+        @test logpdf(model, y) ≈ logpdf(model_checkpointed, y)
+
+        lml_naive, pb_naive = Zygote.pullback(logpdf, model, y)
+        lml_check, pb_check = Zygote.pullback(logpdf, model_checkpointed, y)
+
+        @test lml_naive ≈ lml_check
+
+        Δmodel_naive, Δy_naive = pb_naive(1.0)
+        Δmodel_check, Δy_check = pb_check(1.0)
+
+        @test Δmodel_naive == Δmodel_check.model
+        @test Δy_naive == Δy_check
     end
 end

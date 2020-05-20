@@ -1,36 +1,67 @@
+struct CheckpointedLGSSM{Tmodel<:LGSSM} <: AbstractSSM
+    model::Tmodel
+end
 
-"""
-    Checkpointed
 
-This singleton type can be passed to `logpdf` and `rand` to indicate that a depth-1
-binomial checkpointed should be employed when peforming reverse-mode algorithmic
-differentiation through these functions. e.g. `logpdf(fx, y, Checkpointed())` and
-`rand(fx, Checkpointed())`.
-"""
-struct Checkpointed end
+#
+# Implement the AbstractSSM interface.
+#
+
+Base.:(==)(x::CheckpointedLGSSM, y::CheckpointedLGSSM) = x.model == y.model
+
+Base.length(ft::CheckpointedLGSSM) = length(ft.model)
+
+dim_obs(ft::CheckpointedLGSSM) = dim_obs(ft.model)
+
+dim_latent(ft::CheckpointedLGSSM) = dim_latent(ft.model)
+
+Base.eltype(ft::CheckpointedLGSSM) = eltype(ft.model)
+
+storage_type(ft::CheckpointedLGSSM) = storage_type(ft.model)
+
+is_of_storage_type(ft::CheckpointedLGSSM, s::StorageType) = is_of_storage_type(ft.model, s)
+
+is_time_invariant(model::CheckpointedLGSSM) = is_time_invariant(model.model)
+
+Base.getindex(model::CheckpointedLGSSM, n::Int) = getindex(model.model, n)
+
+mean(model::CheckpointedLGSSM) = mean(model.model)
+
+cov(model::CheckpointedLGSSM) = cov(model.model)
+
+function decorrelate(mut, model::CheckpointedLGSSM, ys::AV{<:AV{<:Real}}, f=copy_first)
+    return decorrelate(mut, model.model, ys, f)
+end
+
+function correlate(mut, model::CheckpointedLGSSM, ys::AV{<:AV{<:Real}}, f=copy_first)
+    return correlate(mut, model.model, ys, f)
+end
+
+#
+# Checkpointed pullbacks.
+#
 
 for (foo, step_foo, foo_pullback, step_foo_pullback) in [
     (:correlate, :step_correlate, :correlate_pullback, :step_correlate_pullback),
     (:decorrelate, :step_decorrelate, :decorrelate_pullback, :step_decorrelate_pullback),
 ]
     @eval @adjoint function $foo(
-        ::Checkpointed,
         ::Immutable,
-        model::LGSSM,
+        model::CheckpointedLGSSM,
         ys::AV{<:AV{<:Real}},
         f=copy_first,
     )
-        return $foo_pullback(Checkpointed(), Immutable(), model, ys, f)
+        return $foo_pullback(Immutable(), model, ys, f)
     end
 
     # Standard rrule a la ZygoteRules.
     @eval function $foo_pullback(
-        ::Checkpointed,
         ::Immutable,
-        model::LGSSM,
+        model_checkpointed::CheckpointedLGSSM,
         ys::AV{<:AV{<:Real}},
         f,
     )
+        model = model_checkpointed.model
         @assert length(model) == length(ys)
         T = length(model)
 
@@ -122,9 +153,14 @@ for (foo, step_foo, foo_pullback, step_foo_pullback) in [
                 Σ = Δmodel.Σ,
             )
 
-            return nothing, nothing, Δmodel_, Δys, nothing
+            return nothing, (model = Δmodel_, ), Δys, nothing
         end
 
         return (lml, vs), foo_pullback
     end
 end
+
+checkpointed(model::LGSSM) = CheckpointedLGSSM(model)
+
+# Adapt interface to work with checkpointed LGSSM.
+rand_αs(rng::AbstractRNG, model::CheckpointedLGSSM, D) = rand_αs(rng, model.model, D)

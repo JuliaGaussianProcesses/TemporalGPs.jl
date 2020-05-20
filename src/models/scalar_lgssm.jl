@@ -1,12 +1,12 @@
 """
-    ScalarLGSSM{Tmodel<:AbstractSSM} <: AbstractSSM
+    ScalarLGSSM{Tmodel<:AbstractSSM}
 
 Linear Gaussian SSM whose outputs should be scalars. A lightweight wrapper around a regular
 (vector-valued) LGSSM. Most of what this wrapper does is transform `AbstractVector`s of
 `T <: Real`s into `AbstractVector`s of `SVector{1, T}`s, and then pass the data on to a
 vector-valued ssm.
 """
-struct ScalarLGSSM{Tmodel<:AbstractSSM} <: AbstractSSM
+struct ScalarLGSSM{Tmodel<:AbstractSSM}
     model::Tmodel
 end
 
@@ -90,3 +90,5 @@ function posterior_rand(rng::AbstractRNG, model::ScalarLGSSM, y::Vector{<:Real})
     fs = posterior_rand(rng, model.model, [SVector{1}(yn) for yn in y], 1)
     return first.(fs)
 end
+
+checkpointed(model::ScalarLGSSM) = ScalarLGSSM(checkpointed(model.model))

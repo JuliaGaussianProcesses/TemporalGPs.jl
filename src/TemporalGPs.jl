@@ -8,7 +8,7 @@ module TemporalGPs
 
     import Stheno: mean, cov, pairwise, logpdf, AV, AM
 
-    export to_sde, SArrayStorage, ArrayStorage, RegularSpacing
+    export to_sde, SArrayStorage, ArrayStorage, RegularSpacing, checkpointed
 
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "zygote_rules.jl"))

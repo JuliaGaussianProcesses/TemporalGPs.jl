@@ -156,11 +156,11 @@ end
 # This dispatch to methods specialised to the array type used to represent the LGSSM.
 #
 
-function decorrelate(model::LGSSM, ys::AbstractVector, f=copy_first)
+function decorrelate(model::AbstractSSM, ys::AbstractVector, f=copy_first)
     return decorrelate(mutability(storage_type(model)), model, ys, f)
 end
 
-function correlate(model::LGSSM, αs::AbstractVector, f=copy_first)
+function correlate(model::AbstractSSM, αs::AbstractVector, f=copy_first)
     return correlate(mutability(storage_type(model)), model, αs, f)
 end
 
@@ -193,13 +193,13 @@ end
 # Things defined in terms of correlate
 #
 
-function Random.rand(rng::AbstractRNG, model::LGSSM)
+function Random.rand(rng::AbstractRNG, model::AbstractSSM)
     return last(correlate(model, rand_αs(rng, model, Val(dim_obs(model)))))
 end
 
 unwhiten(model::AbstractSSM, αs::AbstractVector) = last(correlate(model, αs))
 
-function logpdf_and_rand(rng::AbstractRNG, model::LGSSM)
+function logpdf_and_rand(rng::AbstractRNG, model::AbstractSSM)
     return correlate(model, rand_αs(rng, model, Val(dim_obs(model))))
 end
 
