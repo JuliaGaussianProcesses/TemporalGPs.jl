@@ -1,8 +1,12 @@
 """
     RegularSpacing{T<:Real} <: AbstractVector{T}
 
-Equivalent to `range(t0; step=Δt, length=N)`, but possible to differentiate through. This
-will be removed once it's possible to differentiate through `range`s using `Zygote`.
+`RegularSpacing(t0, Δt, N)` represents the same thing as `range(t0; step=Δt, length=N)`, but
+has a different implementation that makes it possible to differentiate through with the
+current version of `Zygote`. This data structure will be entirely removed once it's possible
+to work with `StepRangeLen`s in `Zygote`.
+
+Relevant issue: https://github.com/FluxML/Zygote.jl/issues/550
 """
 struct RegularSpacing{T<:Real} <: AbstractVector{T}
     t0::T
