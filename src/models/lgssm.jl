@@ -63,7 +63,7 @@ function smooth(model::LGSSM, ys::AbstractVector)
     x_smooth[end] = x_filter[end]
     for k in reverse(1:length(x_filter) - 1)
         x = x_filter[k]
-        x′ = predict(model[k + 1], x_filter[k])
+        x′ = predict(model[k + 1], x)
 
         U = cholesky(Symmetric(x′.P + ε * I)).U
         Gt = U \ (U' \ (model.gmm.A[k + 1] * x.P))
