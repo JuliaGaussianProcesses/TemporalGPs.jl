@@ -4,7 +4,8 @@ using TemporalGPs:
     decorrelate,
     correlate_pullback,
     decorrelate_pullback,
-    copy_first
+    copy_first,
+    smooth
 
 @testset "checkpointed_immutable_pullbacks" begin
 
@@ -64,5 +65,19 @@ using TemporalGPs:
 
         @test Δmodel_naive == Δmodel_check.model
         @test Δy_naive == Δy_check
+    end
+    @testset "smoothing" begin
+        xs_filter_naive, xs_smooth_naive, lml_naive = smooth(model, y)
+        xs_filter_check, xs_smooth_check, lml_check = smooth(model_checkpointed, y)
+
+        # Check filtering distributions agree.
+        @test all(getfield.(xs_filter_naive, :m) .== getfield.(xs_filter_check, :m))
+        @test all(diag.(getfield.(xs_filter_naive, :P)) .== getfield.(xs_filter_check, :s))
+
+        # Check smoothing distributions agree.
+        @test all(getfield.(xs_smooth_naive, :m) .== getfield.(xs_smooth_check, :m))
+        @test all(diag.(getfield.(xs_smooth_naive, :P)) .== getfield.(xs_smooth_check, :s))
+
+        @test lml_naive == lml_check
     end
 end
