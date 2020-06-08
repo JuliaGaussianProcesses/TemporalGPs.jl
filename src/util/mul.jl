@@ -17,7 +17,7 @@ function LinearAlgebra.mul!(
     @views for n in 1:nblocks(A)
 
         # Compute end row.
-        (p, q) = blocksize(A, n)
+        (p, q) = BlockDiagonals.blocksize(A, n)
         @assert p == q
         end_row = start_row + p - 1
 
@@ -44,7 +44,7 @@ function LinearAlgebra.mul!(
     @views for n in 1:nblocks(A)
 
         # Compute end row.
-        (p, q) = blocksize(A, n)
+        (p, q) = BlockDiagonals.blocksize(A, n)
         @assert p == q
         end_row = start_row + p - 1
 
@@ -71,7 +71,7 @@ function LinearAlgebra.mul!(
     @views for n in 1:nblocks(B)
 
         # Compute end row.
-        (p, q) = blocksize(B, n)
+        (p, q) = BlockDiagonals.blocksize(B, n)
         @assert p == q
         end_col = start_col + p - 1
 
@@ -97,7 +97,7 @@ function LinearAlgebra.mul!(
     @views for n in 1:nblocks(B)
 
         # Compute end row.
-        (p, q) = blocksize(B, n)
+        (p, q) = BlockDiagonals.blocksize(B, n)
         @assert p == q
         end_col = start_col + p - 1
 
@@ -128,7 +128,7 @@ function LinearAlgebra.mul!(
     @views for n in 1:nblocks(A)
 
         # Compute end row.
-        (p, q) = blocksize(A, n)
+        (p, q) = BlockDiagonals.blocksize(A, n)
         @assert p == q
         end_row = start_row + p - 1
 
