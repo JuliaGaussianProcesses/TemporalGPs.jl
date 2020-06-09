@@ -8,7 +8,6 @@ module TemporalGPs
     using Random
     using StaticArrays
     using Stheno
-    using Strided
     using Zygote
     using ZygoteRules
 
