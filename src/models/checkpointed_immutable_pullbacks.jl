@@ -263,20 +263,5 @@ function smooth(model_checkpointed::CheckpointedLGSSM, ys::AbstractVector)
         xs_block[end] = xs_block[1]
     end
 
-    # # Smooth.
-    # x_smooth = Vector{typeof(last(xs))}(undef, length(ys))
-    # x_smooth[end] = xs[end]
-    # for k in reverse(1:length(xs_filter) - 1)
-    #     x = xs_filter[k]
-    #     x′ = predict(model[k + 1], x_filter[k])
-
-    #     U = cholesky(Symmetric(x′.P + ε * I)).U
-    #     Gt = U \ (U' \ (model.gmm.A[k + 1] * x.P))
-    #     x_smooth[k] = Gaussian(
-    #         _compute_ms(x.m, Gt, x_smooth[k + 1].m, x′.m),
-    #         _compute_Ps(x.P, Gt, x_smooth[k + 1].P, x′.P),
-    #     )
-    # end
-
     return xs_filter, xs_smooth, lml
 end
