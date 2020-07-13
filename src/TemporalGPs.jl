@@ -16,7 +16,7 @@ module TemporalGPs
 
     import Stheno: mean, cov, pairwise, logpdf, AV, AM
 
-    export to_sde, SArrayStorage, ArrayStorage, RegularSpacing
+    export to_sde, SArrayStorage, ArrayStorage, RegularSpacing, checkpointed
 
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "zygote_rules.jl"))
@@ -31,6 +31,7 @@ module TemporalGPs
 
     include(joinpath("models", "immutable_inference.jl"))
     include(joinpath("models", "immutable_inference_pullbacks.jl"))
+    include(joinpath("models", "checkpointed_immutable_pullbacks.jl"))
 
     include(joinpath("models", "mutable_inference.jl"))
     include(joinpath("models", "mutable_inference_pullbacks.jl"))

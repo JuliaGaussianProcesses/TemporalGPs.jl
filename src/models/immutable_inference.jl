@@ -72,6 +72,26 @@ end
     return A * mf + a, (A * Pf) * A' + Q
 end
 
+# # Immutable inference for heap-allocated arrays.
+# @inline function predict(
+#     mf::StridedVector{T},
+#     Pf::StridedMatrix{T},
+#     A::StridedMatrix{T},
+#     a::StridedVector{T},
+#     Q::StridedMatrix{T},
+# ) where {T<:Real}
+
+#     # Compute filtering mean vector.
+#     mp = A * mf + a
+
+#     # Compute filtering covariance matrix.
+#     Pp = similar(Pf)
+#     BLAS.copy!(Pp, Q)
+#     mul!(Pp, A * Symmetric(Pf), A', one(T), one(T))
+
+#     return mp, Pp
+# end
+
 @inline function update_decorrelate(
     mp::AV{T}, Pp::AM{T}, H::AM{T}, h::AV{T}, Σ::AM{T}, y::AV{T},
 ) where {T<:Real}
@@ -108,5 +128,6 @@ _compute_Pf(Pp::AM{T}, B::AM{T}) where {T<:Real} = Pp - B'B
 
 function _compute_Pf(Pp::Matrix{T}, B::Matrix{T}) where {T<:Real}
     # Copy of Pp is necessary to ensure that the memory isn't modified.
+    # return BLAS.syrk!('U', 'T', -one(T), B, one(T), copy(Pp))
     return LinearAlgebra.copytri!(BLAS.syrk!('U', 'T', -one(T), B, one(T), copy(Pp)), 'U')
 end
