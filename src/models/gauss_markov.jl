@@ -154,5 +154,5 @@ function cov(gmm::GaussMarkovModel)
         end
     end
 
-    return collect(Stheno.BlockMatrix(Pfs))
+    return Array(Stheno.mortar(Pfs))
 end
