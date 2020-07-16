@@ -57,10 +57,10 @@ for (foo, step_foo, foo_pullback, step_foo_pullback) in [
     # Standard rrule a la ZygoteRules.
     @eval function $foo_pullback(
         ::Immutable,
-        model_checkpointed::CheckpointedLGSSM,
+        model_checkpointed::CheckpointedLGSSM{V},
         ys::AV{<:AV{<:Real}},
         f,
-    )
+    ) where {V}
         model = model_checkpointed.model
         @assert length(model) == length(ys)
         T = length(model)
@@ -71,8 +71,13 @@ for (foo, step_foo, foo_pullback, step_foo_pullback) in [
 
         # Pre-allocate for filtering distributions. The indexing is slightly different for
         # these than for other quantities. In particular, xs[t] := x_{t-1}.
-        xs = Vector{typeof(model.gmm.x0)}(undef, B + 2)
-        xs[1] = model.gmm.x0 # the filtering distribution at t = 0
+        x0 = model.gmm.x0
+        xs = Vector{typeof(x0)}(undef, B + 2)
+        xs[1] = x0 # the filtering distribution at t = 0
+
+        # Intermediate storage for filtering distributions during the block.
+        xs_block = Vector{eltype(xs)}(undef, B + 1)
+        xs_block[1] = x0
 
         # Simulate running the first iteration to determine type of vs.
         v_dummy = f(ys[1], xs[1])
@@ -80,23 +85,26 @@ for (foo, step_foo, foo_pullback, step_foo_pullback) in [
 
         # Run first block to obtain type
         lml = 0.0
-        x = xs[1]
+        # x = x0
+        # x = model.gmm.x0
         for b in 1:B
             for c in 1:min(B, T - (b - 1) * B)
                 t = (b - 1) * B + c
 
                 # This is a hack to store the penultimate filtering distriubution.
                 if t == T
-                    xs[end] = x
+                    xs[end] = xs_block[c]
                 end
 
-                lml_, α, x = $step_foo(model[t], x, ys[t])
+                lml_, α, x_ = $step_foo(model[t], xs_block[c], ys[t])
+                xs_block[c + 1] = x_
                 lml += lml_
-                vs[t] = f(α, x)
+                vs[t] = f(α, x_)
             end
 
             # Capture state at end of block.
-            xs[b + 1] = x
+            xs[b + 1] = xs_block[end]
+            xs_block[1] = xs_block[end]
         end
 
         function foo_pullback(Δ::Tuple{Any, Nothing})
@@ -107,9 +115,6 @@ for (foo, step_foo, foo_pullback, step_foo_pullback) in [
 
             Δlml = Δ[1]
             Δvs = Δ[2]
-
-            # Intermediate storage for filtering distributions during the block.
-            xs_block = Vector{eltype(xs)}(undef, B + 1)
 
             # Compute the pullback through the last element of the chain to get
             # initialisations for cotangents to accumulate.
