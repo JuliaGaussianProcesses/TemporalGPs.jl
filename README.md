@@ -27,7 +27,7 @@ f_naive = GP(Matern32(), GPC())
 f = to_sde(f_naive)
 
 # Project onto finite-dimensional distribution as usual.
-# x = range(-5.0, 5.0; length=10_000_000)
+# x = range(-5.0; step=0.1, length=10_000_000)
 x = RegularSpacing(-5.0, 0.1, 10_000_000) # Hack for Zygote.
 fx = f(x, 0.1)
 
