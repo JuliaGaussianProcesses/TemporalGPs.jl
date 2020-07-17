@@ -51,7 +51,7 @@ This tells TemporalGPs that you want all parameters of `f` and anything derived 
 
 # Preliminary Benchmarking Results
 
-![](/examples/preliminary-benchmarks.png)
+![](/examples/benchmarks.png)
 
 "naive" timings are with the usual [Stheno.jl](https://github.com/willtebbutt/Stheno.jl/) inference routines, and is the default implementation for GPs. "lgssm" timings are conducted using `to_sde` with no additional arguments. "static-lgssm" uses the `SArrayStorage(Float64)` option discussed above.
 
