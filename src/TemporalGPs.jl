@@ -2,6 +2,7 @@ module TemporalGPs
 
     using BlockArrays
     using BlockDiagonals
+    using Distributions
     using FillArrays
     using Kronecker
     using LinearAlgebra
@@ -14,9 +15,9 @@ module TemporalGPs
     using FillArrays: AbstractFill
     using Kronecker: KroneckerProduct
 
-    import Stheno: mean, cov, pairwise, logpdf, AV, AM
+    import Stheno: mean, cov, pairwise, logpdf, AV, AM, FiniteGP, AbstractGP
 
-    export to_sde, SArrayStorage, ArrayStorage, RegularSpacing, checkpointed
+    export to_sde, SArrayStorage, ArrayStorage, RegularSpacing, checkpointed, posterior
 
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "zygote_rules.jl"))
@@ -41,6 +42,9 @@ module TemporalGPs
     # Converting GPs to Linear-Gaussian SSMs.
     include(joinpath("gp", "to_gauss_markov.jl"))
     include(joinpath("gp", "lti_sde.jl"))
+
+    include(joinpath("gp", "finite_lti_sde.jl"))
+    include(joinpath("gp", "posterior_lti_sde.jl"))
 
     # Converting space-time GPs to Linear-Gaussian SSMs.
     include(joinpath("space_time", "rectilinear_grid.jl"))
