@@ -9,10 +9,6 @@ end
 
 const FinitePosteriorLTISDE = FiniteGP{<:PosteriorLTISDE}
 
-# 1. Plotting posterior LTISDEs.
-# 2. implement data type for efficient posterior inference.
-# 3. implement posterior with carefully crafted data.
-
 # Join the dataset used to construct `f` and the one specified by `x_pred`, `σ²s_pred`, and
 # `y_pred`. This is used in all of the inference procedures. Also provide a collection of
 # indices that can be used to obtain the requested prediction locations from the joint data.
