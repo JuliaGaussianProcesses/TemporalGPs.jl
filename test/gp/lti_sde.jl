@@ -69,12 +69,13 @@ println("lti_sde:")
 
             f_sde = to_sde(f, storage.val)
             ft_sde = f_sde(t.val, s...)
+            lgssm = TemporalGPs.build_lgssm(ft_sde)
 
             hetero_noise = σ².val isa Tuple{Union{Vector, Diagonal}}
             should_be_time_invariant = (t.val isa Vector || hetero_noise) ? false : true
-            @test is_time_invariant(ft_sde) == should_be_time_invariant
+            @test is_time_invariant(lgssm) == should_be_time_invariant
 
-            validate_dims(ft_sde)
+            validate_dims(lgssm)
 
             # These things are slow. Only helpful for verifying correctness.
             @test mean(ft) ≈ mean(ft_sde)
@@ -113,7 +114,7 @@ println("lti_sde:")
                 end
             end
 
-            _, y_smooth, _ = smooth(ft_sde, y_sde)
+            _, y_smooth, _ = smooth(lgssm, y_sde)
 
             # Check posterior marginals
             m_ssm = [first(y.m) for y in y_smooth]
@@ -144,9 +145,9 @@ println("lti_sde:")
 
             # Ensure that allocs is roughly independent of length(t).
             primal, fwd, rvs = benchmark_adjoint(logpdf, Δlml, ft, y; disp=false)
-            @test allocs(primal) < 100
-            @test allocs(fwd) < 100
-            @test allocs(rvs) < 100
+            @test allocs(primal) < 200
+            @test allocs(fwd) < 200
+            @test allocs(rvs) < 200
         end
         @testset "rand" begin
             Δy = randn(rng, length(t))
@@ -156,9 +157,9 @@ println("lti_sde:")
                 ft->rand(MersenneTwister(123456), ft), Δy, ft;
                 disp=false,
             )
-            @test allocs(primal) < 100
-            @test allocs(fwd) < 100
-            @test allocs(rvs) < 100
+            @test allocs(primal) < 200
+            @test allocs(fwd) < 200
+            @test allocs(rvs) < 200
         end
     end
 end

@@ -13,3 +13,5 @@ end
 function to_sde(f::GP{<:Stheno.ZeroMean}, storage_type=ArrayStorage(Float64))
     return LTISDE(f, storage_type)
 end
+
+storage_type(f::LTISDE) = f.storage

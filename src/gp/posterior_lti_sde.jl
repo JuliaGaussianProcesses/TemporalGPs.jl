@@ -68,7 +68,7 @@ function Stheno.marginals(fx::FinitePosteriorLTISDE)
 
     return Normal.(
         only.(getfield.(pr_posterior_marginals, :m)),
-        sqrt.(only.(getfield.(pr_posterior_marginals, :P)) .+ diag(fx.Σy)),
+        sqrt.(only.(getfield.(pr_posterior_marginals, :P)) .+ fx.Σy.diag),
     )
 end
 

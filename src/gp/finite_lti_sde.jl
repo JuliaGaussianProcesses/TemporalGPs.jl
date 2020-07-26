@@ -5,6 +5,9 @@ const FiniteLTISDE = FiniteGP{<:LTISDE}
 # interactions between `FillArrays` and `Zygote` here that is problematic.
 #
 
+# Deal with a bug in Stheno.
+FiniteGP(f::LTISDE, x::AV{<:Real}) = FiniteGP(f, x, convert(eltype(storage_type(f)), 1e-18))
+
 build_Σs(σ²_ns::AbstractVector{<:Real}) = SMatrix{1, 1}.(σ²_ns)
 
 @adjoint function build_Σs(σ²_ns::Vector{<:Real})
@@ -25,7 +28,8 @@ end
 # API, but Stheno is still on a slightly different API because I've yet to update it.
 
 function build_lgssm(ft::FiniteLTISDE)
-    model = LGSSM(GaussMarkovModel(ft.f.f.k, ft.x, ft.f.storage), build_Σs(diag(ft.Σy)))
+    Σy = build_Σs(ft.Σy.diag)
+    model = LGSSM(GaussMarkovModel(ft.f.f.k, ft.x, ft.f.storage), Σy)
     return ScalarLGSSM(model)
 end
 
