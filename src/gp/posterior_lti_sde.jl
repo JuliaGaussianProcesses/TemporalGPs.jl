@@ -77,7 +77,7 @@ function Stheno.rand(rng::AbstractRNG, fx::FinitePosteriorLTISDE)
 
     lgssm = build_lgssm(fx.f.prior(x, σ²s))
     fxs = posterior_rand(rng, lgssm, y)
-    return fxs[pr_indices] .+ sqrt.(σ²s[pr_indices]) .* randn(rng, length(pr_indices))
+    return fxs[pr_indices] .+ sqrt.(fx.Σy.diag) .* randn(rng, length(pr_indices))
 end
 
 Stheno.rand(fx::FinitePosteriorLTISDE) = rand(Random.GLOBAL_RNG, fx)
