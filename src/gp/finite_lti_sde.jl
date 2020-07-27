@@ -42,6 +42,10 @@ Stheno.marginals(ft::FiniteLTISDE) = error("Not implemented despite it being eas
 # We currently only implement one method of this 
 Stheno.rand(rng::AbstractRNG, ft::FiniteLTISDE) = rand(rng, build_lgssm(ft))
 Stheno.rand(ft::FiniteLTISDE) = rand(Random.GLOBAL_RNG, ft)
+function Stheno.rand(rng::AbstractRNG, ft::FiniteLTISDE, N::Int)
+    return hcat([rand(rng, ft) for _ in 1:N]...)
+end
+Stheno.rand(ft::FiniteLTISDE, N::Int) = rand(Random.GLOBAL_RNG, ft, N)
 
 # Multi-argument version not implemented yet.
 Stheno.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Real}) = logpdf(build_lgssm(ft), y)
