@@ -82,6 +82,12 @@ end
 
 Stheno.rand(fx::FinitePosteriorLTISDE) = rand(Random.GLOBAL_RNG, fx)
 
+function Stheno.rand(rng::AbstractRNG, ft::FinitePosteriorLTISDE, N::Int)
+    return hcat([rand(rng, ft) for _ in 1:N]...)
+end
+
+Stheno.rand(ft::FinitePosteriorLTISDE, N::Int) = rand(Random.GLOBAL_RNG, ft, N)
+
 function Stheno.logpdf(fx::FinitePosteriorLTISDE, y_pr::AbstractVector{<:Real})
     x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x, diag(fx.Σy), y_pr)
 
