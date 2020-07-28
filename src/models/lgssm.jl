@@ -124,7 +124,7 @@ function posterior_rand(
 )
     _, x_filter = filter(model, ys)
 
-    chol_Q = cholesky.(Symmetric.(model.gmm.Q))
+    chol_Q = cholesky.(Symmetric.(model.gmm.Q .+ Ref(1e-15I)))
 
     x_T = rand(rng, x_filter[end], N_samples)
     x_sample = Vector{typeof(x_T)}(undef, length(ys))
