@@ -1,7 +1,5 @@
 # TemporalGPs
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://willtebbutt.github.io/TemporalGPs.jl/stable)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://willtebbutt.github.io/TemporalGPs.jl/dev)
 [![Build Status](https://travis-ci.com/willtebbutt/TemporalGPs.jl.svg?branch=master)](https://travis-ci.com/willtebbutt/TemporalGPs.jl)
 [![Codecov](https://codecov.io/gh/willtebbutt/TemporalGPs.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/willtebbutt/TemporalGPs.jl)
 
@@ -11,11 +9,13 @@ TemporalGPs.jl is a tool to make Gaussian processes (GPs) defined using [Stheno.
 
 TemporalGPs.jl is registered, so simply type the following at the REPL:
 ```julia
-] add TemporalGPs
+] add Stheno TemporalGPs
 ```
-
+While you can install TemporalGPs without Stheno, in practice the latter is needed for all common tasks in TemporalGPs.
 
 # Example Usage
+
+This is a small problem by TemporalGPs' standard. See timing results below for expected performance on larger problems.
 
 ```julia
 using Stheno, TemporalGPs
@@ -24,11 +24,11 @@ using Stheno, TemporalGPs
 f_naive = GP(Matern32(), GPC())
 
 # Wrap it in an object that TemporalGPs knows how to handle.
-f = to_sde(f_naive)
+f = to_sde(f_naive, SArrayStorage(Float64))
 
 # Project onto finite-dimensional distribution as usual.
-# x = range(-5.0; step=0.1, length=10_000_000)
-x = RegularSpacing(-5.0, 0.1, 10_000_000) # Hack for Zygote.
+# x = range(-5.0; step=0.1, length=10_000)
+x = RegularSpacing(0.0, 0.1, 10_000) # Hack for Zygote.
 fx = f(x, 0.1)
 
 # Sample from the prior as usual.
@@ -36,6 +36,18 @@ y = rand(fx)
 
 # Compute the log marginal likelihood of the data as usual.
 logpdf(fx, y)
+
+# Construct the posterior distribution over `f` having observed `y` at `x`.
+f_post = posterior(fx, y)
+
+# Compute the posterior marginals.
+marginals(f_post(x))
+
+# Draw a sample from the posterior. Note: same API as prior.
+rand(f_post(x))
+
+# Compute posterior log predictive probability of `y`. Note: same API as prior.
+logpdf(f_post(x), y)
 ```
 
 
@@ -46,11 +58,11 @@ There are a couple of ways that `TemporalGPs.jl` can represent things internally
 ```julia
 f = to_sde(f_naive, SArrayStorage(Float64))
 ```
-This tells TemporalGPs that you want all parameters of `f` and anything derived from it to be a subtype of a `SArray` with element-type `Float64`, rather than (for example) a `Matrix{Float64}`s and `Vector{Float64}`. The decision made here can have quite a dramatic effect on performance, as shown in the graph below.
+This tells TemporalGPs that you want all parameters of `f` and anything derived from it to be a subtype of a `SArray` with element-type `Float64`, rather than (for example) a `Matrix{Float64}`s and `Vector{Float64}`. The decision made here can have quite a dramatic effect on performance, as shown in the graph below. For "larger" kernels (large sums, spatio-temporal problems), you might want to consider `ArrayStorage(Float64)` instead.
 
 
 
-# Preliminary Benchmarking Results
+# Benchmarking Results
 
 ![](/examples/benchmarks.png)
 
@@ -62,10 +74,16 @@ Gradient computations use Zygote. Custom adjoints have been implemented to achie
 
 # On-going Work
 
-- Optimisation -- in particular work needs to be done to reduce the allocations made when the default storage is employed.
-- Feature coverage -- only a subset of `Stheno.jl`'s functionality is currently available, but it's possible to cover much more.
+- Optimisation
+    + in-place implementation with `ArrayStorage` to reduce allocations
+    + input data types for posterior inference - the `RegularSpacing` type is great for expressing that the inputs are regularly spaced. A carefully constructed data type to let the user build regularly-spaced data when working with posteriors would also be very beneficial.
+- Feature coverage
+    + only a subset of `Stheno.jl`'s probabilistic-programming functionality is currently available, but it's possible to cover much more.
+    + reverse-mode through posterior inference. This is quite straightforward in principle, it just requires a couple of extra ChainRules.
+- Interfacing with other packages
+    + Both Stheno and this package will move over to the AbstractGPs.jl interface at some point, which will enable both to interface more smoothly with other packages in the ecosystem.
 
-If you're interested in helping out with this stuff, please get in touch.
+If you're interested in helping out with this stuff, please get in touch by opening an issue, commenting on an open one, or messaging me on the Julia Slack.
 
 
 
@@ -79,4 +97,4 @@ See chapter 12 of [1] for the basics.
 
 # Gotchas
 
-- And time-rescaling is assumed to be a strictly increasing function of time. If this is not the case, then your code will fail silently. This could be addressed via careful engineering.
+- And time-rescaling is assumed to be a strictly increasing function of time. If this is not the case, then your code will fail silently. Ideally an error would be thrown.
