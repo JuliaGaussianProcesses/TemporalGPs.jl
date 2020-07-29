@@ -208,4 +208,12 @@ println("lgssm:")
             end
         end
     end
+
+    @testset "posterior_rand_close_data" begin
+        f = to_sde(GP(Matern52(), GPC()))
+        x = RegularSpacing(0.0, 1e-6, 1000)
+        y = rand(f(x, 0.1))
+        rng = MersenneTwister(123456)
+        TemporalGPs.posterior_rand(rng, f(x, 0.1), y)
+    end
 end
