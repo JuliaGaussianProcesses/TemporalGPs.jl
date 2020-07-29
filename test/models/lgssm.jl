@@ -214,6 +214,7 @@ println("lgssm:")
         x = RegularSpacing(0.0, 1e-6, 1000)
         y = rand(f(x, 0.1))
         rng = MersenneTwister(123456)
-        TemporalGPs.posterior_rand(rng, f(x, 0.1), y)
+        lgssm = TemporalGPs.build_lgssm(f(x, 0.1))
+        TemporalGPs.posterior_rand(rng, lgssm, y)
     end
 end
