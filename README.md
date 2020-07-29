@@ -11,11 +11,13 @@ TemporalGPs.jl is a tool to make Gaussian processes (GPs) defined using [Stheno.
 
 TemporalGPs.jl is registered, so simply type the following at the REPL:
 ```julia
-] add TemporalGPs
+] add Stheno TemporalGPs
 ```
-
+While you can install TemporalGPs without Stheno, in practice the latter is needed for all common tasks in TemporalGPs.
 
 # Example Usage
+
+This is a small problem by TemporalGPs' standard. See timing results below for expected performance on larger problems.
 
 ```julia
 using Stheno, TemporalGPs
