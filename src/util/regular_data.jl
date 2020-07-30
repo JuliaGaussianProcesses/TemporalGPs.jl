@@ -84,7 +84,7 @@ end
 Base.IndexStyle(::ExtendedRegularSpacing) = Base.IndexLinear()
 
 function Base.size(x::ExtendedRegularSpacing)
-    return (length(x.x) * x.ρ + x.lhs_extension + x.rhs_extension,)
+    return ((length(x.x) - 1) * x.ρ + 1 + x.lhs_extension + x.rhs_extension,)
 end
 
 function Base.getindex(x::ExtendedRegularSpacing, n::Int)
@@ -92,3 +92,7 @@ function Base.getindex(x::ExtendedRegularSpacing, n::Int)
 end
 
 Base.step(x::ExtendedRegularSpacing) = step(x.x) / x.ρ
+
+function Base.convert(::Type{<:RegularSpacing}, x::ExtendedRegularSpacing)
+    return RegularSpacing(first(x), step(x), length(x))
+end

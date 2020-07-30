@@ -31,4 +31,43 @@ end
             randn(), randn(),
         )
     end
+
+    @testset "ExtendedRegularSpacing" begin
+        @testset "Trivial Extension" begin
+            x_trivial_ext = ExtendedRegularSpacing(x, 0, 0)
+            @test size(x_trivial_ext) == size(x)
+            @test step(x_trivial_ext) == step(x)
+            @test x_trivial_ext ≈ x
+            @test first(x_trivial_ext) == first(x)
+            @test last(x_trivial_ext) == last(x)
+            @test convert(RegularSpacing, x_trivial_ext) ≈ x_trivial_ext
+        end
+
+        @testset "Same Spacing" begin
+            x_same_spacing = ExtendedRegularSpacing(x, 3, 4)
+            @test step(x_same_spacing) == step(x)
+            @test length(x_same_spacing) == length(x) + 3 + 4
+            @test first(x_same_spacing) ≈ first(x) - 3 * step(x)
+            @test last(x_same_spacing) ≈ last(x) + 4 * step(x)
+            @test convert(RegularSpacing, x_same_spacing) ≈ x_same_spacing
+        end
+
+        @testset "Doubled Density" begin
+            x_ext = ExtendedRegularSpacing(x, 2, 0, 0)
+            @test step(x_ext) ≈ step(x) / 2
+            @test length(x_ext) == 2 * length(x) - 1
+            @test first(x_ext) ≈ first(x)
+            @test last(x_ext) ≈ last(x)
+            @test convert(RegularSpacing, x_ext) ≈ x_ext
+        end
+
+        @testset "Tripled density and extensions" begin
+            x_ext = ExtendedRegularSpacing(x, 3, 4, 2)
+            @test step(x_ext) ≈ step(x) / 3
+            @test length(x_ext) == 3 * (length(x) - 1) + 1 + 4 + 2
+            @test first(x_ext) ≈ first(x) - 4 * step(x_ext)
+            @test last(x_ext) ≈ last(x) + 2 * step(x_ext)
+            @test convert(RegularSpacing, x_ext) ≈ x_ext
+        end
+    end
 end
