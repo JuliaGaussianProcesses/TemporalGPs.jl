@@ -89,7 +89,7 @@ end
 Stheno.rand(ft::FinitePosteriorLTISDE, N::Int) = rand(Random.GLOBAL_RNG, ft, N)
 
 function Stheno.logpdf(fx::FinitePosteriorLTISDE, y_pr::AbstractVector{<:Real})
-    x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x, diag(fx.Σy), y_pr)
+    x, y, σ²s, _ = build_inference_data(fx.f, fx.x, diag(fx.Σy), y_pr)
 
     logp_prior = logpdf(fx.f.prior(fx.f.data.x, fx.f.data.Σy), fx.f.data.y)
     logp_all = logpdf(fx.f.prior(x, σ²s), y)
