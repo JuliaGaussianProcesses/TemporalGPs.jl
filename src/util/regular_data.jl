@@ -7,6 +7,15 @@ current version of `Zygote`. This data structure will be entirely removed once i
 to work with `StepRangeLen`s in `Zygote`.
 
 Relevant issue: https://github.com/FluxML/Zygote.jl/issues/550
+
+```jldoctest
+julia> x = range(0.0; step=0.2, length=10);
+
+julia> y = RegularSpacing(0.0, 0.2, 10);
+
+julia> x ≈ y
+true
+```
 """
 struct RegularSpacing{T<:Real} <: AbstractVector{T}
     t0::T
@@ -14,7 +23,7 @@ struct RegularSpacing{T<:Real} <: AbstractVector{T}
     N::Int
 end
 
-# Implements the AbstractArray interface.
+# Implement the AbstractArray interface.
 
 Base.IndexStyle(::RegularSpacing) = Base.IndexLinear()
 
@@ -34,3 +43,52 @@ ZygoteRules.@adjoint function (::Type{TR})(t0::T, Δt::T, N::Int) where {TR<:Reg
     end
     return RegularSpacing(t0, Δt, N), pullback_RegularSpacing
 end
+
+
+"""
+    ExtendedRegularSpacing{T<:Real} <: AbstractVector{T}
+
+Add additional points to a `RegularSpacing` in a manner that both contains the original data
+points and is also regular.
+
+Specified in terms of a point-density-ratio `ρ::Int` which governs how many points exist
+between each point in the original `RegularSpacing`. Must be at least 1. `lhs_extension`
+which specifies how many points to extend to the left, and `rhs_extension` specifying how
+many points to extend to the right.
+
+```jldoctest
+julia> x = RegularSpacing(0.0, 0.1, 10);
+
+julia> y = ExtendedRegularSpacing(x, 1, 0, 0);
+
+julia> x == y
+true
+
+julia> y == ExtendedRegularSpacing(x, 0, 0)
+true
+``` 
+"""
+struct ExtendedRegularSpacing{T<:Real, Tx<:RegularSpacing{T}} <: AbstractVector{T}
+    x::Tx
+    ρ::Int
+    lhs_extension::Int
+    rhs_extension::Int
+end
+
+function ExtendedRegularSpacing(x::RegularSpacing, lhs_extension::Int, rhs_extension::Int)
+    return ExtendedRegularSpacing(x, 1, lhs_extension, rhs_extension)
+end
+
+# Implement the AbstractArray interface.
+
+Base.IndexStyle(::ExtendedRegularSpacing) = Base.IndexLinear()
+
+function Base.size(x::ExtendedRegularSpacing)
+    return (length(x.x) * x.ρ + x.lhs_extension + x.rhs_extension,)
+end
+
+function Base.getindex(x::ExtendedRegularSpacing, n::Int)
+    return (x.x[1] - step(x) * x.lhs_extension) + (n - 1) * step(x)
+end
+
+Base.step(x::ExtendedRegularSpacing) = step(x.x) / x.ρ
