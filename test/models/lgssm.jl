@@ -27,7 +27,7 @@ println("lgssm:")
 
         tvs = [true, false]
         Dlats = [1, 3, 4]
-        Dobss = [1, 2, 5]
+        Dobss = [1, 2, 4]
         storages = [
             (name="dense storage Float64", val=ArrayStorage(Float64)),
             (name="static storage Float64", val=SArrayStorage(Float64)),
