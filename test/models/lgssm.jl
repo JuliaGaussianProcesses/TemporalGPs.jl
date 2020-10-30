@@ -171,7 +171,7 @@ println("lgssm:")
                     end,
                     randn(rng),
                     As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
-                    atol=1e-6, rtol=1e-6,
+                    atol=1e-5, rtol=1e-5,
                 )
 
                 # Verify the gradients w.r.t. whiten
