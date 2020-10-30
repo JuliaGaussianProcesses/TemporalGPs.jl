@@ -1,6 +1,14 @@
-using FiniteDifferences, TemporalGPs, Test
-using BlockDiagonals, FillArrays, Kronecker, LinearAlgebra, Random, Stheno, StaticArrays,
-    Zygote
+using BlockDiagonals
+using FillArrays
+using FiniteDifferences
+using Kronecker
+using LinearAlgebra
+using Random
+using Stheno
+using StaticArrays
+using TemporalGPs
+using Test
+using Zygote
 
 using Kronecker: KroneckerProduct
 
