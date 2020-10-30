@@ -258,7 +258,7 @@ function adjoint_test(
     f, ȳ, x...;
     rtol=1e-9,
     atol=1e-9,
-    fdm=FiniteDifferences.Central(5, 1),
+    fdm=FiniteDifferences.central_fdm(5, 1),
     print_results=false,
     test=true,
 )
