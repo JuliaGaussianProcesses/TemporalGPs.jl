@@ -66,6 +66,8 @@ println("scalar_lgssm:")
         sqrt_Σs = map(Σ->cholesky(Symmetric(Σ)).U, Σs)
 
         # Verify the gradients w.r.t. sampling from the model.
+        P_U = cholesky(x.P).U
+        P_U = storage.val isa SArrayStorage ? UpperTriangular(SMatrix(P_U.data)) : P_U
         adjoint_test(
             (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs) -> begin
                 Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
@@ -77,7 +79,7 @@ println("scalar_lgssm:")
                 return rand(MersenneTwister(123456), scalar_model)
             end,
             randn(rng, N),
-            As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs;
+            As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs;
             rtol=1e-6, atol=1e-6,
         )
 
