@@ -95,7 +95,7 @@ println("scalar_lgssm:")
                 return logpdf(scalar_model, y)
             end,
             randn(rng),
-            As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
+            As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs, y;
             atol=1e-6, rtol=1e-6,
         )
 
@@ -111,7 +111,7 @@ println("scalar_lgssm:")
                 return TemporalGPs.whiten(scalar_model, y)
             end,
             randn(rng, N),
-            As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
+            As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs, y;
             atol=1e-6, rtol=1e-6,
         )
 
@@ -127,7 +127,7 @@ println("scalar_lgssm:")
                 return TemporalGPs.unwhiten(scalar_model, α)
             end,
             randn(rng, N),
-            As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
+            As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs, y;
             atol=1e-6, rtol=1e-6,
         )
     end
