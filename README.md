@@ -1,6 +1,6 @@
 # TemporalGPs
 
-[![Build Status](https://travis-ci.com/willtebbutt/TemporalGPs.jl.svg?branch=master)](https://travis-ci.com/willtebbutt/TemporalGPs.jl)
+[![Build Status](https://github.com/willtebbutt/TemporalGPs.jl/workflows/CI/badge.svg)](https://github.com/willtebbutt/TemporalGPs.jl/actions)
 [![Codecov](https://codecov.io/gh/willtebbutt/TemporalGPs.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/willtebbutt/TemporalGPs.jl)
 
 TemporalGPs.jl is a tool to make Gaussian processes (GPs) defined using [Stheno.jl](https://github.com/willtebbutt/Stheno.jl/) fast for time-series. It provides a single-function public API that lets you specify that this package should perform inference, rather than Stheno.jl.
