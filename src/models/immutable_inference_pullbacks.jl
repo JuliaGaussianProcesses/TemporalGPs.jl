@@ -99,7 +99,6 @@ for (foo, step_foo, foo_pullback, step_foo_pullback) in [
         @assert length(model) == length(ys)
         T = length(model)
 
-
         # Pre-allocate for filtering distributions. The indexing is slightly different for
         # these than for other quantities. In particular, xs[t] := x_{t-1}.
         xs = Vector{typeof(model.gmm.x0)}(undef, T + 1)
