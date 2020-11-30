@@ -74,7 +74,26 @@ true
 
 Extending a `RegularSpacing` in one direction or another simple adds points at either end:
 ```jldoctest
+julia> x = RegularSpacing(0.0, 0.1, 3);
 
+julia> ExtendedRegularSpacing(x, 2, 3) ≈ vcat([-0.2, -0.1], x, [0.3, 0.4, 0.5])
+true
+```
+
+Increasing the density adds points between existing points:
+```jldoctest
+julia> x = RegularSpacing(0.0, 0.1, 3);
+
+julia> ExtendedRegularSpacing(x, 0, 0, 2) ≈ [0.0, 0.05, 0.1, 0.15, 0.2]
+true
+```
+
+Doing both extends at the new density:
+```jldoctest
+julia> x = RegularSpacing(0.0, 0.1, 3);
+
+julia> ExtendedRegularSpacing(x, 1, 0, 2) ≈ [-0.05, 0.0, 0.05, 0.1, 0.15, 0.2]
+true
 ```
 """
 struct ExtendedRegularSpacing{T<:Real, Tx<:RegularSpacing{T}} <: AbstractVector{T}
