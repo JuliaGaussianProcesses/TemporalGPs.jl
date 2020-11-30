@@ -51,32 +51,41 @@ end
 Add additional points to a `RegularSpacing` in a manner that both contains the original data
 points and is also regular.
 
-Specified in terms of a point-density-ratio `ρ::Int` which governs how many points exist
-between each point in the original `RegularSpacing`. Must be at least 1. `lhs_extension`
-which specifies how many points to extend to the left, and `rhs_extension` specifying how
-many points to extend to the right.
+# Fields:
+- `x::RegularSpacing{T}`: original data
+- `lhs_extension::Int`: number of additional points to the left (new spacing)
+- `rhs_extension::Int`: number of additional points to the right (new spacing)
+- `ρ::Int=1`: number of points per interval in the original spacing.
 
+# Examples:
+
+`ExtendedRegularSpacing`s can recover `RegularSpacing`s:
 ```jldoctest
 julia> x = RegularSpacing(0.0, 0.1, 10);
 
-julia> y = ExtendedRegularSpacing(x, 1, 0, 0);
+julia> y = ExtendedRegularSpacing(x, 0, 0, 1);
 
 julia> x == y
 true
 
 julia> y == ExtendedRegularSpacing(x, 0, 0)
 true
-``` 
+```
+
+Extending a `RegularSpacing` in one direction or another simple adds points at either end:
+```jldoctest
+
+```
 """
 struct ExtendedRegularSpacing{T<:Real, Tx<:RegularSpacing{T}} <: AbstractVector{T}
     x::Tx
-    ρ::Int
     lhs_extension::Int
     rhs_extension::Int
+    ρ::Int
 end
 
 function ExtendedRegularSpacing(x::RegularSpacing, lhs_extension::Int, rhs_extension::Int)
-    return ExtendedRegularSpacing(x, 1, lhs_extension, rhs_extension)
+    return ExtendedRegularSpacing(x, lhs_extension, rhs_extension, 1)
 end
 
 # Implement the AbstractArray interface.
