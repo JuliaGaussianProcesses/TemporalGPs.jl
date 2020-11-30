@@ -21,7 +21,7 @@ function build_inference_data(
 
     # Pull out the input data.
     x_cond = f.data.x
-    x_raw = vcat(x_cond, x_pred)
+    x, idx = merge_and_sort(x_cond, x_pred)
 
     # Pull out the observations and create arbitrary fake observations at prediction locs.
     y_cond = f.data.y
@@ -32,8 +32,6 @@ function build_inference_data(
     σ²s_raw = vcat(σ²s_cond, σ²s_pred)
 
     # Put all of the data in order.
-    idx = sortperm(x_raw)
-    x = x_raw[idx]
     y = y_raw[idx]
     σ²s = σ²s_raw[idx]
 
@@ -41,6 +39,21 @@ function build_inference_data(
     pr_indices = sortperm(idx)[end-length(x_pred) + 1:end]
 
     return x, y, σ²s, pr_indices
+end
+
+# Merge a and b, returning them sorted, as well as the indices required to sort them.
+function merge_and_sort(a::AbstractVector{<:Real}, b::AbstractVector{<:Real})
+    x = vcat(a, b)
+    idx = sortperm(x)
+    return x[idx], idx
+end
+
+function merge_and_sort(a::RegularSpacing, b::RegularSpacing)
+    if a == b
+        return a, eachindex(a)
+    else
+        return merge_and_sort(collect(a), collect(b))
+    end
 end
 
 # If no observations or variances are provided, make the observations arbitrary and the
@@ -90,6 +103,8 @@ Stheno.rand(ft::FinitePosteriorLTISDE, N::Int) = rand(Random.GLOBAL_RNG, ft, N)
 
 function Stheno.logpdf(fx::FinitePosteriorLTISDE, y_pr::AbstractVector{<:Real})
     x, y, σ²s, _ = build_inference_data(fx.f, fx.x, diag(fx.Σy), y_pr)
+
+    @warn "posterior logpdf might be wrong :S probably best not to trust the results..."
 
     logp_prior = logpdf(fx.f.prior(fx.f.data.x, fx.f.data.Σy), fx.f.data.y)
     logp_all = logpdf(fx.f.prior(x, σ²s), y)
