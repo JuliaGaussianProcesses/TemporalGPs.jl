@@ -27,7 +27,7 @@ function random_nice_psd_matrix(rng::AbstractRNG, N::Integer, ::ArrayStorage{T})
 
     # Generate random positive definite matrix.
     U = UpperTriangular(randn(rng, T, N, N))
-    S = U'U + T(1e-2) * I
+    S = U'U + T(1e-1) * I
     S = Symmetric(pw(Matern12(), 5 .* randn(rng, T, N)) + T(1e-3) * I)
 
     # Centre (make eigenvals N(0, 2^2)) and bound the eigenvalues between 0 and 1.

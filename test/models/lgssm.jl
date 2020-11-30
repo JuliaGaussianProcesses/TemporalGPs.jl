@@ -27,7 +27,7 @@ println("lgssm:")
 
         tvs = [true, false]
         Dlats = [1, 3, 4]
-        Dobss = [1, 2, 5]
+        Dobss = [1, 2, 4]
         storages = [
             (name="dense storage Float64", val=ArrayStorage(Float64)),
             (name="static storage Float64", val=SArrayStorage(Float64)),
@@ -143,6 +143,8 @@ println("lgssm:")
             if eltype(model) == Float64
 
                 # Verify the gradients w.r.t. sampling from the model.
+                P_U = cholesky(x.P).U
+                P_U = storage.val isa SArrayStorage ? UpperTriangular(SMatrix(P_U.data)) : P_U
                 adjoint_test(
                     (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs) -> begin
                         Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
@@ -154,7 +156,7 @@ println("lgssm:")
                         return rand(MersenneTwister(123456), model)
                     end,
                     [randn(rng, Dobs) for _ in 1:N],
-                    As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs;
+                    As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs;
                     rtol=1e-6, atol=1e-6,
                 )
 
@@ -170,8 +172,8 @@ println("lgssm:")
                         return logpdf(model, y)
                     end,
                     randn(rng),
-                    As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
-                    atol=1e-6, rtol=1e-6,
+                    As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs, y;
+                    atol=1e-5, rtol=1e-5,
                 )
 
                 # Verify the gradients w.r.t. whiten
@@ -186,7 +188,7 @@ println("lgssm:")
                         return TemporalGPs.whiten(model, y)
                     end,
                     [randn(rng, Dobs) for _ in 1:N],
-                    As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
+                    As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs, y;
                     atol=1e-6, rtol=1e-6,
                 )
 
@@ -202,7 +204,7 @@ println("lgssm:")
                         return TemporalGPs.unwhiten(model, α)
                     end,
                     [randn(rng, Dobs) for _ in 1:N],
-                    As, as, sqrt_Qs, Hs, hs, x.m, cholesky(x.P).U, sqrt_Σs, y;
+                    As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs, y;
                     atol=1e-6, rtol=1e-6,
                 )
             end

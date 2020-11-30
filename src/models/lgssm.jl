@@ -203,8 +203,9 @@ function logpdf_and_rand(rng::AbstractRNG, model::AbstractSSM)
     return correlate(model, rand_αs(rng, model, Val(dim_obs(model))))
 end
 
-function rand_αs(rng::AbstractRNG, model::LGSSM, _)
-    return [randn(rng, eltype(model), dim_obs(model)) for _ in 1:length(model)]
+function rand_αs(rng::AbstractRNG, model::LGSSM, ::Val{D}) where {D}
+    α = randn(rng, eltype(model), length(model) * D)
+    return [α[(n - 1) * D + 1:n * D] for n in 1:length(model)]
 end
 
 function rand_αs(
@@ -212,5 +213,6 @@ function rand_αs(
     model::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}},
     ::Val{D},
 ) where {D}
-    return [randn(rng, SVector{D, eltype(model)}) for _ in 1:length(model)]
+    α = randn(rng, eltype(model), length(model) * D)
+    return [SVector{D}(α[(n - 1) * D + 1:n * D]) for n in 1:length(model)]
 end
