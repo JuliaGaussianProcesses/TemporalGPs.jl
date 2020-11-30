@@ -5,6 +5,8 @@
 
 TemporalGPs.jl is a tool to make Gaussian processes (GPs) defined using [Stheno.jl](https://github.com/willtebbutt/Stheno.jl/) fast for time-series. It provides a single-function public API that lets you specify that this package should perform inference, rather than Stheno.jl.
 
+[JuliaCon 2020 Talk](https://www.youtube.com/watch?v=dysmEpX1QoE)
+
 # Installation
 
 TemporalGPs.jl is registered, so simply type the following at the REPL:
