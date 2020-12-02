@@ -18,10 +18,10 @@ ZygoteRules = "700de1a5-db45-46bc-99cf-38207098b444"
 
 [compat]
 BlockArrays = "0.13"
-BlockDiagonals = "0.1"
+BlockDiagonals = "0.1.7"
 Distributions = "0.24"
 FillArrays = "0.10"
-Kronecker = "0.4"
+Kronecker = "0.4.2"
 StaticArrays = "1"
 Stheno = "0.6.6"
 Zygote = "0.5"
