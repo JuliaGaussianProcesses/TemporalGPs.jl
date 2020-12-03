@@ -1,4 +1,24 @@
-using Zygote: @adjoint, accum
+using Zygote: @adjoint, accum, AContext
+
+
+# This context doesn't allow any globals.
+struct NoContext <: Zygote.AContext end
+
+# Stupid implementation to obtain type-stability.
+Zygote.cache(cx::NoContext) = (cache_fields=nothing)
+
+# Stupid implementation.
+Base.haskey(cx::NoContext, x) = false
+
+Zygote.accum_param(::NoContext, x, Δ) = Δ
+
+function context_free_gradient(f, args...)
+    _, pb = Zygote._pullback(NoContext(), f, args...)
+    return pb(1.0)
+end
+
+
+Zygote.accum(as::Tuple...) = map(accum, as...)
 
 # Not a rule, but a helpful utility.
 show_grad_type(x, S) = Zygote.hook(x̄ -> ((@show S, typeof(x̄)); x̄), x)
@@ -144,3 +164,64 @@ end
     end
     return x[n], getindex_FillArray
 end
+
+
+#
+# AD-free pullbacks for a few things. These are primitives that will be used to write the
+# gradients.
+#
+
+function cholesky_pullback(Σ::Symmetric{<:Real, <:StridedMatrix})
+    C = cholesky(Σ)
+    return C, function(Δ::NamedTuple)
+        U, Ū = C.U, Δ.factors
+        Σ̄ = Ū * U'
+        Σ̄ = LinearAlgebra.copytri!(Σ̄, 'U')
+        Σ̄ = ldiv!(U, Σ̄)
+        BLAS.trsm!('R', 'U', 'T', 'N', one(eltype(Σ)), U.data, Σ̄)
+
+        @inbounds for n in diagind(Σ̄)
+            Σ̄[n] /= 2
+        end
+        return (UpperTriangular(Σ̄),)
+    end
+end
+
+function cholesky_pullback(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
+    C = cholesky(S)
+    return C, function(Δ::NamedTuple)
+        U, ΔU = C.U, Δ.factors
+        ΔS = U \ (U \ SMatrix{N, N}(Symmetric(ΔU * U')))'
+        ΔS = ΔS - Diagonal(ΔS ./ 2)
+        return (UpperTriangular(ΔS),)
+    end
+end
+
+@adjoint function cholesky(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
+    return cholesky_pullback(S)
+end
+
+function logdet_pullback(C::Cholesky)
+    return logdet(C), function(Δ)
+        return ((uplo=nothing, info=nothing, factors=Diagonal(2 .* Δ ./ diag(C.factors))),)
+    end
+end
+
+AtA_pullback(A::AbstractMatrix{<:Real}) = A'A, Δ->(A * (Δ + Δ'),)
+
+
+function Zygote.accum(a::UpperTriangular, b::UpperTriangular)
+    return UpperTriangular(Zygote.accum(a.data, b.data))
+end
+
+function Zygote.accum(D::Diagonal{<:Real}, U::UpperTriangular{<:Real, <:SMatrix})
+    return UpperTriangular(D + U.data)
+end
+
+function Zygote.accum(a::Diagonal, b::UpperTriangular)
+    return UpperTriangular(a + b.data)
+end
+
+Zygote.accum(a::UpperTriangular, b::Diagonal) = Zygote.accum(b, a)
+
+Zygote._symmetric_back(Δ::UpperTriangular{<:Any, <:SArray}, uplo) = Δ
