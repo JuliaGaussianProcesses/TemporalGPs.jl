@@ -14,7 +14,6 @@ using TemporalGPs:
     step_decorrelate,
     decorrelate
 
-naive_predict(mf, Pf, A, a, Q) = A * mf + a, (A * Pf) * A' + Q
 
 function verify_pullback(f_pullback, input, Δoutput, storage)
     output, _pb = f_pullback(input...)
@@ -88,56 +87,6 @@ end
             @test allocs(@benchmark logdet($Cs)) == 0
             @test allocs(@benchmark logdet_pullback($Cs)) == 0
             @test allocs(@benchmark $pbs($Δ)) == 0
-        end
-    end
-
-    Dlats = [3]
-    Dobss = [2]
-    storages = [
-        (name="heap - Float64", val=ArrayStorage(Float64)),
-        (name="stack - Float64", val=SArrayStorage(Float64)),
-        (name="heap - Float32", val=ArrayStorage(Float32)),
-        (name="stack - Float32", val=SArrayStorage(Float32)),
-    ]
-    tvs = [
-        (name = "time-varying", build_model = random_tv_lgssm),
-        (name = "time-invariant", build_model = random_ti_lgssm),
-    ]
-
-    @testset "correlate: Dlat=$Dlat, Dobs=$Dobs, storage=$(storage.name), tv=$(tv.name)" for
-        Dlat in Dlats,
-        Dobs in Dobss,
-        storage in storages,
-        tv in tvs
-
-        N_correctness = 10
-        N_performance = 1_000
-
-        @testset "correctness" begin
-            rng = MersenneTwister(123456)
-
-            model = tv.build_model(rng, Dlat, Dobs, N_correctness, storage.val)
-
-            # We don't care about the statistical properties of the thing that correlate
-            # is applied to, just that it's the correct size / type, for which rand 
-            # suffices.
-            α = rand(rng, model)
-
-            input = (model, α)
-            Δoutput = (randn(rng, eltype(storage.val)), rand(rng, model))
-
-            output, _pb = Zygote.pullback(correlate, input...)
-            Δinput = _pb(Δoutput)
-
-            @test is_of_storage_type(input, storage.val)
-            @test is_of_storage_type(output, storage.val)
-            @test is_of_storage_type(Δinput, storage.val)
-            @test is_of_storage_type(Δoutput, storage.val)
-
-            # Only verify accuracy with Float64s.
-            if eltype(storage.val) == Float64 && storage.val isa SArrayStorage
-                adjoint_test(correlate, Δoutput, input...)
-            end
         end
     end
 end
