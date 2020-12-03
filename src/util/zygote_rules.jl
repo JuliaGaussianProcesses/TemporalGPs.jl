@@ -225,3 +225,43 @@ end
 Zygote.accum(a::UpperTriangular, b::Diagonal) = Zygote.accum(b, a)
 
 Zygote._symmetric_back(Δ::UpperTriangular{<:Any, <:SArray}, uplo) = Δ
+
+
+# Temporary hacks.
+
+using Zygote: literal_getproperty, literal_indexed_iterate, literal_getindex
+
+function Zygote._pullback(::NoContext, ::typeof(literal_getproperty), C::Cholesky, ::Val{:U})
+    function literal_getproperty_pullback(Δ)
+        return (nothing, (uplo=nothing, info=nothing, factors=UpperTriangular(Δ)))
+    end
+    literal_getproperty_pullback(Δ::Nothing) = nothing
+    return literal_getproperty(C, Val(:U)), literal_getproperty_pullback
+end
+
+
+function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}) where i
+  y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
+  back(::Nothing) = nothing
+  back(ȳ) = b(ȳ[1])
+  (y, i+1), back
+end
+
+function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}, st) where i
+  y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
+  back(::Nothing) = nothing
+  back(ȳ) = (b(ȳ[1])..., nothing)
+  (y, i+1), back
+end
+
+Zygote._pullback(cx::AContext, ::typeof(getproperty), x, f::Symbol) =
+  Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
+
+Zygote._pullback(cx::AContext, ::typeof(getfield), x, f::Symbol) =
+  Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
+
+Zygote._pullback(cx::AContext, ::typeof(literal_getindex), x::NamedTuple, ::Val{f}) where f =
+  Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
+
+Zygote._pullback(cx::AContext, ::typeof(literal_getproperty), x::Tuple, ::Val{f}) where f =
+  Zygote._pullback(cx, Zygote.literal_getindex, x, Val(f))
