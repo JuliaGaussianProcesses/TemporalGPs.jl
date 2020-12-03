@@ -8,17 +8,11 @@ using TemporalGPs:
     cholesky_pullback,
     logdet_pullback,
     update_correlate,
-    update_correlate_pullback,
     step_correlate,
-    step_correlate_pullback,
     correlate,
-    correlate_pullback,
     update_decorrelate,
-    update_decorrelate_pullback,
     step_decorrelate,
-    step_decorrelate_pullback,
-    decorrelate,
-    decorrelate_pullback
+    decorrelate
 
 naive_predict(mf, Pf, A, a, Q) = A * mf + a, (A * Pf) * A' + Q
 
@@ -97,186 +91,6 @@ end
         end
     end
 
-    @testset "step pullbacks" begin
-        Dlats = [3]
-        Dobss = [2]
-        storages = [
-            (name="heap - Float64", val=ArrayStorage(Float64)),
-            (name="stack - Float64", val=SArrayStorage(Float64)),
-            (name="heap - Float32", val=ArrayStorage(Float32)),
-            (name="stack - Float32", val=SArrayStorage(Float32)),
-        ]
-
-        @testset "storage=$(storage.name), Dlat=$Dlat, Dobs=$Dobs" for
-            Dlat in Dlats,
-            Dobs in Dobss,
-            storage in storages
-
-            rng = MersenneTwister(123456)
-
-            # Specify LGSSM dynamics.
-            A = random_matrix(rng, Dlat, Dlat, storage.val)
-            a = random_vector(rng, Dlat, storage.val)
-            Q = random_nice_psd_matrix(rng, Dlat, storage.val)
-            U_Q = cholesky(Q).U
-            H = random_matrix(rng, Dobs, Dlat, storage.val)
-            h = random_vector(rng, Dobs, storage.val)
-            S = random_nice_psd_matrix(rng, Dobs, storage.val)
-            U_S = cholesky(S).U
-
-            # Specify LGSSM initial state distribution.
-            m = random_vector(rng, Dlat, storage.val)
-            P = random_nice_psd_matrix(rng, Dlat, storage.val)
-            U_P = cholesky(P).U
-
-            # Specify input-output pairs.
-            α = random_vector(rng, Dobs, storage.val)
-            y = random_vector(rng, Dobs, storage.val)
-
-            @testset "update_correlate" begin
-
-                # Specify adjoints for outputs.
-                Δmf = random_vector(rng, Dlat, storage.val)
-                ΔPf = random_matrix(rng, Dlat, Dlat, storage.val)
-                Δlml = randn(rng, eltype(storage.val))
-                Δy = random_vector(rng, Dobs, storage.val)
-                Δoutput = (Δmf, ΔPf, Δlml, Δy)
-
-                # Check reverse-mode agrees with finite differences.
-                if eltype(storage.val) == Float64
-                    adjoint_test(
-                        (mp, U_Pp, H, h, U_S, α) -> begin
-                            U_Pp = UpperTriangular(U_Pp)
-                            Pp = U_Pp'U_Pp
-
-                            U_S = UpperTriangular(U_S)
-                            S = U_S'U_S
-
-                            return update_correlate(mp, Pp, H, h, S, α)
-                        end,
-                        Δoutput,
-                        m, U_P, H, h, U_S, α;
-                        atol=1e-6, rtol=1e-6,
-                    )
-                end
-
-                # Check that appropriate typoes are produced, and allocations are correct.
-                input = (m, P, H, h, S, α)
-                verify_pullback(update_correlate_pullback, input, Δoutput, storage)
-            end
-            @testset "update_decorrelate" begin
-
-                # Specify adjoints for outputs.
-                Δmf = random_vector(rng, Dlat, storage.val)
-                ΔPf = random_matrix(rng, Dlat, Dlat, storage.val)
-                Δlml = randn(rng, eltype(storage.val))
-                Δα = random_vector(rng, Dobs, storage.val)
-                Δoutput = (Δmf, ΔPf, Δlml, Δα)
-                
-
-                # Check reverse-mode agrees with finite differences.
-                if eltype(storage.val) == Float64
-                    adjoint_test(
-                        (mp, U_Pp, H, h, U_S, y) -> begin
-                            U_Pp = UpperTriangular(U_Pp)
-                            Pp = U_Pp'U_Pp
-
-                            U_S = UpperTriangular(U_S)
-                            _S = U_S'U_S
-
-                            return update_decorrelate(mp, Pp, H, h, _S, y)
-                        end,
-                        Δoutput,
-                        m, U_P, H, h, U_S, y;
-                        atol=1e-6, rtol=1e-6,
-                    )
-                end
-
-                # Check that appropriate typoes are produced, and allocations are correct.
-                input = (m, P, H, h, S, y)
-                verify_pullback(update_decorrelate_pullback, input, Δoutput, storage)
-            end
-            @testset "step_correlate" begin
-
-                # Specify adjoints for outputs.
-                Δlml = randn(rng, eltype(storage.val))
-                Δy = random_vector(rng, Dobs, storage.val)
-                Δx = (
-                    m = random_vector(rng, Dlat, storage.val),
-                    P = random_matrix(rng, Dlat, Dlat, storage.val),
-                )
-                Δoutput = (Δlml, Δy, Δx)
-
-                # Check reverse-mode agress with finite differences.
-                if eltype(storage.val) == Float64
-                    adjoint_test(
-                        (A, a, U_Q, H, h, U_S, mf, U_Pf, α) -> begin
-                            U_Q = UpperTriangular(Q)
-                            U_S = UpperTriangular(U_S)
-                            U_Pf = UpperTriangular(U_Pf)
-
-                            model = (
-                                gmm = (A=A, a=a, Q=U_Q'U_Q, H=H, h=h),
-                                Σ=U_S'U_S,
-                            )
-                            x_ = Gaussian(mf, U_Pf'U_Pf)
-                            return step_correlate(model, x_, α)
-                        end,
-                        Δoutput,
-                        A, a, U_Q, H, h, U_S, m, U_P, α;
-                        rtol=1e-6, atol=1e-6,
-                    )
-                end
-
-                # Check that appropriate typoes are produced, and allocations are correct.
-                model = (gmm=(A=A, a=a, Q=Q, H=H, h=h), Σ=S)
-                x = Gaussian(m, P)
-                input = (model, x, α)
-                verify_pullback(step_correlate_pullback, input, Δoutput, storage)
-            end
-            @testset "step_decorrelate" begin
-
-                # Specify adjoints for outputs.
-                Δlml = randn(rng, eltype(storage.val))
-                Δα = random_vector(rng, Dobs, storage.val)
-                Δx = (
-                    m = random_vector(rng, Dlat, storage.val),
-                    P = random_matrix(rng, Dlat, Dlat, storage.val),
-                )
-                Δoutput = (Δlml, Δα, Δx)
-
-                # Check reverse-mode agress with finite differences.
-                if eltype(storage.val) == Float64
-                    adjoint_test(
-                        (A, a, U_Q, H, h, U_S, mf, U_Pf, y) -> begin
-                            U_Q = UpperTriangular(Q)
-                            Q = U_Q'U_Q
-
-                            U_S = UpperTriangular(U_S)
-                            S = U_S'U_S
-
-                            U_Pf = UpperTriangular(U_Pf)
-                            Pf = U_Pf'U_Pf
-
-                            model = (gmm=(A=A, a=a, Q=Q, H=H, h=h), Σ=S)
-                            x = Gaussian(mf, Pf)
-                            return step_decorrelate(model, x, y)
-                        end,
-                        Δoutput,
-                        A, a, U_Q, H, h, U_S, m, U_P, y;
-                        atol=1e-6, rtol=1e-6,
-                    )
-                end
-
-                # Check that appropriate typoes are produced, and allocations are correct.
-                model = (gmm=(A=A, a=a, Q=Q, H=H, h=h), Σ=S)
-                x = Gaussian(m, P)
-                input = (model, x, y)
-                verify_pullback(step_decorrelate_pullback, input, Δoutput, storage)
-            end
-        end
-    end
-
     Dlats = [3]
     Dobss = [2]
     storages = [
@@ -323,25 +137,6 @@ end
             # Only verify accuracy with Float64s.
             if eltype(storage.val) == Float64 && storage.val isa SArrayStorage
                 adjoint_test(correlate, Δoutput, input...)
-            end
-        end
-
-        # Only verify performance if StaticArrays are being used.
-        if storage.val isa SArrayStorage
-            @testset "performance" begin
-
-                rng = MersenneTwister(123456)
-                model = tv.build_model(rng, Dlat, Dobs, N_performance, storage.val)
-
-                α = rand(rng, model)
-
-                input = (model, α)
-                Δoutput = (randn(rng, eltype(storage.val)), rand(rng, model))
-
-                primal, forwards, pb = adjoint_allocs(correlate, Δoutput, input...)
-                @test primal < 100
-                @test forwards < 100
-                @test pb < 3 * N_performance
             end
         end
     end
