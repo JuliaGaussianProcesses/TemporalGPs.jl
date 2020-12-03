@@ -1,5 +1,5 @@
 using StaticArrays
-using TemporalGPs: time_exp
+using TemporalGPs: time_exp, logdet_pullback, cholesky_pullback
 
 @testset "zygote_rules" begin
     @testset "SVector" begin
