@@ -6,7 +6,7 @@ copy_first(a, b) = copy(a)
 
 pick_last(a, b) = b
 
-function decorrelate(model::LGSSM, ys::AV{<:AV{<:Real}}, f=copy_first)
+function decorrelate(model::LGSSM, ys::AV{<:AV{<:Real}}, f)
     @assert length(model) == length(ys)
 
     # Process first latent.
@@ -24,7 +24,7 @@ function decorrelate(model::LGSSM, ys::AV{<:AV{<:Real}}, f=copy_first)
     return lml, vs
 end
 
-function correlate(model::LGSSM, αs::AV{<:AV{<:Real}}, f=copy_first)
+function correlate(model::LGSSM, αs::AV{<:AV{<:Real}}, f)
     @assert length(model) == length(αs)
 
     # Process first latent.

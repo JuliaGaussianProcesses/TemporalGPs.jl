@@ -143,7 +143,7 @@ println("immutable inference:")
             end
 
             @testset "$name infers" begin
-                _, pb = _pullback(NoContext(), f, gssm, ys)
+                _, pb = _pullback(NoContext(), f, lgssm, ys)
                 @inferred f(lgssm, ys, copy_first)
                 @inferred _pullback(NoContext(), f, lgssm, ys, copy_first)
                 @inferred pb((randn(), αs))

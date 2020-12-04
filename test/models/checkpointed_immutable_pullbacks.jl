@@ -32,9 +32,7 @@ using TemporalGPs:
 
         # Perform filtering / gradient propagation with checkpointing.
         (lml_checkpoint, ys_checkpoint), pb_checkpoint = foo_pullback(
-            model_checkpointed,
-            α,
-            copy_first,
+            model_checkpointed, α, copy_first,
         )
 
         @test lml_naive ≈ lml_checkpoint
@@ -43,8 +41,8 @@ using TemporalGPs:
         Δlml = randn()
         Δys = [randn(Dobs) for _ in 1:N]
 
-        _, Δmodel_naive, Δαs_naive, _ = pb_naive((Δlml, Δys))
-        _, Δmodel_checkpoint, Δαs_checkpoint = pb_checkpoint((Δlml, Δys))
+        Δmodel_naive, Δαs_naive, _ = pb_naive((Δlml, Δys))
+        Δmodel_checkpoint, Δαs_checkpoint = pb_checkpoint((Δlml, Δys))
 
         @test Δmodel_naive == Δmodel_checkpoint.model
         @test Δαs_naive == Δαs_checkpoint
