@@ -45,12 +45,12 @@ for (foo, step_foo, foo_pullback) in [
     (:correlate, :step_correlate, :correlate_pullback),
     (:decorrelate, :step_decorrelate, :decorrelate_pullback),
 ]
-    @eval @adjoint function $foo(model::CheckpointedLGSSM, ys::AV{<:AV{<:Real}}, f)
-        return $foo_pullback(model, ys, f)
-    end
+    # @eval @adjoint function $foo(model::CheckpointedLGSSM, ys::AV{<:AV{<:Real}}, f)
+    #     return $foo_pullback(model, ys, f)
+    # end
 
     # Standard rrule a la ZygoteRules.
-    @eval function $foo_pullback(
+    @eval @adjoint function $foo(
         model_checkpointed::CheckpointedLGSSM, ys::AV{<:AV{<:Real}}, f,
     )
         model = model_checkpointed.model
@@ -97,7 +97,7 @@ for (foo, step_foo, foo_pullback) in [
             xs_block[1] = xs_block[end]
         end
 
-        function foo_pullback(Δ::Tuple{Any, Union{Nothing, AbstractVector}})
+        function $foo_pullback(Δ::Tuple{Any, Union{Nothing, AbstractVector}})
 
             Δlml = Δ[1]
             Δvs = Δ[2] isa Nothing ? Fill(nothing, T) : Δ[2]
@@ -149,7 +149,7 @@ for (foo, step_foo, foo_pullback) in [
             return (model = Δmodel_, ), Δys, nothing
         end
 
-        return (lml, vs), foo_pullback
+        return (lml, vs), $foo_pullback
     end
 end
 
