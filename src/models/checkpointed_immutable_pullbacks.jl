@@ -121,8 +121,8 @@ for (foo, step_foo, foo_pullback, step_foo_pullback) in [
             # Grabs the penultimate filtering distribution, xs[end].
             Δys = Vector{eltype(ys)}(undef, T)
             (Δα, Δx__) = get_pb(f)(last(Δvs))
-            _, pullback_last = $step_foo_pullback(model[T], xs[end], ys[T])
-            Δmodel_at_T, Δx, Δy = pullback_last((Δlml, Δα, Δx__))
+            _, pullback_last = _pullback(NoContext(), $step_foo, model[T], xs[end], ys[T])
+            _, Δmodel_at_T, Δx, Δy = pullback_last((Δlml, Δα, Δx__))
             Δmodel = get_adjoint_storage(model, Δmodel_at_T)
             Δys[T] = Δy
 
@@ -144,8 +144,10 @@ for (foo, step_foo, foo_pullback, step_foo_pullback) in [
                     if t != T
                         Δα, Δx__ = get_pb(f)(Δvs[t])
                         Δx_ = Zygote.accum(Δx, Δx__)
-                        _, pullback_t = $step_foo_pullback(model[t], xs_block[c], ys[t])
-                        Δmodel_at_t, Δx, Δy = pullback_t((Δlml, Δα, Δx_))
+                        _, pullback_t = _pullback(
+                            NoContext(), $step_foo, model[t], xs_block[c], ys[t],
+                        )
+                        _, Δmodel_at_t, Δx, Δy = pullback_t((Δlml, Δα, Δx_))
                         Δmodel = _accum_at(Δmodel, t, Δmodel_at_t)
                         Δys[t] = Δy
                     end
