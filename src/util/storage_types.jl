@@ -26,8 +26,6 @@ struct SArrayStorage{T<:Real} <: StorageType{T} end
 
 SArrayStorage(T) = SArrayStorage{T}()
 
-mutability(::SArrayStorage) = Immutable()
-
 is_of_storage_type(::SArray{<:Any, T}, ::SArrayStorage{T}) where {T<:Real} = true
 
 
@@ -40,18 +38,4 @@ struct ArrayStorage{T<:Real} <: StorageType{T} end
 
 ArrayStorage(T) = ArrayStorage{T}()
 
-mutability(::ArrayStorage) = Immutable()
-
 is_of_storage_type(::Array{T}, ::ArrayStorage{T}) where {T<:Real} = true
-
-
-
-#
-# Is an array type to be considered Mutable or Immutable by this package?
-#
-
-struct Mutable end
-
-struct Immutable end
-
-Zygote.@nograd mutability

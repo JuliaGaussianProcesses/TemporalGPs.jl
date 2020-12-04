@@ -53,13 +53,9 @@ function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real}, f=copy_first
 end
 
 function decorrelate(model::ScalarLGSSM, ys::AbstractVector{<:Real}, f=copy_first)
-    return decorrelate(mutability(storage_type(model)), model, ys, f)
-end
-
-function decorrelate(mut, model::ScalarLGSSM, ys::AbstractVector{<:Real}, f=copy_first)
     storage = storage_type(model)
     ys_vec = to_vector_observations(storage, ys)
-    lml, αs = decorrelate(mut, model.model, ys_vec, f)
+    lml, αs = decorrelate(model.model, ys_vec, f)
     return lml, from_vector_observations(αs)
 end
 

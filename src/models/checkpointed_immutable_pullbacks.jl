@@ -29,38 +29,30 @@ mean(model::CheckpointedLGSSM) = mean(model.model)
 
 cov(model::CheckpointedLGSSM) = cov(model.model)
 
-function decorrelate(mut, model::CheckpointedLGSSM, ys::AV{<:AV{<:Real}}, f=copy_first)
-    return decorrelate(mut, model.model, ys, f)
+function decorrelate(model::CheckpointedLGSSM, ys::AV{<:AV{<:Real}}, f)
+    return decorrelate(model.model, ys, f)
 end
 
-function correlate(mut, model::CheckpointedLGSSM, ys::AV{<:AV{<:Real}}, f=copy_first)
-    return correlate(mut, model.model, ys, f)
+function correlate(model::CheckpointedLGSSM, ys::AV{<:AV{<:Real}}, f)
+    return correlate(model.model, ys, f)
 end
 
 #
 # Checkpointed pullbacks.
 #
 
-for (foo, step_foo, foo_pullback, step_foo_pullback) in [
-    (:correlate, :step_correlate, :correlate_pullback, :step_correlate_pullback),
-    (:decorrelate, :step_decorrelate, :decorrelate_pullback, :step_decorrelate_pullback),
+for (foo, step_foo, foo_pullback) in [
+    (:correlate, :step_correlate, :correlate_pullback),
+    (:decorrelate, :step_decorrelate, :decorrelate_pullback),
 ]
-    @eval @adjoint function $foo(
-        ::Immutable,
-        model::CheckpointedLGSSM,
-        ys::AV{<:AV{<:Real}},
-        f=copy_first,
-    )
-        return $foo_pullback(Immutable(), model, ys, f)
-    end
+    # @eval @adjoint function $foo(model::CheckpointedLGSSM, ys::AV{<:AV{<:Real}}, f)
+    #     return $foo_pullback(model, ys, f)
+    # end
 
     # Standard rrule a la ZygoteRules.
-    @eval function $foo_pullback(
-        ::Immutable,
-        model_checkpointed::CheckpointedLGSSM{V},
-        ys::AV{<:AV{<:Real}},
-        f,
-    ) where {V}
+    @eval @adjoint function $foo(
+        model_checkpointed::CheckpointedLGSSM, ys::AV{<:AV{<:Real}}, f,
+    )
         model = model_checkpointed.model
         @assert length(model) == length(ys)
         T = length(model)
@@ -85,8 +77,6 @@ for (foo, step_foo, foo_pullback, step_foo_pullback) in [
 
         # Run first block to obtain type
         lml = 0.0
-        # x = x0
-        # x = model.gmm.x0
         for b in 1:B
             for c in 1:min(B, T - (b - 1) * B)
                 t = (b - 1) * B + c
@@ -107,14 +97,10 @@ for (foo, step_foo, foo_pullback, step_foo_pullback) in [
             xs_block[1] = xs_block[end]
         end
 
-        function foo_pullback(Δ::Tuple{Any, Nothing})
-            return foo_pullback((first(Δ), Fill(nothing, T)))
-        end
-
-        function foo_pullback(Δ::Tuple{Any, AbstractVector})
+        function $foo_pullback(Δ::Tuple{Any, Union{Nothing, AbstractVector}})
 
             Δlml = Δ[1]
-            Δvs = Δ[2]
+            Δvs = Δ[2] isa Nothing ? Fill(nothing, T) : Δ[2]
 
             # Compute the pullback through the last element of the chain to get
             # initialisations for cotangents to accumulate.
@@ -160,10 +146,10 @@ for (foo, step_foo, foo_pullback, step_foo_pullback) in [
                 Σ = Δmodel.Σ,
             )
 
-            return nothing, (model = Δmodel_, ), Δys, nothing
+            return (model = Δmodel_, ), Δys, nothing
         end
 
-        return (lml, vs), foo_pullback
+        return (lml, vs), $foo_pullback
     end
 end
 

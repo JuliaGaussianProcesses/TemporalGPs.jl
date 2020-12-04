@@ -76,17 +76,12 @@ for (foo, step_foo, foo_pullback) in [
     (:correlate, :step_correlate, :correlate_pullback),
     (:decorrelate, :step_decorrelate, :decorrelate_pullback),
 ]
-    @eval @adjoint function $foo(
-        ::Immutable,
-        model::LGSSM,
-        ys::AV{<:AV{<:Real}},
-        f=copy_first,
-    )
-        return $foo_pullback(Immutable(), model, ys, f)
-    end
+    # @eval @adjoint function $foo(model::LGSSM, ys::AV{<:AV{<:Real}}, f)
+    #     return $foo_pullback(model, ys, f)
+    # end
 
     # Standard rrule a la ChainRulesCore.
-    @eval function $foo_pullback(::Immutable, model::LGSSM, ys::AV{<:AV{<:Real}}, f)
+    @eval @adjoint function $foo(model::LGSSM, ys::AV{<:AV{<:Real}}, f)
         @assert length(model) == length(ys)
         T = length(model)
 
@@ -112,11 +107,7 @@ for (foo, step_foo, foo_pullback) in [
             vs[t] = f(α, x)
         end
 
-        # function foo_pullback(Δ::Tuple{Any, Nothing})
-        #     return foo_pullback((Δ[1], Fill(nothing, T)))
-        # end
-
-        function foo_pullback(Δ::Tuple{Any, Union{AbstractVector, Nothing}})
+        function $foo_pullback(Δ::Tuple{Any, Union{AbstractVector, Nothing}})
 
             Δlml = Δ[1]
             Δvs = Δ[2] isa Nothing ? Fill(nothing, T) : Δ[2]
@@ -146,9 +137,9 @@ for (foo, step_foo, foo_pullback) in [
                 Σ = Δmodel.Σ,
             )
 
-            return nothing, Δmodel_, Δys, nothing
+            return Δmodel_, Δys, nothing
         end
 
-        return (lml, vs), foo_pullback
+        return (lml, vs), $foo_pullback
     end
 end

@@ -156,13 +156,8 @@ end
 # This dispatch to methods specialised to the array type used to represent the LGSSM.
 #
 
-function decorrelate(model::AbstractSSM, ys::AbstractVector, f=copy_first)
-    return decorrelate(mutability(storage_type(model)), model, ys, f)
-end
-
-function correlate(model::AbstractSSM, αs::AbstractVector, f=copy_first)
-    return correlate(mutability(storage_type(model)), model, αs, f)
-end
+decorrelate(model::AbstractSSM, y::AbstractVector) = decorrelate(model, y, copy_first)
+correlate(model::AbstractSSM, y::AbstractVector) = correlate(model, y, copy_first)
 
 
 
