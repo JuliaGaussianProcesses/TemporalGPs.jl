@@ -7,7 +7,6 @@ using TemporalGPs:
     step_correlate,
     decorrelate,
     correlate,
-    Immutable,
     copy_first
 using Zygote: _pullback
 
@@ -144,9 +143,9 @@ println("immutable inference:")
             end
 
             @testset "$name infers" begin
-                _, pb = _pullback(NoContext(), f, Immutable(), lgssm, ys)
-                @inferred f(Immutable(), lgssm, ys, copy_first)
-                @inferred _pullback(NoContext(), f, Immutable(), lgssm, ys, copy_first)
+                _, pb = _pullback(NoContext(), f, gssm, ys)
+                @inferred f(lgssm, ys, copy_first)
+                @inferred _pullback(NoContext(), f, lgssm, ys, copy_first)
                 @inferred pb((randn(), αs))
             end
 
@@ -154,17 +153,14 @@ println("immutable inference:")
             # possible that they'll need to be modified in future / for different versions
             # of Julia.
             @testset "$name allocations are independent of length" begin
-                _, pb = _pullback(NoContext(), f, Immutable(), lgssm, ys, copy_first)
+                _, pb = _pullback(NoContext(), f, lgssm, ys, copy_first)
 
                 @test allocs(
-                    @benchmark(
-                        $f(Immutable(), $lgssm, $ys, copy_first);
-                        samples=1, evals=1,
-                    ),
+                    @benchmark($f($lgssm, $ys, copy_first); samples=1, evals=1),
                 ) < 5
                 @test allocs(
                     @benchmark(
-                        _pullback(NoContext(), $f, Immutable(), $lgssm, $ys, copy_first);
+                        _pullback(NoContext(), $f, $lgssm, $ys, copy_first);
                         samples=1, evals=1,
                     ),
                 ) < 10
@@ -173,12 +169,12 @@ println("immutable inference:")
 
             # @testset "benchmarking $name" begin
             #     @show Dlat, Dobs, name, T.T
-            #     _, pb = _pullback(NoContext(), f, Immutable(), lgssm, ys, copy_first)
+            #     _, pb = _pullback(NoContext(), f, lgssm, ys, copy_first)
 
-            #     display(@benchmark($f(Immutable(), $lgssm, $ys, copy_first)))
+            #     display(@benchmark($f($lgssm, $ys, copy_first)))
             #     println()
             #     display(@benchmark(
-            #         _pullback(NoContext(), $f, Immutable(), $lgssm, $ys, copy_first),
+            #         _pullback(NoContext(), $f, $lgssm, $ys, copy_first),
             #     ))
             #     println()
             #     display(@benchmark($pb((randn(), $αs))))

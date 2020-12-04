@@ -46,17 +46,15 @@ for (foo, step_foo, foo_pullback, step_foo_pullback) in [
     (:decorrelate, :step_decorrelate, :decorrelate_pullback, :step_decorrelate_pullback),
 ]
     @eval @adjoint function $foo(
-        ::Immutable,
         model::CheckpointedLGSSM,
         ys::AV{<:AV{<:Real}},
         f=copy_first,
     )
-        return $foo_pullback(Immutable(), model, ys, f)
+        return $foo_pullback(model, ys, f)
     end
 
     # Standard rrule a la ZygoteRules.
     @eval function $foo_pullback(
-        ::Immutable,
         model_checkpointed::CheckpointedLGSSM{V},
         ys::AV{<:AV{<:Real}},
         f,
