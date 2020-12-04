@@ -14,6 +14,7 @@ module TemporalGPs
 
     using FillArrays: AbstractFill
     using Kronecker: KroneckerProduct
+    using Zygote: _pullback
 
     import Stheno: mean, cov, pairwise, logpdf, AV, AM, FiniteGP, AbstractGP
 
@@ -39,10 +40,7 @@ module TemporalGPs
 
     include(joinpath("models", "immutable_inference.jl"))
     include(joinpath("models", "immutable_inference_pullbacks.jl"))
-    include(joinpath("models", "checkpointed_immutable_pullbacks.jl"))
-
-    include(joinpath("models", "mutable_inference.jl"))
-    include(joinpath("models", "mutable_inference_pullbacks.jl"))
+    include(joinpath("models", "checkpointed_immutable_pullbacks.jl")) 
 
     include(joinpath("models", "scalar_lgssm.jl"))
 

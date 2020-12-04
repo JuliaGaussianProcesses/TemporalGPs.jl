@@ -1,4 +1,24 @@
-using Zygote: @adjoint, accum
+using Zygote: @adjoint, accum, AContext
+
+
+# This context doesn't allow any globals.
+struct NoContext <: Zygote.AContext end
+
+# Stupid implementation to obtain type-stability.
+Zygote.cache(cx::NoContext) = (cache_fields=nothing)
+
+# Stupid implementation.
+Base.haskey(cx::NoContext, x) = false
+
+Zygote.accum_param(::NoContext, x, Δ) = Δ
+
+function context_free_gradient(f, args...)
+    _, pb = Zygote._pullback(NoContext(), f, args...)
+    return pb(1.0)
+end
+
+
+Zygote.accum(as::Tuple...) = map(accum, as...)
 
 # Not a rule, but a helpful utility.
 show_grad_type(x, S) = Zygote.hook(x̄ -> ((@show S, typeof(x̄)); x̄), x)
@@ -144,3 +164,104 @@ end
     end
     return x[n], getindex_FillArray
 end
+
+
+#
+# AD-free pullbacks for a few things. These are primitives that will be used to write the
+# gradients.
+#
+
+function cholesky_pullback(Σ::Symmetric{<:Real, <:StridedMatrix})
+    C = cholesky(Σ)
+    return C, function(Δ::NamedTuple)
+        U, Ū = C.U, Δ.factors
+        Σ̄ = Ū * U'
+        Σ̄ = LinearAlgebra.copytri!(Σ̄, 'U')
+        Σ̄ = ldiv!(U, Σ̄)
+        BLAS.trsm!('R', 'U', 'T', 'N', one(eltype(Σ)), U.data, Σ̄)
+
+        @inbounds for n in diagind(Σ̄)
+            Σ̄[n] /= 2
+        end
+        return (UpperTriangular(Σ̄),)
+    end
+end
+
+function cholesky_pullback(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
+    C = cholesky(S)
+    return C, function(Δ::NamedTuple)
+        U, ΔU = C.U, Δ.factors
+        ΔS = U \ (U \ SMatrix{N, N}(Symmetric(ΔU * U')))'
+        ΔS = ΔS - Diagonal(ΔS ./ 2)
+        return (UpperTriangular(ΔS),)
+    end
+end
+
+@adjoint function cholesky(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
+    return cholesky_pullback(S)
+end
+
+function logdet_pullback(C::Cholesky)
+    return logdet(C), function(Δ)
+        return ((uplo=nothing, info=nothing, factors=Diagonal(2 .* Δ ./ diag(C.factors))),)
+    end
+end
+
+AtA_pullback(A::AbstractMatrix{<:Real}) = A'A, Δ->(A * (Δ + Δ'),)
+
+
+function Zygote.accum(a::UpperTriangular, b::UpperTriangular)
+    return UpperTriangular(Zygote.accum(a.data, b.data))
+end
+
+function Zygote.accum(D::Diagonal{<:Real}, U::UpperTriangular{<:Real, <:SMatrix})
+    return UpperTriangular(D + U.data)
+end
+
+function Zygote.accum(a::Diagonal, b::UpperTriangular)
+    return UpperTriangular(a + b.data)
+end
+
+Zygote.accum(a::UpperTriangular, b::Diagonal) = Zygote.accum(b, a)
+
+Zygote._symmetric_back(Δ::UpperTriangular{<:Any, <:SArray}, uplo) = Δ
+
+
+# Temporary hacks.
+
+using Zygote: literal_getproperty, literal_indexed_iterate, literal_getindex
+
+function Zygote._pullback(::NoContext, ::typeof(literal_getproperty), C::Cholesky, ::Val{:U})
+    function literal_getproperty_pullback(Δ)
+        return (nothing, (uplo=nothing, info=nothing, factors=UpperTriangular(Δ)))
+    end
+    literal_getproperty_pullback(Δ::Nothing) = nothing
+    return literal_getproperty(C, Val(:U)), literal_getproperty_pullback
+end
+
+
+function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}) where i
+  y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
+  back(::Nothing) = nothing
+  back(ȳ) = b(ȳ[1])
+  (y, i+1), back
+end
+
+function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}, st) where i
+  y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
+  back(::Nothing) = nothing
+  back(ȳ) = (b(ȳ[1])..., nothing)
+  (y, i+1), back
+end
+
+Zygote._pullback(cx::AContext, ::typeof(getproperty), x, f::Symbol) =
+  Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
+
+Zygote._pullback(cx::AContext, ::typeof(getfield), x, f::Symbol) =
+  Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
+
+Zygote._pullback(cx::AContext, ::typeof(literal_getindex), x::NamedTuple, ::Val{f}) where f =
+  Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
+
+Zygote._pullback(cx::AContext, ::typeof(literal_getproperty), x::Tuple, ::Val{f}) where f =
+  Zygote._pullback(cx, Zygote.literal_getindex, x, Val(f))
