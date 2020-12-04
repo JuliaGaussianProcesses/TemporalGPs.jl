@@ -125,7 +125,7 @@ for (foo, step_foo, foo_pullback) in [
             # initialisations for cotangents to accumulate.
             Δys = Vector{eltype(ys)}(undef, T)
             (Δα, Δx__) = get_pb(f)(last(Δvs))
-            _, pullback_last = Zygote._pullback(NoContext(), $step_foo, model[T], xs[T], ys[T])
+            _, pullback_last = _pullback(NoContext(), $step_foo, model[T], xs[T], ys[T])
             _, Δmodel_at_T, Δx, Δy = pullback_last((Δlml, Δα, Δx__))
             Δmodel = get_adjoint_storage(model, Δmodel_at_T)
             Δys[T] = Δy
@@ -134,7 +134,7 @@ for (foo, step_foo, foo_pullback) in [
             for t in reverse(1:T-1)
                 Δα, Δx__ = get_pb(f)(Δvs[t])
                 Δx_ = Zygote.accum(Δx, Δx__)
-                _, pullback_t = Zygote._pullback(NoContext(), $step_foo, model[t], xs[t], ys[t])
+                _, pullback_t = _pullback(NoContext(), $step_foo, model[t], xs[t], ys[t])
                 _, Δmodel_at_t, Δx, Δy = pullback_t((Δlml, Δα, Δx_))
                 Δmodel = _accum_at(Δmodel, t, Δmodel_at_t)
                 Δys[t] = Δy

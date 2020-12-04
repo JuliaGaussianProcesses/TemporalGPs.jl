@@ -14,6 +14,7 @@ module TemporalGPs
 
     using FillArrays: AbstractFill
     using Kronecker: KroneckerProduct
+    using Zygote: _pullback
 
     import Stheno: mean, cov, pairwise, logpdf, AV, AM, FiniteGP, AbstractGP
 

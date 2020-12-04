@@ -32,7 +32,7 @@ include("test_util.jl")
 
         include(joinpath("models", "immutable_inference.jl"))
         include(joinpath("models", "immutable_inference_pullbacks.jl"))
-        # include(joinpath("models", "checkpointed_immutable_pullbacks.jl"))
+        include(joinpath("models", "checkpointed_immutable_pullbacks.jl"))
 
         include(joinpath("models", "scalar_lgssm.jl"))
     end
