@@ -30,5 +30,3 @@ function Stheno.logpdf(x::Gaussian, Y::AbstractMatrix{<:Real})
 end
 
 Base.:(==)(x::Gaussian, y::Gaussian) = x.m == y.m && x.P == y.P
-
-Base.copy(x::Gaussian) = Gaussian(copy(x.m), copy(x.P))

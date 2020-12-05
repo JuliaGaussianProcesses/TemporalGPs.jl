@@ -31,12 +31,6 @@ function Base.eltype(
     return T
 end
 
-vector_type(::GaussMarkovModel{TA, <:AbstractVector{Tvec}}) where {TA, Tvec} = Tvec
-
-matrix_type(::GaussMarkovModel{<:AbstractVector{Tmat}}) where {Tmat} = Tmat
-
-observation_type(x::GaussMarkovModel) = vector_type(x)
-
 Base.length(ft::GaussMarkovModel) = length(ft.A)
 
 function Base.getindex(ft::GaussMarkovModel, n::Int)
