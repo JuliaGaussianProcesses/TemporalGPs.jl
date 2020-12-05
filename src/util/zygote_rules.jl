@@ -74,20 +74,6 @@ end
     return StepRangeLen(ref, step, len, offset), StepRangeLen_pullback
 end
 
-# @adjoint function Base.:*(a::Real, x::StepRangeLen)
-#     function mul_Real_StepRangeLen_adjoint(Δ)
-#         Δref = Δ.ref === nothing ? zero(a) : a * Δ.ref
-#         Δstep = Δ.step === nothing ? zero(a) : a * Δ.step
-#         return (Δref * x.ref + Δstep * x.step, (
-#             ref = a * Δref,
-#             step = a * Δstep,
-#             len = nothing,
-#             offset = nothing,
-#         ),)
-#     end
-#     return a * x, mul_Real_StepRangeLen_adjoint
-# end
-
 @adjoint function step(x::StepRangeLen)
     return step(x), Δ -> ((ref=nothing, step=Δ, len=nothing, offset=nothing),)
 end
