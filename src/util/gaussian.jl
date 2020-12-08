@@ -30,3 +30,11 @@ function Stheno.logpdf(x::Gaussian, Y::AbstractMatrix{<:Real})
 end
 
 Base.:(==)(x::Gaussian, y::Gaussian) = x.m == y.m && x.P == y.P
+
+function Base.isapprox(x::Gaussian, y::Gaussian; kwargs...)
+    return isapprox(x.m, y.m; kwargs...) && isapprox(x.P, y.P; kwargs...)
+end
+
+Stheno.mean(x::Gaussian) = x.m
+
+Stheno.cov(x::Gaussian) = x.P

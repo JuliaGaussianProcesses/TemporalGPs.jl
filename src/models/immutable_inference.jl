@@ -6,6 +6,23 @@ copy_first(a, b) = copy(a)
 
 pick_last(a, b) = b
 
+function Stheno.marginals(model::LGSSM)
+
+    # Allocate for marginals based on type of initial state.
+    x = predict(model[1], model.gmm.x0)
+    y = observe(model[1], x)
+    ys = Vector{typeof(y)}(undef, length(model))
+    ys[1] = y
+
+    # Process all latents.
+    @inbounds for t in 2:length(model)
+        x = predict(model[t], x)
+        ys[t] = observe(model[t], x)
+    end
+
+    return ys
+end
+
 function decorrelate(model::LGSSM, ys::AV{<:AV{<:Real}}, f)
     @assert length(model) == length(ys)
 

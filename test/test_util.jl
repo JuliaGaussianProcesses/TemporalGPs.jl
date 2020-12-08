@@ -1,4 +1,4 @@
-using TemporalGPs: Gaussian
+using TemporalGPs: Gaussian, copy_first, pick_last, correlate, decorrelate
 
 create_psd_matrix(A::AbstractMatrix) = A * A' + I
 
@@ -261,11 +261,12 @@ function adjoint_test(
     fdm=FiniteDifferences.central_fdm(5, 1),
     print_results=false,
     test=true,
+    check_infers=true,
 )
     # Compute forwards-pass and j′vp.
     adj_fd = j′vp(fdm, f, ȳ, x...)
-    y, back = Zygote.pullback(f, x...)
-    adj_ad = back(ȳ)
+    y, back = (@inferred Zygote.pullback(f, x...))
+    adj_ad = (@inferred back(ȳ))
 
     # Check that forwards-pass agrees with plain forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)
@@ -326,29 +327,71 @@ function benchmark_adjoint(f, ȳ, args...; disp=false)
     return primal, forward_pass, reverse_pass
 end
 
-function adjoint_allocs(f, ȳ, args...)
-
-    # Execute primal evaluation.
-    primal = allocs(@benchmark $f($args...))
-
-    # Execute forwards-pass.
-    _, back = Zygote.pullback(f, args...)
-    forward_pass = allocs(@benchmark Zygote.pullback($f, $args...))
-
-    # Execute reverse-pass.
-    reverse_pass = allocs(@benchmark $back($ȳ))
-
-    return primal, forward_pass, reverse_pass
-end
-
 """
-    standard_lgssm_tests(rng::AbstractRNG, ssm, y::AbstractVector)
+    ssm_interface_tests(
+        rng::AbstractRNG, ssm::AbstractSSM; check_infers=true, check_rmad=false,
+    )
 
 Basic consistency tests that any ssm should be able to satisfy. The purpose of these tests
 is not to ensure correctness of any given implementation, only to ensure that it is self-
 consistent and implements the required interface.
 """
-function standard_lgssm_tests(rng::AbstractRNG, ssm, y::AbstractVector)
-    @test last(filter(ssm, y)) ≈ logpdf(ssm, y)
-    @test last(smooth(ssm, y)) ≈ logpdf(ssm, y)
+function ssm_interface_tests(
+    rng::AbstractRNG, ssm::AbstractSSM; check_infers=true, check_rmad=false,
+)
+    y = rand(rng, ssm)
+    lml_decor, α = decorrelate(ssm, y, copy_first)
+
+    @testset "basics" begin
+        @inferred storage_type(ssm)
+        @inferred dim_latent(ssm)
+        (@inferred dim_obs(ssm)) == length(first(y))
+        @test length(ssm) == length(y)
+        @test eltype(ssm) == eltype(first(y))
+        @test is_of_storage_type(ssm, storage_type(ssm))
+    end
+
+    @testset "decorrelate" begin
+        @test decorrelate(ssm, y, copy_first) == decorrelate(ssm, y)
+        @test lml_decor == TemporalGPs.logpdf(ssm, y)
+        @test α == TemporalGPs.whiten(ssm, y)
+        @test decorrelate(ssm, y, pick_last) == filter(ssm, y)
+
+        if check_infers
+            @inferred decorrelate(ssm, y, copy_first)
+            @inferred decorrelate(ssm, y)
+            @inferred TemporalGPs.logpdf(ssm, y)
+            @inferred TemporalGPs.whiten(ssm, y)
+            @inferred filter(ssm, y)
+        end
+    end
+
+    @testset "correlate" begin
+        lml, y_cor = correlate(ssm, α, copy_first)
+        @test (lml, y_cor) == correlate(ssm, α)
+        @test lml ≈ logpdf(ssm, y)
+        @test y_cor ≈ y
+        @test y_cor == TemporalGPs.unwhiten(ssm, α)
+
+        _lml, _y = logpdf_and_rand(rng, ssm)
+        @test _lml ≈ logpdf(ssm, _y)
+        @test length(_y) == length(y)
+
+        if check_infers
+            @inferred correlate(ssm, α, copy_first)
+            @inferred correlate(ssm, α)
+            @inferred TemporalGPs.unwhiten(ssm, α)
+            @inferred logpdf_and_rand(rng, ssm)
+        end
+    end
+
+    @testset "statistics" begin
+        ds = marginals(ssm)
+        @test vcat(mean.(ds)...) ≈ mean(ssm)
+        @test vcat(diag.(cov.(ds))...) ≈ diag(cov(ssm))
+
+        if check_infers
+            @inferred marginals(ssm)
+        end
+    end
 end

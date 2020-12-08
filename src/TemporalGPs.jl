@@ -18,7 +18,14 @@ module TemporalGPs
 
     import Stheno: mean, cov, pairwise, logpdf, AV, AM, FiniteGP, AbstractGP
 
-    export to_sde, SArrayStorage, ArrayStorage, RegularSpacing, checkpointed, posterior
+    export
+        to_sde,
+        SArrayStorage,
+        ArrayStorage,
+        RegularSpacing,
+        checkpointed,
+        posterior,
+        logpdf_and_rand
 
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "zygote_rules.jl"))

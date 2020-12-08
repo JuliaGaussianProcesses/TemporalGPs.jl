@@ -10,5 +10,5 @@ end
 
 @testset "Gaussian" begin
     N = 11
-    @test dim(Gaussian(randn(N), randn(N, N))) == N
+    @test TemporalGPs.dim(Gaussian(randn(N), randn(N, N))) == N
 end

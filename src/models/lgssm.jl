@@ -110,6 +110,13 @@ function predict(model::NamedTuple{(:gmm, :Σ)}, x)
     return Gaussian(predict(x.m, x.P, gmm.A, gmm.a, gmm.Q)...)
 end
 
+function observe(model::NamedTuple{(:gmm, :Σ)}, x::Gaussian)
+    gmm = model.gmm
+    m_obs = gmm.H * x.m + gmm.h
+    P_obs = gmm.H * x.P * gmm.H' + model.Σ
+    return Gaussian(m_obs, P_obs)
+end
+
 """
     posterior_rand(rng::AbstractRNG, model::LGSSM, ys::Vector{<:AV{<:Real}})
 
@@ -172,14 +179,14 @@ Stheno.logpdf(model::AbstractSSM, ys::AbstractVector) = first(decorrelate(model,
 Base.filter(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys, pick_last)
 
 @adjoint function Base.filter(model::AbstractSSM, ys::AbstractVector)
-    return Zygote.pullback(decorrelate, model, ys, pick_last)
+    return Zygote._pullback(__context__, decorrelate, model, ys, pick_last)
 end
 
 # Resolve ambiguity with Base.
 Base.filter(model::AbstractSSM, ys::Vector) = decorrelate(model, ys, pick_last)
 
 @adjoint function Base.filter(model::AbstractSSM, ys::Vector)
-    return Zygote.pullback(decorrelate, model, ys, pick_last)
+    return Zygote._pullback(__context__, decorrelate, model, ys, pick_last)
 end
 
 
@@ -204,9 +211,7 @@ function rand_αs(rng::AbstractRNG, model::LGSSM, ::Val{D}) where {D}
 end
 
 function rand_αs(
-    rng::AbstractRNG,
-    model::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}},
-    ::Val{D},
+    rng::AbstractRNG, model::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}}, ::Val{D},
 ) where {D}
     α = randn(rng, eltype(model), length(model) * D)
     return [SVector{D}(α[(n - 1) * D + 1:n * D]) for n in 1:length(model)]
