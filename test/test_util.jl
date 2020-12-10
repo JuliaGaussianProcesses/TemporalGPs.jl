@@ -265,8 +265,8 @@ function adjoint_test(
 )
     # Compute forwards-pass and j′vp.
     adj_fd = j′vp(fdm, f, ȳ, x...)
-    y, back = (@inferred Zygote.pullback(f, x...))
-    adj_ad = (@inferred back(ȳ))
+    y, back = (Zygote.pullback(f, x...))
+    adj_ad = (back(ȳ))
 
     # Check that forwards-pass agrees with plain forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)
@@ -329,16 +329,23 @@ end
 
 """
     ssm_interface_tests(
-        rng::AbstractRNG, ssm::AbstractSSM; check_infers=true, check_rmad=false,
+        rng::AbstractRNG, build_ssm, θ...;
+        check_infers=true, check_rmad=false, rtol=1e-9, atol=1e-9,
     )
 
 Basic consistency tests that any ssm should be able to satisfy. The purpose of these tests
 is not to ensure correctness of any given implementation, only to ensure that it is self-
 consistent and implements the required interface.
+
+`build_ssm` should be a unary function that, when called on `θ`, should return an
+`AbstractSSM`.
 """
 function ssm_interface_tests(
-    rng::AbstractRNG, ssm::AbstractSSM; check_infers=true, check_rmad=false,
+    rng::AbstractRNG, build_ssm, θ...;
+    check_infers=true, check_rmad=false, rtol=1e-9, atol=1e-9, check_ad=true,
 )
+    ssm = build_ssm(θ...)
+
     y = rand(rng, ssm)
     lml_decor, α = decorrelate(ssm, y, copy_first)
 
@@ -353,16 +360,58 @@ function ssm_interface_tests(
 
     @testset "decorrelate" begin
         @test decorrelate(ssm, y, copy_first) == decorrelate(ssm, y)
-        @test lml_decor == TemporalGPs.logpdf(ssm, y)
-        @test α == TemporalGPs.whiten(ssm, y)
-        @test decorrelate(ssm, y, pick_last) == filter(ssm, y)
+        @test lml_decor == logpdf(ssm, y)
+        @test α == whiten(ssm, y)
+        @test decorrelate(ssm, y, pick_last) == _filter(ssm, y)
 
         if check_infers
             @inferred decorrelate(ssm, y, copy_first)
             @inferred decorrelate(ssm, y)
-            @inferred TemporalGPs.logpdf(ssm, y)
-            @inferred TemporalGPs.whiten(ssm, y)
-            @inferred filter(ssm, y)
+            @inferred logpdf(ssm, y)
+            @inferred whiten(ssm, y)
+            @inferred _filter(ssm, y)
+        end
+
+        if check_ad
+            @testset "decorrelate AD" begin
+                Δ = rand_zygote_tangent(decorrelate(ssm, y, copy_first))
+                adjoint_test(
+                    (y, θ) -> decorrelate(build_ssm(θ...), y, copy_first), Δ, y, θ;
+                    atol=atol, rtol=rtol,
+                )
+                @inferred _pullback(Context(), decorrelate, ssm, y, copy_first)
+                out, pb = _pullback(Context(), decorrelate, ssm, y, copy_first)
+                @inferred pb(Δ)
+            end
+
+            @testset "logpdf AD" begin
+                Δ = rand_zygote_tangent(lml_decor)
+                adjoint_test(
+                    (y, θ) -> logpdf(build_ssm(θ...), y), Δ, y, θ;
+                    atol=atol, rtol=rtol,
+                )
+                @inferred _pullback(Context(), logpdf, ssm, y)
+                out, pb = _pullback(Context(), logpdf, ssm, y)
+                @inferred pb(Δ)
+            end
+
+            @testset "whiten" begin
+                Δ = rand_zygote_tangent(α)
+                adjoint_test(
+                    (y, θ) -> whiten(build_ssm(θ...), y), Δ, y, θ;
+                    atol=atol, rtol=rtol,
+                )
+                @inferred _pullback(Context(), whiten, ssm, y)
+                out, pb = _pullback(Context(), whiten, ssm, y)
+                @inferred pb(Δ)
+            end
+
+            lml, ds = _filter(ssm, y)
+            Δfilter = (
+                rand_tangent(lml_decor),
+                map(d -> (m=rand_tangent(mean(d)), P=rand_tangent(cov(d))), ds),
+            )
+            adjoint_test((y, θ) -> _filter(build_ssm(θ...), y), Δfilter, y, θ)
         end
     end
 
@@ -371,7 +420,7 @@ function ssm_interface_tests(
         @test (lml, y_cor) == correlate(ssm, α)
         @test lml ≈ logpdf(ssm, y)
         @test y_cor ≈ y
-        @test y_cor == TemporalGPs.unwhiten(ssm, α)
+        @test y_cor == unwhiten(ssm, α)
 
         _lml, _y = logpdf_and_rand(rng, ssm)
         @test _lml ≈ logpdf(ssm, _y)
@@ -383,6 +432,33 @@ function ssm_interface_tests(
             @inferred TemporalGPs.unwhiten(ssm, α)
             @inferred logpdf_and_rand(rng, ssm)
         end
+
+        if check_ad
+            @testset "correlate" begin
+                Δ = rand_zygote_tangent(correlate(ssm, α, copy_first))
+                adjoint_test(
+                    (α, θ) -> correlate(build_ssm(θ...), α, copy_first), Δ, α, θ;
+                    atol=atol, rtol=rtol,
+                )
+                @inferred _pullback(Context(), correlate, ssm, α, copy_first)
+                out, pb = _pullback(Context(), correlate, ssm, α, copy_first)
+                @inferred pb(Δ)
+            end
+            @testset "unwhiten" begin
+                Δ = rand_zygote_tangent(y)
+                adjoint_test(
+                    (α, θ) -> unwhiten(build_ssm(θ...), α), Δ, α, θ;
+                    atol=atol, rtol=rtol
+                )
+                @inferred _pullback(Context(), unwhiten, ssm, α)
+                out, pb = _pullback(Context(), unwhiten, ssm, α)
+                @inferred pb(Δ)
+            end
+            adjoint_test(
+                θ -> logpdf_and_rand(deepcopy(rng), build_ssm(θ...)),
+                rand_zygote_tangent((_lml, _y)), θ,
+            )
+        end
     end
 
     @testset "statistics" begin
@@ -393,5 +469,25 @@ function ssm_interface_tests(
         if check_infers
             @inferred marginals(ssm)
         end
+
+        if check_ad
+            # adjoint_test(θ -> marginals(build_ssm(θ...)), rand_zygote_tangent(ds), θ)
+        end
     end
+end
+
+function FiniteDifferences.rand_tangent(rng::AbstractRNG, A::StaticArray)
+    return map(x -> rand_tangent(rng, x), A)
+end
+
+# Hacks to make rand_tangent play nicely with Zygote.
+rand_zygote_tangent(A) = FiniteDifferences.rand_tangent(A)
+
+function rand_zygote_tangent(A::Union{Tuple, NamedTuple})
+    t = FiniteDifferences.rand_tangent(A)
+    return ChainRulesCore.backing(t)
+end
+
+function FiniteDifferences.rand_tangent(rng::AbstractRNG, d::Gaussian)
+    return (m=rand_tangent(rng, d.m), P=rand_tangent(rng, d.P))
 end

@@ -174,22 +174,21 @@ correlate(model::AbstractSSM, y::AbstractVector) = correlate(model, y, copy_firs
 
 whiten(model::AbstractSSM, ys::AbstractVector) = last(decorrelate(model, ys))
 
+# For _some_ reason beyond my comprehension, this adjoint ensures type-stability.
+function Zygote._pullback(
+    ctx::Zygote.Context, ::typeof(whiten), model::AbstractSSM, ys::AbstractVector,
+)
+    out, pb = Zygote._pullback(ctx, decorrelate, model, ys, copy_first)
+    function whiten_pullback(Δ)
+        _, Δmodel, Δys, _ = pb((0, Δ))
+        return nothing, Δmodel, Δys
+    end
+    return out[2], whiten_pullback
+end
+
 Stheno.logpdf(model::AbstractSSM, ys::AbstractVector) = first(decorrelate(model, ys))
 
-Base.filter(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys, pick_last)
-
-@adjoint function Base.filter(model::AbstractSSM, ys::AbstractVector)
-    return Zygote._pullback(__context__, decorrelate, model, ys, pick_last)
-end
-
-# Resolve ambiguity with Base.
-Base.filter(model::AbstractSSM, ys::Vector) = decorrelate(model, ys, pick_last)
-
-@adjoint function Base.filter(model::AbstractSSM, ys::Vector)
-    return Zygote._pullback(__context__, decorrelate, model, ys, pick_last)
-end
-
-
+_filter(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys, pick_last)
 
 #
 # Things defined in terms of correlate
@@ -200,6 +199,18 @@ function Random.rand(rng::AbstractRNG, model::AbstractSSM)
 end
 
 unwhiten(model::AbstractSSM, αs::AbstractVector) = last(correlate(model, αs))
+
+# For _some_ reason beyond my comprehension, this adjoint ensures type-stability.
+function Zygote._pullback(
+    ctx::Zygote.Context, ::typeof(unwhiten), model::AbstractSSM, αs::AbstractVector,
+)
+    out, pb = Zygote._pullback(ctx, correlate, model, αs, copy_first)
+    function unwhiten_pullback(Δ)
+        _, Δmodel, Δαs, _ = pb((0, Δ))
+        return nothing, Δmodel, Δαs
+    end
+    return out[2], unwhiten_pullback
+end
 
 function logpdf_and_rand(rng::AbstractRNG, model::AbstractSSM)
     return correlate(model, rand_αs(rng, model, Val(dim_obs(model))))

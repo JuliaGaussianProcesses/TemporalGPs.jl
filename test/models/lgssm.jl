@@ -26,11 +26,14 @@ println("lgssm:")
         N = 3
 
         tvs = [true, false]
-        Dlats = [1, 3, 4]
-        Dobss = [1, 2, 4]
+        Dlats = [1, 3]
+        Dobss = [1, 2]
+        # Dlats = [3]
+        # Dobss = [2]
+        # tvs = [false]
         storages = [
-            # (name="dense storage Float64", val=ArrayStorage(Float64)),
-            (name="static storage Float64", val=SArrayStorage(Float64)),
+            (name="dense storage Float64", val=ArrayStorage(Float64)),
+            # (name="static storage Float64", val=SArrayStorage(Float64)),
             # (name="dense storage Float32", val=ArrayStorage(Float32)),
             # (name="static storage Float32", val=SArrayStorage(Float32)),
         ]
@@ -65,8 +68,28 @@ println("lgssm:")
             @test is_of_storage_type(model, storage.val)
             @test is_time_invariant(model) == 1 - tv
 
+            # Set up model builder.
+            sqrt_Qs = map(Q->cholesky(Symmetric(Q + 1e-2I)).U, Qs)
+            sqrt_Σs = map(Σ->cholesky(Symmetric(Σ)).U, Σs)
+            P_U = cholesky(x.P).U
+            P_U = storage.val isa SArrayStorage ? UpperTriangular(SMatrix(P_U.data)) : P_U
+
+
+
             # Run standard battery of LGSSM tests.
-            ssm_interface_tests(rng, model)
+            ssm_interface_tests(
+                rng,
+                (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs) -> begin
+                    Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
+                    Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
+                    P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
+                    x = Gaussian(m, P)
+                    gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
+                    return LGSSM(gmm, Σs)
+                end,
+                As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs;
+                rtol=1e-6, atol=1e-6, check_ad=(eltype(model) == Float64),
+            )
 
             # # Generate a sample from the model.
             # y = rand(MersenneTwister(123456), model)
