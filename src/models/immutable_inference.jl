@@ -113,7 +113,7 @@ end
     V = H * Pp
     S = cholesky(Symmetric(V * H' + Σ))
     B = S.U' \ V
-    y = S.U'α + H * mp + h
+    y = S.U'α + (H * mp + h)
 
     mf = mp + B'α
     Pf = _compute_Pf(Pp, B)

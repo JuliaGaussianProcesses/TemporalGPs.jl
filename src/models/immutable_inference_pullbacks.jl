@@ -32,6 +32,7 @@ function get_adjoint_storage(x::GaussMarkovModel, Δx::NamedTuple{(:A, :a, :Q, :
     )
 end
 
+
 # Diagonal type constraint for the compiler's benefit.
 @inline function _accum_at(Δxs::Vector{T}, n::Int, Δx::T) where {T}
     Δxs[n] = Δx
@@ -64,6 +65,8 @@ function _accum_at(Δxs::NamedTuple{(:gmm, :Σ)}, n::Int, Δx::NamedTuple{(:gmm,
     )
 end
 
+_accum_at(Δxs::Nothing, n::Int, Δx::Nothing) = nothing
+
 function get_pb(::typeof(copy_first))
     copy_first_pullback(Δ) = (copy(Δ), nothing)
     copy_first_pullback(Δ::Nothing) = (nothing, nothing)
@@ -76,12 +79,9 @@ for (foo, step_foo, foo_pullback) in [
     (:correlate, :step_correlate, :correlate_pullback),
     (:decorrelate, :step_decorrelate, :decorrelate_pullback),
 ]
-    # @eval @adjoint function $foo(model::LGSSM, ys::AV{<:AV{<:Real}}, f)
-    #     return $foo_pullback(model, ys, f)
-    # end
-
-    # Standard rrule a la ChainRulesCore.
-    @eval @adjoint function $foo(model::LGSSM, ys::AV{<:AV{<:Real}}, f)
+    @eval function Zygote._pullback(
+        ::AContext, ::typeof($foo), model::LGSSM, ys::AV{<:AV{<:Real}}, f,
+    )
         @assert length(model) == length(ys)
         T = length(model)
 
@@ -116,14 +116,20 @@ for (foo, step_foo, foo_pullback) in [
             # initialisations for cotangents to accumulate.
             Δys = Vector{eltype(ys)}(undef, T)
             (Δα, Δx__) = get_pb(f)(last(Δvs))
+            if Δα === nothing
+                Δα = zero(first(ys))
+            end
             _, pullback_last = _pullback(NoContext(), $step_foo, model[T], xs[T], ys[T])
-            _, Δmodel_at_T, Δx, Δy = pullback_last((Δlml, Δα, Δx__))
+            Δstep_foo, Δmodel_at_T, Δx, Δy = pullback_last((Δlml, Δα, Δx__))
             Δmodel = get_adjoint_storage(model, Δmodel_at_T)
             Δys[T] = Δy
 
             # Work backwards through the chain.
             for t in reverse(1:T-1)
                 Δα, Δx__ = get_pb(f)(Δvs[t])
+                if Δα === nothing
+                    Δα = zero(first(ys))
+                end
                 Δx_ = Zygote.accum(Δx, Δx__)
                 _, pullback_t = _pullback(NoContext(), $step_foo, model[t], xs[t], ys[t])
                 _, Δmodel_at_t, Δx, Δy = pullback_t((Δlml, Δα, Δx_))
@@ -137,7 +143,7 @@ for (foo, step_foo, foo_pullback) in [
                 Σ = Δmodel.Σ,
             )
 
-            return Δmodel_, Δys, nothing
+            return nothing, Δmodel_, Δys, nothing
         end
 
         return (lml, vs), $foo_pullback

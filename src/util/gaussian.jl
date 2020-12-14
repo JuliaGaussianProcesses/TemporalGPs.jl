@@ -38,3 +38,13 @@ end
 Stheno.mean(x::Gaussian) = x.m
 
 Stheno.cov(x::Gaussian) = x.P
+
+storage_type(x::Gaussian{<:SVector{D, T}}) where {D, T<:Real} = SArrayStorage(T)
+
+storage_type(gmm::Gaussian{<:Vector{T}}) where {D, T<:Real} = ArrayStorage(T)
+
+function Zygote._pullback(::AContext, ::Type{<:Gaussian}, m, P)
+    Gaussian_pullback(Δ::Nothing) = (nothing, nothing, nothing)
+    Gaussian_pullback(Δ) = (nothing, Δ.m, Δ.P)
+    return Gaussian(m, P), Gaussian_pullback
+end

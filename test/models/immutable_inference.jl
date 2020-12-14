@@ -18,20 +18,44 @@ println("immutable inference:")
     rng = MersenneTwister(123456)
     Dlats = [1, 3]
     Dobss = [1, 2]
-    Ts = [
-        # (T=Float32, atol=1e-5, rtol=1e-5),
-        (T=Float64, atol=1e-9, rtol=1e-9),
+    # Dlats = [3]
+    # Dobss = [2]
+    tvs = [
+        (name = "time-varying", build_model = random_tv_lgssm),
+        (name = "time-invariant", build_model = random_ti_lgssm),
     ]
+    storages = [
+        (name="heap - Float64", val=ArrayStorage(Float64)),
+        (name="stack - Float64", val=SArrayStorage(Float64)),
+        # (name="heap - Float32", val=ArrayStorage(Float32)),
+        # (name="stack - Float32", val=SArrayStorage(Float32)),
+    ]
+    @testset "$Dlat, $Dobs, $(storage.val), $(tv.name)" for
+        Dlat in Dlats,
+        Dobs in Dobss,
+        storage in storages,
+        tv in tvs
 
-    @testset "$Dlat, $Dobs, $(T.T)" for Dlat in Dlats, Dobs in Dobss, T in Ts
+        println("$Dlat, $Dobs, $(storage.val), $(tv.name)")
 
         # Construct a Gauss-Markov model and pull out the relevant parameters.
-        gmm = random_tv_gmm(rng, Dlat, Dobs, 1, SArrayStorage(T.T))
+        ssm = tv.build_model(rng, Dlat, Dobs, 1_000, storage.val)
+        gmm = ssm.gmm
+        # gmm = random_tv_gmm(rng, Dlat, Dobs, 1, SArrayStorage(T.T))
         A = first(gmm.A)
         a = first(gmm.a)
         Q = first(gmm.Q)
         mf = gmm.x0.m
         Pf = gmm.x0.P
+
+        # Generate tangents for the ssm.
+        ∂ssm = rand_tangent(ssm)
+        ∂gmm = ∂ssm.gmm
+        ∂A = rand_tangent(A)
+        ∂a = rand_tangent(a)
+        ∂Q = random_nice_psd_matrix(rng, length(a), storage.val)
+        ∂mf = rand_tangent(mf)
+        ∂Pf = random_nice_psd_matrix(rng, length(mf), storage.val)
 
         # Check agreement with the naive implementation.
         mp, Pp = predict(mf, Pf, A, a, Q)
@@ -39,142 +63,148 @@ println("immutable inference:")
         @test mp ≈ mp_naive
         @test Pp ≈ Pp_naive
 
+        # Generate tangents / cotangents for mp and Pp.
+        ∂mp = rand_tangent(mp)
+        ∂Pp = random_nice_psd_matrix(rng, length(mp), storage.val)
+        Δmp = rand_zygote_tangent(mp)
+        ΔPp = rand_zygote_tangent(Pp)
+
         # Verify approximate numerical correctness of pullback.
-        U_Pf = cholesky(Symmetric(Pf)).U
-        U_Q = cholesky(Symmetric(Q)).U
-        Δmp = SVector{Dlat}(randn(rng, T.T, Dlat))
-        ΔPp = SMatrix{Dlat, Dlat}(randn(rng, T.T, Dlat, Dlat))
-        adjoint_test(
-            (mf, U_Pf, A, a, U_Q) -> begin
-                U_Q = UpperTriangular(U_Q)
-                U_Pf = UpperTriangular(U_Pf)
-                return predict(mf, U_Pf'U_Pf, A, a, U_Q'U_Q)
-            end,
-            (Δmp, ΔPp),
-            mf, U_Pf, A, a, U_Q;
-            rtol=T.rtol, atol=T.atol
-        )
-
-        # Evaluate and pullback.
-        (mp, Pp), back = pullback(predict, mf, Pf, A, a, Q)
-        (Δmf, ΔPf, ΔA, Δa, ΔQ) = back((Δmp, ΔPp))
-
-        # Verify correct output types have been produced.
-        @test mp isa SVector{Dlat, T.T}
-        @test Pp isa SMatrix{Dlat, Dlat, T.T}
-
-        # Verify the adjoints w.r.t. the inputs are of the correct type.
-        @test Δmf isa SVector{Dlat, T.T}
-        @test ΔPf isa SMatrix{Dlat, Dlat, T.T}
-        @test ΔA isa SMatrix{Dlat, Dlat, T.T}
-        @test Δa isa SVector{Dlat, T.T}
-        @test ΔQ isa SMatrix{Dlat, Dlat, T.T}
-
-        @testset "predict AD infers" begin
-            (mp, Pp), pb = _pullback(NoContext(), predict, mf, Pf, A, a, Q)
-            @inferred _pullback(NoContext(), predict, mf, Pf, A, a, Q)
-            @inferred pb((Δmp, ΔPp))
+        @testset "predict pullback" begin
+            input = (mf, Pf, A, a, Q)
+            ∂input = (∂mf, ∂Pf, ∂A, ∂a, ∂Q)
+            Δoutput = (Δmp, ΔPp)
+            adjoint_test(predict, Δoutput, input, ∂input)
         end
 
-        @testset "predict doesn't allocate" begin
-            _, pb = _pullback(NoContext(), predict, mf, Pf, A, a, Q)
-            @test allocs(@benchmark(
-                _pullback(NoContext(), predict, $mf, $Pf, $A, $a, $Q),
-                samples=1,
-                evals=1,
-            )) == 0
-            @test allocs(@benchmark $pb(($Δmp, $ΔPp)) samples=1 evals=1) == 0
+        # Evaluate and pullback.
+        @testset "predict types" begin
+            output, back = pullback(predict, mf, Pf, A, a, Q)
+            Δinput = back((Δmp, ΔPp))
+            @test is_of_storage_type(output, storage.val)
+            @test is_of_storage_type(Δinput, storage.val)
+        end
+
+        if storage.val isa SArrayStorage
+            @testset "predict doesn't allocate" begin
+                check_adjoint_allocations(predict, (Δmp, ΔPp), mf, Pf, A, a, Q)
+            end
         end
 
         H = first(gmm.H)
         h = first(gmm.h)
-        Σ = random_nice_psd_matrix(rng, Dobs, SArrayStorage(T.T))
-        y = random_vector(rng, Dobs, SArrayStorage(T.T))
+        Σ = first(ssm.Σ)
+        ys = rand(ssm)
+        αs = rand(ssm)
 
-        Δmf = random_vector(rng, Dlat, SArrayStorage(T.T))
-        ΔPf = random_matrix(rng, Dlat, Dlat, SArrayStorage(T.T))
-        Δlml = randn(rng)
-        Δα = random_vector(rng, Dobs, SArrayStorage(T.T))
+        y = first(ys)
+        α = first(αs)
+        lml = logpdf(ssm, ys)
 
-        x = random_gaussian(rng, Dlat, SArrayStorage(T.T))
-        lgssm = random_tv_lgssm(rng, Dlat, Dobs, 1_000, SArrayStorage(T.T))
-        ys = rand(rng, lgssm)
-        αs = rand(rng, lgssm)
+        ∂H = rand_tangent(H)
+        ∂h = rand_tangent(h)
+        ∂Σ = random_nice_psd_matrix(rng, size(Σ, 1), storage.val)
+        ∂ys = rand_tangent(ys)
+        ∂αs = rand_tangent(αs)
+        ∂y = rand_tangent(y)
+        ∂α = rand_tangent(α)
+        ∂lml = rand_tangent(lml)
+
+        Δmf = rand_zygote_tangent(mf)
+        ΔPf = rand_zygote_tangent(Pf)
+        Δlml = rand_zygote_tangent(lml)
+        Δα = rand_zygote_tangent(first(αs))
+        Δαs = rand_zygote_tangent(αs)
+
+        x = gmm.x0
+        ∂x = rand_tangent(x)
+
+        gmm_1 = gmm[1]
+        ∂gmm_1 = Composite{typeof(gmm_1)}(A=∂A, a=∂a, Q=∂Q, H=∂H, h=∂h)
 
         @testset "$name performance" for (name, f, update_f, step_f) in [
             (:decorrelate, decorrelate, update_decorrelate, step_decorrelate),
             (:correlate, correlate, update_correlate, step_correlate),
         ]
-
-            @testset "update_$name AD infers" begin
-                _, pb = _pullback(NoContext(), update_f, mp, Pp, H, h, Σ, y)
-                @inferred _pullback(NoContext(), update_f, mp, Pp, H, h, Σ, y)
-                @inferred pb((Δmf, ΔPf, Δlml, Δα))
+            @testset "update_$name AD correctness and inference" begin
+                input = (mp, Pp, H, h, Σ, y)
+                ∂input = (∂mp, ∂Pp, ∂H, ∂h, ∂Σ, ∂y)
+                Δoutput = (Δmf, ΔPf, Δlml, Δα)
+                Δinput = adjoint_test(
+                    update_f, Δoutput, input, ∂input;
+                    context=NoContext(),
+                    test=eltype(storage.val) == Float64,
+                )
+                @test is_of_storage_type(Δinput, storage.val)
             end
 
-            @testset "update_$name doesn't allocate" begin
-                _, pb = _pullback(NoContext(), update_f, mp, Pp, H, h, Σ, y)
-                @test allocs(@benchmark(
-                    _pullback(NoContext(), $update_f, $mp, $Pp, $H, $h, $Σ, $y),
-                    samples=1,
-                    evals=1,
-                )) == 0
-                @test allocs(@benchmark $pb(($Δmf, $ΔPf, $Δlml, $Δα)) samples=1 evals=1) == 0
+            @testset "step_$name AD correctness and inference" begin
+                input = ((gmm=gmm_1, Σ=ssm.Σ[1]), x, y)
+                ∂input = ((gmm=∂gmm_1, Σ=∂Σ), ∂x, ∂y)
+                Δoutput = (Δlml, Δα, (m=Δmf, P=ΔPf))
+                Δinput = adjoint_test(
+                    step_f, Δoutput, input, ∂input;
+                    context=NoContext(),
+                    test=eltype(storage.val) == Float64,
+                )
+                @test is_of_storage_type(Δinput, storage.val)
             end
 
-            @testset "step_$name AD infers" begin
-                model = (gmm=lgssm.gmm[1], Σ=lgssm.Σ[1])
-                Δ = (Δlml, Δα, (m=Δmf, P=ΔPf))
-                out, pb = _pullback(NoContext(), step_f, model, x, y)
-                @inferred _pullback(NoContext(), step_f, model, x, y)
-                @inferred pb(Δ)
+            @testset "$name correctness and inference, $(ot.name)" for ot in [
+                (name = "copy_first", f=copy_first),
+                (name = "pick_last", f=pick_last),
+            ]
+                input = (ssm, ys, ot.f)
+                ∂input = (∂ssm, ∂ys, NO_FIELDS)
+                Δoutput = rand_zygote_tangent(f(input...))
+                Δinput = adjoint_test(
+                    f, Δoutput, input, ∂input;
+                    context=NoContext(),
+                    test=eltype(storage.val) == Float64,
+                )
+                @test is_of_storage_type(Δinput, storage.val)
             end
 
-            @testset "step_$name doesn't allocate" begin
-                model = (gmm=lgssm.gmm[1], Σ=lgssm.Σ[1])
-                Δ = (Δlml, Δα, (m=Δmf, P=ΔPf))
-                _, pb = _pullback(NoContext(), step_f, model, x, y)
-                @test allocs(@benchmark(
-                    _pullback(NoContext(), $step_f, $model, $x, $y),
-                    samples=1,
-                    evals=1,
-                )) == 0
-                @test allocs(@benchmark $pb($Δ) samples=1 evals=1) == 0
-            end
+            if storage.val isa SArrayStorage
+                @testset "update_$name doesn't allocate" begin
+                    check_adjoint_allocations(
+                        update_f,
+                        (Δmf, ΔPf, Δlml, Δα),
+                        mp, Pp, H, h, Σ, y;
+                        context=NoContext(),
+                    )
+                end
+                @testset "step_$name doesn't allocate" begin
+                    check_adjoint_allocations(
+                        step_f,
+                        (Δlml, Δα, (m=Δmf, P=ΔPf)),
+                        (gmm=ssm.gmm[1], Σ=ssm.Σ[1]), x, y;
+                        context=NoContext(),
+                    )
+                end
 
-            @testset "$name infers" begin
-                _, pb = _pullback(NoContext(), f, lgssm, ys)
-                @inferred f(lgssm, ys, copy_first)
-                @inferred _pullback(NoContext(), f, lgssm, ys, copy_first)
-                @inferred pb((randn(), αs))
-            end
-
-            # These tests should pick up on any substantial changes in allocations. It's
-            # possible that they'll need to be modified in future / for different versions
-            # of Julia.
-            @testset "$name allocations are independent of length" begin
-                _, pb = _pullback(NoContext(), f, lgssm, ys, copy_first)
-
-                @test allocs(
-                    @benchmark($f($lgssm, $ys, copy_first); samples=1, evals=1),
-                ) < 5
-                @test allocs(
-                    @benchmark(
-                        _pullback(NoContext(), $f, $lgssm, $ys, copy_first);
-                        samples=1, evals=1,
-                    ),
-                ) < 10
-                @test allocs(@benchmark($pb((randn(), $αs)); samples=1, evals=1)) < 20
+                # These tests should pick up on any substantial changes in allocations. It's
+                # possible that they'll need to be modified in future / for different
+                # versions of Julia.
+                @testset "$name allocations are independent of length" begin
+                    @test allocs(
+                        @benchmark($f($ssm, $ys, copy_first); samples=1, evals=1),
+                    ) <= 5
+                    check_adjoint_allocations(
+                        f, (Δlml, Δαs), ssm, ys, copy_first;
+                        context=NoContext(), max_forward_allocs=10, max_backward_allocs=20,
+                    )
+                end
             end
 
             # @testset "benchmarking $name" begin
-            #     @show Dlat, Dobs, name, T.T
-            #     _, pb = _pullback(NoContext(), f, lgssm, ys, copy_first)
+            #     @show Dlat, Dobs, name
+            #     _, pb = _pullback(NoContext(), f, ssm, ys, copy_first)
 
-            #     display(@benchmark($f($lgssm, $ys, copy_first)))
+            #     display(@benchmark($f($ssm, $ys, copy_first)))
             #     println()
             #     display(@benchmark(
-            #         _pullback(NoContext(), $f, $lgssm, $ys, copy_first),
+            #         _pullback(NoContext(), $f, $ssm, $ys, copy_first),
             #     ))
             #     println()
             #     display(@benchmark($pb((randn(), $αs))))

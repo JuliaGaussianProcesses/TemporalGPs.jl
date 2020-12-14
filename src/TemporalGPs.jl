@@ -2,6 +2,7 @@ module TemporalGPs
 
     using BlockArrays
     using BlockDiagonals
+    using ChainRulesCore
     using Distributions
     using FillArrays
     using Kronecker
