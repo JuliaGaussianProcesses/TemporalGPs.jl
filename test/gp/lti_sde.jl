@@ -38,8 +38,8 @@ println("lti_sde:")
 
         # construct a Gauss-Markov model with either dense storage or static storage.
         storages = (
-            (name="dense storage Float64", val=ArrayStorage(Float64), tol=1e-9),
-            (name="static storage Float64", val=SArrayStorage(Float64), tol=1e-9),
+            (name="dense storage Float64", val=ArrayStorage(Float64), tol=1e-7),
+            (name="static storage Float64", val=SArrayStorage(Float64), tol=1e-7),
             (name="dense storage Float32", val=ArrayStorage(Float32), tol=1e-4),
             (name="static storage Float32", val=SArrayStorage(Float32), tol=1e-4),
         )
@@ -96,7 +96,7 @@ println("lti_sde:")
                             return logpdf(_ft, y)
                         end,
                         (t.val, y);
-                        check_infers=false,
+                        check_infers=false, atol=tol, rtol=tol,
                     )
                 else
                     adjoint_test(
@@ -107,7 +107,7 @@ println("lti_sde:")
                             return logpdf(_ft, y)
                         end,
                         (t.val.Δt, y);
-                        check_infers=false,
+                        check_infers=false, atol=tol, rtol=tol,
                     )
                 end
             end
