@@ -173,7 +173,6 @@ println("immutable inference:")
                         (Δmf, ΔPf, Δlml, Δα),
                         mp, Pp, H, h, Σ, y;
                         context=NoContext(),
-                        atol=1e-6, rtol=1e-6,
                     )
                 end
                 @testset "step_$name doesn't allocate" begin
@@ -182,7 +181,6 @@ println("immutable inference:")
                         (Δlml, Δα, (m=Δmf, P=ΔPf)),
                         (gmm=ssm.gmm[1], Σ=ssm.Σ[1]), x, y;
                         context=NoContext(),
-                        atol=1e-6, rtol=1e-6,
                     )
                 end
 
