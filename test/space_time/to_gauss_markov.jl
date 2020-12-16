@@ -58,9 +58,8 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type, is_time_invar
                     _ft = _f(x, σ².val...)
                     return logpdf(_ft, y)
                 end,
-                randn(rng),
-                r, t.val.Δt, y_sde;
-                atol=1e-8, rtol=1e-8,
+                (r, t.val.Δt, y_sde);
+                check_infers=false,
             )
         end
     end

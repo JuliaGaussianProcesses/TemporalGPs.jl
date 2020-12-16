@@ -1,12 +1,12 @@
 """
-    ScalarLGSSM{Tmodel<:AbstractSSM}
+    ScalarLGSSM{Tmodel<:AbstractSSM} <: AbstractSSM
 
 Linear Gaussian SSM whose outputs should be scalars. A lightweight wrapper around a regular
 (vector-valued) LGSSM. Most of what this wrapper does is transform `AbstractVector`s of
 `T <: Real`s into `AbstractVector`s of `SVector{1, T}`s, and then pass the data on to a
 vector-valued ssm.
 """
-struct ScalarLGSSM{Tmodel<:AbstractSSM}
+struct ScalarLGSSM{Tmodel<:AbstractSSM} <: AbstractSSM
     model::Tmodel
 end
 
@@ -31,42 +31,68 @@ is_time_invariant(model::ScalarLGSSM) = is_time_invariant(model.model)
 # Converts a vector of observations to a vector of 1-vectors.
 to_vector_observations(::ArrayStorage{T}, y::AV{T}) where {T<:Real} = [[y_] for y_ in y]
 
+@adjoint function to_vector_observations(s::StorageType{T}, y::AV{T}) where {T<:Real}
+    function pullback_to_vector_observations(Δ::AV)
+        return (nothing, from_vector_observations(Δ))
+    end
+    return to_vector_observations(s, y), pullback_to_vector_observations
+end
+
 function to_vector_observations(::SArrayStorage{T}, y::AV{T}) where {T<:Real}
-    return reinterpret(SVector{1, eltype(y)}, y)
+    return map(SVector{1, eltype(y)}, y)
 end
 
 # Converts a vector of 1-vectors into a vector of reals.
-from_vector_observations(ys::AV{<:AV{T}}) where {T<:Real} = first.(ys)
+from_vector_observations(ys::AV{<:AV{<:Real}}) = map(first, ys)
 
-@adjoint function from_vector_observations(ys::AV{<:SVector{1, T}}) where {T<:Real}
+@adjoint function from_vector_observations(ys::AV{<:AV{<:Real}})
     function pullback_from_vector_observations(Δ::AbstractVector{<:Real})
-        return (SVector{1, eltype(Δ)}.(Δ),)
+        return (map(x -> [x], Δ), )
     end
     return from_vector_observations(ys), pullback_from_vector_observations
 end
 
-function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real}, f=copy_first)
-    storage = storage_type(model)
-    αs_vec = to_vector_observations(storage, αs)
+@adjoint function from_vector_observations(ys::AV{<:SVector{1, <:Real}})
+    function pullback_from_vector_observations(Δ::AbstractVector{<:Real})
+        return (map(SVector{1, eltype(Δ)}, Δ),)
+    end
+    return from_vector_observations(ys), pullback_from_vector_observations
+end
+
+# Converts a vector of 1-dimensional Gaussians into a vector of Normals.
+function from_vector_observations(ys::AV{<:Gaussian})
+    return Normal.(only.(getfield.(ys, :m)), sqrt.(only.(getfield.(ys, :P))))
+end
+
+function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real}, f::typeof(copy_first))
+    αs_vec = to_vector_observations(storage_type(model), αs)
     lml, ys = correlate(model.model, αs_vec, f)
     return lml, from_vector_observations(ys)
 end
 
-function decorrelate(model::ScalarLGSSM, ys::AbstractVector{<:Real}, f=copy_first)
-    storage = storage_type(model)
-    ys_vec = to_vector_observations(storage, ys)
+function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real}, f::typeof(pick_last))
+    αs_vec = to_vector_observations(storage_type(model), αs)
+    return correlate(model.model, αs_vec, f)
+end
+
+function decorrelate(model::ScalarLGSSM, ys::AbstractVector{<:Real}, f::typeof(copy_first))
+    ys_vec = to_vector_observations(storage_type(model), ys)
     lml, αs = decorrelate(model.model, ys_vec, f)
     return lml, from_vector_observations(αs)
 end
 
+function decorrelate(model::ScalarLGSSM, ys::AbstractVector{<:Real}, f::typeof(pick_last))
+    ys_vec = to_vector_observations(storage_type(model), ys)
+    return decorrelate(model.model, ys_vec, f)
+end
 
 function whiten(model::ScalarLGSSM, ys::AbstractVector{<:Real})
-    return last(decorrelate(model, ys))
+    return decorrelate(model, ys)[2] # last breaks AD type-stability. Not sure why.
 end
 
 function rand(rng::AbstractRNG, model::ScalarLGSSM)
     αs = randn(rng, eltype(model), length(model))
-    return last(correlate(model, αs))
+    return correlate(model, αs)[2] # last breaks AD type-stability. Not sure why.
 end
 
 function logpdf(model::ScalarLGSSM, y::AbstractVector{<:Real})
@@ -75,7 +101,7 @@ function logpdf(model::ScalarLGSSM, y::AbstractVector{<:Real})
 end
 
 function unwhiten(model::ScalarLGSSM, αs::AbstractVector{<:Real})
-    return last(correlate(model, αs))
+    return correlate(model, αs)[2] # last breaks AD type-stability. Not sure why.
 end
 
 function logpdf_and_rand(rng::AbstractRNG, model::ScalarLGSSM)
@@ -83,8 +109,12 @@ function logpdf_and_rand(rng::AbstractRNG, model::ScalarLGSSM)
     return correlate(model, αs)
 end
 
+function Stheno.marginals(model::ScalarLGSSM)
+    return from_vector_observations(Stheno.marginals(model.model))
+end
+
 function smooth(model::ScalarLGSSM, ys::AbstractVector{T}) where {T<:Real}
-    return smooth(model.model, reinterpret(SVector{1, T}, ys))
+    return smooth(model.model, to_vector_observations(storage_type(model), ys))
 end
 
 function posterior_rand(rng::AbstractRNG, model::ScalarLGSSM, y::Vector{<:Real})

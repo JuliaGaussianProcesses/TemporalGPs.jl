@@ -1,4 +1,5 @@
 using BlockDiagonals
+using ChainRulesCore
 using FillArrays
 using FiniteDifferences
 using Kronecker
@@ -10,7 +11,11 @@ using TemporalGPs
 using Test
 using Zygote
 
+using FiniteDifferences: rand_tangent
 using Kronecker: KroneckerProduct
+using Stheno: var
+using TemporalGPs: AbstractSSM, _filter, whiten, unwhiten
+using Zygote: Context, _pullback
 
 include("test_util.jl")
 
@@ -18,6 +23,7 @@ include("test_util.jl")
 
     println("util:")
     @testset "util" begin
+        include(joinpath("util", "harmonise.jl"))
         include(joinpath("util", "zygote_rules.jl"))
         include(joinpath("util", "gaussian.jl"))
         include(joinpath("util", "mul.jl"))
@@ -31,7 +37,7 @@ include("test_util.jl")
         include(joinpath("models", "lgssm.jl"))
 
         include(joinpath("models", "immutable_inference.jl"))
-        include(joinpath("models", "immutable_inference_pullbacks.jl"))
+
         include(joinpath("models", "checkpointed_immutable_pullbacks.jl"))
 
         include(joinpath("models", "scalar_lgssm.jl"))

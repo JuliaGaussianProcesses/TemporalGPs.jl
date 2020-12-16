@@ -55,7 +55,7 @@ intermediate quantities.
 """
 function smooth(model::LGSSM, ys::AbstractVector)
 
-    lml, x_filter = filter(model, ys)
+    lml, x_filter = _filter(model, ys)
     ε = convert(eltype(model), 1e-12)
 
     # Smooth
@@ -129,7 +129,7 @@ function posterior_rand(
     ys::Vector{<:AV{<:Real}},
     N_samples::Int,
 )
-    _, x_filter = filter(model, ys)
+    _, x_filter = _filter(model, ys)
 
     chol_Q = cholesky.(Symmetric.(model.gmm.Q .+ Ref(1e-15I)))
 
@@ -195,7 +195,7 @@ _filter(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys, pick_la
 #
 
 function Random.rand(rng::AbstractRNG, model::AbstractSSM)
-    return last(correlate(model, rand_αs(rng, model, Val(dim_obs(model)))))
+    return correlate(model, rand_αs(rng, model))[2] # last isn't type-stable inside AD.
 end
 
 unwhiten(model::AbstractSSM, αs::AbstractVector) = last(correlate(model, αs))
@@ -213,17 +213,26 @@ function Zygote._pullback(
 end
 
 function logpdf_and_rand(rng::AbstractRNG, model::AbstractSSM)
-    return correlate(model, rand_αs(rng, model, Val(dim_obs(model))))
+    return correlate(model, rand_αs(rng, model))
 end
 
-function rand_αs(rng::AbstractRNG, model::LGSSM, ::Val{D}) where {D}
+function rand_αs(rng::AbstractRNG, model::AbstractSSM)
+    D = dim_obs(model)
     α = randn(rng, eltype(model), length(model) * D)
     return [α[(n - 1) * D + 1:n * D] for n in 1:length(model)]
 end
 
-function rand_αs(
-    rng::AbstractRNG, model::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}}, ::Val{D},
-) where {D}
+function rand_αs(rng::AbstractRNG, model::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}})
+    D = dim_obs(model)
+    ot = output_type(model)
     α = randn(rng, eltype(model), length(model) * D)
-    return [SVector{D}(α[(n - 1) * D + 1:n * D]) for n in 1:length(model)]
+
+    # For some type-stability reasons, we have to ensure that
+    αs = Vector{output_type(model)}(undef, length(model))
+    map(n -> setindex!(αs, ot(α[(n - 1) * D + 1:n * D]), n), 1:length(model))
+    return αs
 end
+
+ChainRulesCore.@non_differentiable rand_αs(::AbstractRNG, ::AbstractSSM)
+
+output_type(ft::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}}) = eltype(ft.gmm.h)

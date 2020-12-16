@@ -18,7 +18,7 @@ println("lti_sde:")
             @test all(first.(build_Σs(σ²_ns)) == first.(σ²_ns))
 
             ΔΣs = SMatrix{1, 1}.(randn(rng, N))
-            adjoint_test(build_Σs, ΔΣs, σ²_ns)
+            adjoint_test(build_Σs, (σ²_ns, ))
         end
         @testset "homoscedastic" begin
             σ²_n = exp(randn(rng)) + 1e-3
@@ -26,7 +26,7 @@ println("lti_sde:")
             @test all(first.(build_Σs(σ²_ns)) == first.(σ²_ns))
 
             ΔΣs = (value=SMatrix{1, 1}(randn(rng)),)
-            adjoint_test(σ²_n->build_Σs(Fill(σ²_n, N)), ΔΣs, σ²_n)
+            adjoint_test(σ²_n->build_Σs(Fill(σ²_n, N)), (σ²_n, ))
         end
     end
 
@@ -95,9 +95,8 @@ println("lti_sde:")
                             _ft = f(t, s...)
                             return logpdf(_ft, y)
                         end,
-                        randn(eltype(storage.val)),
-                        t.val, y;
-                        atol=1e-6, rtol=1e-6,
+                        (t.val, y);
+                        check_infers=false,
                     )
                 else
                     adjoint_test(
@@ -107,9 +106,8 @@ println("lti_sde:")
                             _ft = _f(_t, s...)
                             return logpdf(_ft, y)
                         end,
-                        randn(eltype(storage.val)),
-                        t.val.Δt, y;
-                        atol=1e-6, rtol=1e-6,
+                        (t.val.Δt, y);
+                        check_infers=false,
                     )
                 end
             end

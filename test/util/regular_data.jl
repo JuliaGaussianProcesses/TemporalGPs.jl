@@ -1,6 +1,6 @@
 function FiniteDifferences.to_vec(x::RegularSpacing)
     function from_vec_RegularSpacing(x_vec)
-        return RegularSpacing(x[1], x[2], x.N)
+        return RegularSpacing(x_vec[1], x_vec[2], x.N)
     end
     return [x.t0, x.Δt], from_vec_RegularSpacing
 end
@@ -25,10 +25,6 @@ end
         Δ_Δt = randn()
         @test back((t0 = Δ_t0, Δt = Δ_Δt, N=nothing)) == (Δ_t0, Δ_Δt, nothing)
 
-        adjoint_test(
-            (t0, Δt) -> RegularSpacing(t0, Δt, 5),
-            (t0 = randn(), Δt = randn()),
-            randn(), randn(),
-        )
+        adjoint_test((t0, Δt) -> RegularSpacing(t0, Δt, 10), (randn(), randn()))
     end
 end

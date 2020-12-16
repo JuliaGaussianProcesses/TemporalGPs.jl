@@ -37,6 +37,8 @@ function correlate(model::CheckpointedLGSSM, ys::AV{<:AV{<:Real}}, f)
     return correlate(model.model, ys, f)
 end
 
+Stheno.marginals(model::CheckpointedLGSSM) = marginals(model.model)
+
 #
 # Checkpointed pullbacks.
 #
@@ -154,9 +156,6 @@ for (foo, step_foo, foo_pullback) in [
 end
 
 checkpointed(model::LGSSM) = CheckpointedLGSSM(model)
-
-# Adapt interface to work with checkpointed LGSSM.
-rand_αs(rng::AbstractRNG, model::CheckpointedLGSSM, D) = rand_αs(rng, model.model, D)
 
 function to_observed_diag(H, h, x)
     f = to_observed(H, h, x)

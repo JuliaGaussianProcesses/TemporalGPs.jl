@@ -29,6 +29,7 @@ module TemporalGPs
         logpdf_and_rand
 
     # Various bits-and-bobs. Often commiting some type piracy.
+    include(joinpath("util", "harmonise.jl"))
     include(joinpath("util", "zygote_rules.jl"))
     include(joinpath("util", "gaussian.jl"))
     include(joinpath("util", "mul.jl"))

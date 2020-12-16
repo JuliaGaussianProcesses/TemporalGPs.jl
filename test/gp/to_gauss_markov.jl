@@ -4,7 +4,7 @@ println("to_gauss_markov:")
 @testset "to_gauss_markov" begin
 
     @testset "blk_diag" begin
-        adjoint_test(TemporalGPs.blk_diag, randn(5, 5), randn(2, 2), randn(3, 3))
+        adjoint_test(TemporalGPs.blk_diag, (randn(2, 2), randn(3, 3)))
     end
 
     @testset "BaseKernel parameter types" begin
@@ -123,8 +123,8 @@ println("to_gauss_markov:")
                             ft = GaussMarkovModel(k, t.val, storage.val)
                             return (ft.A, ft.Q, ft.H, ft.x0.m, ft.x0.P)
                         end,
-                        (ΔA, ΔQ, ΔH, Δm, ΔP),
-                        θ;
+                        (θ, );
+                        check_infers=false,
                     )
                 end
             end

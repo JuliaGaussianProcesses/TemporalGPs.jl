@@ -51,29 +51,6 @@ end
     return collect(x), collect_Fill_back
 end
 
-# Implement a restrictive-as-possible implementation of the adjoint because this is a
-# dangerous operation that causes segfaults (etc) if its done wrong.
-@adjoint function reinterpret(T::Type{<:SVector{1, V}}, x::Vector{V}) where {V<:Real}
-    function reinterpret_back(Δ::Vector{<:SVector{1, V}})
-        return (nothing, reinterpret(V, Δ))
-    end
-    return reinterpret(T, x), reinterpret_back
-end
-
-@adjoint function reinterpret(T::Type{V}, x::Vector{<:SVector{1, V}}) where {V<:Real}
-    function reinterpret_back(Δ::Vector{V})
-        return (nothing, reinterpret(SVector{1, V}, Δ))
-    end
-    return reinterpret(V, x), reinterpret_back
-end
-
-@adjoint function Base.StepRangeLen(ref, step, len::Integer, offset::Integer = 1)
-    function StepRangeLen_pullback(Δ::NamedTuple)
-        return (Δ.ref, Δ.step, nothing, nothing)
-    end
-    return StepRangeLen(ref, step, len, offset), StepRangeLen_pullback
-end
-
 @adjoint function step(x::StepRangeLen)
     return step(x), Δ -> ((ref=nothing, step=Δ, len=nothing, offset=nothing),)
 end
@@ -86,10 +63,10 @@ end
 end
 
 @adjoint function Base.map(f::Tf, x::Fill) where {Tf}
-    y_el, back = Zygote._pullback(f, x.value)
-    function map_Fill_pullback(Δ::NamedTuple{(:value,)})
+    y_el, back = Zygote._pullback(__context__, f, x.value)
+    function map_Fill_pullback(Δ::NamedTuple)
         Δf, Δx_el = back(Δ.value)
-        return Δf, (value = Δx_el,)
+        return Δf, (value = Δx_el, axes=nothing)
     end
     return Fill(y_el, size(x)), map_Fill_pullback
 end
@@ -102,10 +79,10 @@ end
 
 Zygote.@adjoint function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf}
     @assert size(x1) == size(x2)
-    y_el, back = Zygote._pullback(f, x1.value, x2.value)
-    function map_Fill_pullback(Δ::NamedTuple{(:value,)})
+    y_el, back = Zygote._pullback(__context__, f, x1.value, x2.value)
+    function map_Fill_pullback(Δ::NamedTuple)
         Δf, Δx1_el, Δx2_el = back(Δ.value)
-        return (Δf, (value = Δx1_el,), (value = Δx2_el,))
+        return (Δf, (value = Δx1_el, axes=nothing), (value = Δx2_el, axes=nothing))
     end
     return Fill(y_el, size(x1)), map_Fill_pullback
 end

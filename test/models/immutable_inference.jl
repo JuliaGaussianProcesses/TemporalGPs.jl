@@ -18,8 +18,6 @@ println("immutable inference:")
     rng = MersenneTwister(123456)
     Dlats = [1, 3]
     Dobss = [1, 2]
-    # Dlats = [3]
-    # Dobss = [2]
     tvs = [
         (name = "time-varying", build_model = random_tv_lgssm),
         (name = "time-invariant", build_model = random_ti_lgssm),

@@ -41,7 +41,7 @@ end
 
 # Diagonal type constraint for the compiler's benefit.
 @inline function _accum_at(Δxs::NamedTuple{(:value,), Tuple{T}}, n::Int, Δx::T) where {T}
-    return (value=Δxs.value + Δx,)
+    return (value=accum(Δxs.value, Δx),)
 end
 
 @inline function _accum_at(
