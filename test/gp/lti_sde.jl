@@ -87,6 +87,7 @@ println("lti_sde:")
 
             @test logpdf(ft, y) ≈ logpdf(ft_sde, y_sde)
 
+            tol = storage.tol
             if eltype(storage.val) == Float64
                 if t.val isa Vector
                     adjoint_test(
@@ -123,7 +124,6 @@ println("lti_sde:")
             m_exact = mean.(f′_marginals)
             σ²_exact = std.(f′_marginals).^2
 
-            tol = storage.tol
             @test isapprox(m_ssm, m_exact; atol=tol, rtol=tol)
             @test isapprox(σ²_ssm, σ²_exact; atol=tol, rtol=tol)
         end
