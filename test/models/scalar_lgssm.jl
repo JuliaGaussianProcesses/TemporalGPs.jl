@@ -32,9 +32,8 @@ println("scalar_lgssm:")
     N = 3
 
     Dlats = [1, 3, 4]
-    Dlats = [3]
     storages = [
-        # (name="dense storage", val=ArrayStorage(Float64)),
+        (name="dense storage", val=ArrayStorage(Float64)),
         (name="static storage", val=SArrayStorage(Float64)),
     ]
 
