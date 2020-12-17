@@ -6,7 +6,12 @@ import Base: isapprox, copy, deepcopy
 
 A (multivariate) Gaussian with mean vector `m` and variance matrix `P`.
 This doesn't currently conform to Distributions.jl standards. Work to make this happen
-would be welcomed. 
+would be welcomed.
+
+It was necessary to implement this a year or so ago for AD-related reasons. It's quite
+possible that in the intervening period of time things have improved and this type is no
+longer necessary in addition to the `MvNormal` type in `Distributions`. I've not had the
+time to remove it though.
 """
 struct Gaussian{Tm, TP}
     m::Tm
@@ -31,4 +36,20 @@ end
 
 Base.:(==)(x::Gaussian, y::Gaussian) = x.m == y.m && x.P == y.P
 
-Base.copy(x::Gaussian) = Gaussian(copy(x.m), copy(x.P))
+function Base.isapprox(x::Gaussian, y::Gaussian; kwargs...)
+    return isapprox(x.m, y.m; kwargs...) && isapprox(x.P, y.P; kwargs...)
+end
+
+Stheno.mean(x::Gaussian) = x.m
+
+Stheno.cov(x::Gaussian) = x.P
+
+storage_type(x::Gaussian{<:SVector{D, T}}) where {D, T<:Real} = SArrayStorage(T)
+
+storage_type(gmm::Gaussian{<:Vector{T}}) where {D, T<:Real} = ArrayStorage(T)
+
+function Zygote._pullback(::AContext, ::Type{<:Gaussian}, m, P)
+    Gaussian_pullback(Δ::Nothing) = (nothing, nothing, nothing)
+    Gaussian_pullback(Δ) = (nothing, Δ.m, Δ.P)
+    return Gaussian(m, P), Gaussian_pullback
+end

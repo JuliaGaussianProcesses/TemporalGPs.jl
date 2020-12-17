@@ -12,16 +12,7 @@ Base.haskey(cx::NoContext, x) = false
 
 Zygote.accum_param(::NoContext, x, Δ) = Δ
 
-function context_free_gradient(f, args...)
-    _, pb = Zygote._pullback(NoContext(), f, args...)
-    return pb(1.0)
-end
-
-
 Zygote.accum(as::Tuple...) = map(accum, as...)
-
-# Not a rule, but a helpful utility.
-show_grad_type(x, S) = Zygote.hook(x̄ -> ((@show S, typeof(x̄)); x̄), x)
 
 @adjoint function SVector{D}(x::AbstractVector) where {D}
     return SVector{D}(x), Δ::AbstractVector -> (convert(typeof(x), Δ),)
@@ -60,71 +51,9 @@ end
     return collect(x), collect_Fill_back
 end
 
-# Implement a restrictive-as-possible implementation of the adjoint because this is a
-# dangerous operation that causes segfaults (etc) if its done wrong.
-@adjoint function reinterpret(T::Type{<:SVector{1, V}}, x::Vector{V}) where {V<:Real}
-    function reinterpret_back(Δ::Vector{<:SVector{1, V}})
-        return (nothing, reinterpret(V, Δ))
-    end
-    return reinterpret(T, x), reinterpret_back
-end
-
-@adjoint function reinterpret(T::Type{V}, x::Vector{<:SVector{1, V}}) where {V<:Real}
-    function reinterpret_back(Δ::Vector{V})
-        return (nothing, reinterpret(SVector{1, V}, Δ))
-    end
-    return reinterpret(V, x), reinterpret_back
-end
-
-@adjoint function Base.StepRangeLen(ref, step, len::Integer, offset::Integer = 1)
-    function StepRangeLen_pullback(Δ::NamedTuple)
-        return (Δ.ref, Δ.step, nothing, nothing)
-    end
-    return StepRangeLen(ref, step, len, offset), StepRangeLen_pullback
-end
-
-@adjoint function Base.:*(a::Real, x::StepRangeLen)
-    function mul_Real_StepRangeLen_adjoint(Δ)
-        Δref = Δ.ref === nothing ? zero(a) : a * Δ.ref
-        Δstep = Δ.step === nothing ? zero(a) : a * Δ.step
-        return (Δref * x.ref + Δstep * x.step, (
-            ref = a * Δref,
-            step = a * Δstep,
-            len = nothing,
-            offset = nothing,
-        ),)
-    end
-    return a * x, mul_Real_StepRangeLen_adjoint
-end
-
 @adjoint function step(x::StepRangeLen)
     return step(x), Δ -> ((ref=nothing, step=Δ, len=nothing, offset=nothing),)
 end
-
-# @adjoint function *(x::Base.TwicePrecision, v::Number)
-#     function mul_TwicePrecision_Number(Δ::NamedTuple)
-#         Δ_num = TwicePrecision
-#     end
-#     return x * v, Δ -> (Δ * v, Δ * x)
-# end
-
-# @adjoint function *(x::Real, r::StepRangeLen{<:Real, <:Base.TwicePrecision})
-#     function mul_Real_StepRangeLen_adjoint(Δ::NamedTuple)
-#         @show typeof(Δ.ref), typeof(r.ref), typeof(Δ.step), typeof(r.step)
-#         # SOMETHING HERE TO DO WITH HANDLING TWICE-PRECISION PROPERLY.
-#         return (
-#             accum(
-#                 Δ.ref === nothing ? nothing : Δ.ref * r.ref,
-#                 Δ.step === nothing ? nothing : Δ.step * r.step,
-#             ),
-#             (
-#                 ref = Δ.ref === nothing ? nothing : x * Δ.ref,
-#                 step = Δ.step === nothing ? nothing : x * Δ.step,
-#             ),
-#         )
-#     end
-#     return x * r, mul_Real_StepRangeLen_adjoint
-# end
 
 @adjoint function BlockDiagonal(blocks::Vector)
     function BlockDiagonal_pullback(Δ::NamedTuple{(:blocks,)})
@@ -134,10 +63,10 @@ end
 end
 
 @adjoint function Base.map(f::Tf, x::Fill) where {Tf}
-    y_el, back = Zygote._pullback(f, x.value)
-    function map_Fill_pullback(Δ::NamedTuple{(:value,)})
+    y_el, back = Zygote._pullback(__context__, f, x.value)
+    function map_Fill_pullback(Δ::NamedTuple)
         Δf, Δx_el = back(Δ.value)
-        return Δf, (value = Δx_el,)
+        return Δf, (value = Δx_el, axes=nothing)
     end
     return Fill(y_el, size(x)), map_Fill_pullback
 end
@@ -150,10 +79,10 @@ end
 
 Zygote.@adjoint function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf}
     @assert size(x1) == size(x2)
-    y_el, back = Zygote._pullback(f, x1.value, x2.value)
-    function map_Fill_pullback(Δ::NamedTuple{(:value,)})
+    y_el, back = Zygote._pullback(__context__, f, x1.value, x2.value)
+    function map_Fill_pullback(Δ::NamedTuple)
         Δf, Δx1_el, Δx2_el = back(Δ.value)
-        return (Δf, (value = Δx1_el,), (value = Δx2_el,))
+        return (Δf, (value = Δx1_el, axes=nothing), (value = Δx2_el, axes=nothing))
     end
     return Fill(y_el, size(x1)), map_Fill_pullback
 end
@@ -206,9 +135,6 @@ function logdet_pullback(C::Cholesky)
         return ((uplo=nothing, info=nothing, factors=Diagonal(2 .* Δ ./ diag(C.factors))),)
     end
 end
-
-AtA_pullback(A::AbstractMatrix{<:Real}) = A'A, Δ->(A * (Δ + Δ'),)
-
 
 function Zygote.accum(a::UpperTriangular, b::UpperTriangular)
     return UpperTriangular(Zygote.accum(a.data, b.data))

@@ -2,6 +2,7 @@ module TemporalGPs
 
     using BlockArrays
     using BlockDiagonals
+    using ChainRulesCore
     using Distributions
     using FillArrays
     using Kronecker
@@ -18,9 +19,17 @@ module TemporalGPs
 
     import Stheno: mean, cov, pairwise, logpdf, AV, AM, FiniteGP, AbstractGP
 
-    export to_sde, SArrayStorage, ArrayStorage, RegularSpacing, checkpointed, posterior
+    export
+        to_sde,
+        SArrayStorage,
+        ArrayStorage,
+        RegularSpacing,
+        checkpointed,
+        posterior,
+        logpdf_and_rand
 
     # Various bits-and-bobs. Often commiting some type piracy.
+    include(joinpath("util", "harmonise.jl"))
     include(joinpath("util", "zygote_rules.jl"))
     include(joinpath("util", "gaussian.jl"))
     include(joinpath("util", "mul.jl"))

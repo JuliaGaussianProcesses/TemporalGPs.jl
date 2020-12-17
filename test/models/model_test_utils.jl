@@ -1,5 +1,5 @@
 using TemporalGPs: GaussMarkovModel, dim_latent, dim_obs, LGSSM, ScalarLGSSM, Gaussian,
-    StorageType, is_time_invariant, is_of_storage_type
+    StorageType, is_time_invariant, is_of_storage_type, storage_type
 
 
 
@@ -53,6 +53,13 @@ function random_gaussian(rng::AbstractRNG, dim::Int, s::StorageType)
     return Gaussian(random_vector(rng, dim, s), random_nice_psd_matrix(rng, dim, s))
 end
 
+function FiniteDifferences.rand_tangent(rng::AbstractRNG, d::T) where {T<:Gaussian}
+    return Composite{T}(
+        m=rand_tangent(rng, d.m),
+        P=random_nice_psd_matrix(rng, length(d.m), storage_type(d)),
+    )
+end
+
 
 
 #
@@ -90,6 +97,16 @@ function random_ti_gmm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::Storag
     return GaussMarkovModel(As, as, Qs, Hs, hs, x0)
 end
 
+function FiniteDifferences.rand_tangent(rng::AbstractRNG, gmm::T) where {T<:GaussMarkovModel}
+    return Composite{T}(
+        A = rand_tangent(rng, gmm.A),
+        a = rand_tangent(rng, gmm.a),
+        Q = map(Q -> random_nice_psd_matrix(rng, size(Q, 1), storage_type(gmm)), gmm.Q),
+        H = rand_tangent(rng, gmm.H),
+        h = rand_tangent(rng, gmm.h),
+        x0 = rand_tangent(rng, gmm.x0),
+    )
+end
 
 
 #
@@ -106,6 +123,16 @@ function random_ti_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage
     gmm = random_ti_gmm(rng, Dlat, Dobs, N, storage)
     Σ = Fill(random_nice_psd_matrix(rng, Dobs, storage), N)
     return LGSSM(gmm, Σ)
+end
+
+function FiniteDifferences.rand_tangent(rng::AbstractRNG, ssm::T) where {T<:LGSSM}
+    return Composite{T}(
+        gmm=rand_tangent(rng, ssm.gmm),
+        Σ=map(
+            _ -> random_nice_psd_matrix(rng, dim_obs(ssm), storage_type(ssm)),
+            ssm.Σ,
+        ),
+    )
 end
 
 function random_tv_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)

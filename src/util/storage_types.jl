@@ -16,6 +16,7 @@ end
 
 is_of_storage_type(x::Gaussian, s::StorageType) = is_of_storage_type((x.m, x.P), s)
 
+is_of_storage_type(::Nothing, ::StorageType) = true
 
 
 #

@@ -1,4 +1,5 @@
-using TemporalGPs: Gaussian
+using ChainRulesCore: backing
+using TemporalGPs: Gaussian, copy_first, pick_last, correlate, decorrelate, harmonise
 
 create_psd_matrix(A::AbstractMatrix) = A * A' + I
 
@@ -113,6 +114,26 @@ function to_vec(model::TemporalGPs.LGSSM)
     return model_vec, LGSSM_from_vec
 end
 
+function to_vec(model::TemporalGPs.ScalarLGSSM)
+    model_vec, lgssm_from_vec = to_vec(model.model)
+
+    function ScalarLGSSM_from_vec(model_vec::AbstractVector{<:Real})
+        return TemporalGPs.ScalarLGSSM(lgssm_from_vec(model_vec))
+    end
+    return model_vec, ScalarLGSSM_from_vec
+end
+
+function to_vec(model::TemporalGPs.CheckpointedLGSSM)
+    model_vec, lgssm_from_vec = to_vec(model.model)
+
+    function CheckpointedLGSSM_from_vec(model_vec::AbstractVector{<:Real})
+        return TemporalGPs.CheckpointedLGSSM(lgssm_from_vec(model_vec))
+    end
+    return model_vec, CheckpointedLGSSM_from_vec
+end
+
+
+
 function to_vec(X::BlockDiagonal)
     Xs = blocks(X)
     Xs_vec, Xs_from_vec = to_vec(Xs)
@@ -140,6 +161,10 @@ function to_vec(X::KroneckerProduct)
 
     return X_vec, KroneckerProduct_from_vec
 end
+
+to_vec(::typeof(copy_first)) = Bool[], _ -> copy_first
+to_vec(::typeof(pick_last)) = Bool[], _ -> pick_last
+to_vec(::Nothing) = Bool[], _ -> nothing
 
 # Ensure that to_vec works for the types that we care about in this package.
 @testset "custom FiniteDifferences stuff" begin
@@ -202,6 +227,11 @@ end
 
         model_vec, model_from_vec = to_vec(model)
         @test model_from_vec(model_vec) == model
+
+        @testset "ScalarLGSSM" begin
+            model_vec, model_from_vec = to_vec(TemporalGPs.ScalarLGSSM(model))
+            @test model_from_vec(model_vec) isa TemporalGPs.ScalarLGSSM
+        end
     end
     @testset "to_vec(::BlockDiagonal)" begin
         Ns = [3, 5, 1]
@@ -255,27 +285,44 @@ function fd_isapprox(x::Gaussian, y::Gaussian, rtol, atol)
 end
 
 function adjoint_test(
-    f, ȳ, x...;
+    f, ȳ, x::Tuple, ẋ::Tuple;
     rtol=1e-9,
     atol=1e-9,
-    fdm=FiniteDifferences.central_fdm(5, 1),
-    print_results=false,
+    fdm=central_fdm(5, 1),
     test=true,
+    check_infers=true,
+    context=Zygote.Context(),
 )
-    # Compute forwards-pass and j′vp.
-    adj_fd = j′vp(fdm, f, ȳ, x...)
-    y, back = Zygote.pullback(f, x...)
-    adj_ad = back(ȳ)
+    # Compute <Jᵀ ȳ, ẋ> = <x̄, ẋ> using Zygote.
+    y, pb = Zygote._pullback(context, f, x...)
+    x̄ = pb(ȳ)[2:end]
+    inner_ad = dot(harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)...)
 
-    # Check that forwards-pass agrees with plain forwards-pass.
+    # Approximate <ȳ, J ẋ> = <ȳ, ẏ> using FiniteDifferences.
+    ẏ = jvp(fdm, f, zip(x, ẋ)...)
+    inner_fd = dot(harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)...)
+
+    # Check that Zygote didn't modify the forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)
 
-    # Check that ad and fd adjoints (approximately) agree.
-    print_results && print_adjoints(adj_ad, adj_fd, rtol, atol)
-    test && @test fd_isapprox(adj_ad, adj_fd, rtol, atol)
+    # Check for approximate agreement in "inner-products".
+    test && @test fd_isapprox(inner_ad, inner_fd, rtol, atol)
 
-    return adj_ad, adj_fd
+    # Check type inference if requested.
+    if check_infers
+        @inferred Zygote._pullback(context, f, x...)
+        @inferred pb(ȳ)
+    end
+
+    return x̄
 end
+
+function adjoint_test(f, input::Tuple; kwargs...)
+    ∂input = map(rand_tangent, input)
+    Δoutput = rand_zygote_tangent(f(input...))
+    return adjoint_test(f, Δoutput, input, ∂input; kwargs...)
+end
+
 
 function print_adjoints(adjoint_ad, adjoint_fd, rtol, atol)
     @show typeof(adjoint_ad), typeof(adjoint_fd)
@@ -299,16 +346,29 @@ end
 
 using BenchmarkTools
 
+function check_adjoint_allocations(
+    f, Δoutput, input...;
+    context=Zygote.Context(),
+    max_forward_allocs=0,
+    max_backward_allocs=0,
+)
+    _, pb = _pullback(context, f, input...)
+    @test allocs(
+        @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
+    ) <= max_forward_allocs
+    @test allocs(@benchmark $pb($Δoutput) samples=1 evals=1) <= max_backward_allocs
+end
+
 function benchmark_adjoint(f, ȳ, args...; disp=false)
     disp && println("primal")
-    primal = @benchmark $f($args...)
+    primal = @benchmark($f($args...); samples=1, evals=1)
     if disp
         display(primal)
         println()
     end
 
     disp && println("pullback generation")
-    forward_pass = @benchmark Zygote.pullback($f, $args...)
+    forward_pass = @benchmark(Zygote.pullback($f, $args...); samples=1, evals=1)
     if disp
         display(forward_pass)
         println()
@@ -317,7 +377,7 @@ function benchmark_adjoint(f, ȳ, args...; disp=false)
     y, back = Zygote.pullback(f, args...)
 
     disp && println("pullback evaluation")
-    reverse_pass = @benchmark $back($ȳ)
+    reverse_pass = @benchmark($back($ȳ); samples=1, evals=1)
     if disp
         display(reverse_pass)
         println()
@@ -326,29 +386,119 @@ function benchmark_adjoint(f, ȳ, args...; disp=false)
     return primal, forward_pass, reverse_pass
 end
 
-function adjoint_allocs(f, ȳ, args...)
-
-    # Execute primal evaluation.
-    primal = allocs(@benchmark $f($args...))
-
-    # Execute forwards-pass.
-    _, back = Zygote.pullback(f, args...)
-    forward_pass = allocs(@benchmark Zygote.pullback($f, $args...))
-
-    # Execute reverse-pass.
-    reverse_pass = allocs(@benchmark $back($ȳ))
-
-    return primal, forward_pass, reverse_pass
-end
-
 """
-    standard_lgssm_tests(rng::AbstractRNG, ssm, y::AbstractVector)
+    ssm_interface_tests(
+        rng::AbstractRNG, build_ssm, θ...;
+        check_infers=true, check_rmad=false, rtol=1e-9, atol=1e-9,
+    )
 
 Basic consistency tests that any ssm should be able to satisfy. The purpose of these tests
 is not to ensure correctness of any given implementation, only to ensure that it is self-
 consistent and implements the required interface.
+
+`build_ssm` should be a unary function that, when called on `θ`, should return an
+`AbstractSSM`.
 """
-function standard_lgssm_tests(rng::AbstractRNG, ssm, y::AbstractVector)
-    @test last(filter(ssm, y)) ≈ logpdf(ssm, y)
-    @test last(smooth(ssm, y)) ≈ logpdf(ssm, y)
+function ssm_interface_tests(
+    rng::AbstractRNG, ssm::AbstractSSM; check_infers=true, check_adjoints=true, kwargs...
+)
+    y = rand(rng, ssm)
+    lml_decor, α = decorrelate(ssm, y, copy_first)
+
+    @testset "basics" begin
+        @inferred storage_type(ssm)
+        @inferred dim_latent(ssm)
+        (@inferred dim_obs(ssm)) == length(first(y))
+        @test length(ssm) == length(y)
+        @test eltype(ssm) == eltype(first(y))
+        @test is_of_storage_type(ssm, storage_type(ssm))
+    end
+
+    @testset "decorrelate" begin
+        @test decorrelate(ssm, y, copy_first) == decorrelate(ssm, y)
+        @test lml_decor == logpdf(ssm, y)
+        @test α == whiten(ssm, y)
+        @test decorrelate(ssm, y, pick_last) == _filter(ssm, y)
+
+        if check_infers
+            @inferred decorrelate(ssm, y, copy_first)
+            @inferred decorrelate(ssm, y, pick_last)
+            @inferred decorrelate(ssm, y)
+            @inferred logpdf(ssm, y)
+            @inferred whiten(ssm, y)
+            @inferred _filter(ssm, y)
+        end
+
+        if check_adjoints
+            adjoint_test(decorrelate, (ssm, y, copy_first); check_infers=check_infers, kwargs...)
+            adjoint_test(decorrelate, (ssm, y, pick_last); check_infers=check_infers, kwargs...)
+            adjoint_test(decorrelate, (ssm, y); check_infers=check_infers, kwargs...)
+            adjoint_test(logpdf, (ssm, y); check_infers=check_infers, kwargs...)
+            adjoint_test(whiten, (ssm, y); check_infers=check_infers, kwargs...)
+            adjoint_test(_filter, (ssm, y); check_infers=check_infers, kwargs...)
+        end
+    end
+
+    @testset "correlate" begin
+        lml, y_cor = correlate(ssm, α, copy_first)
+        @test (lml, y_cor) == correlate(ssm, α)
+        @test lml ≈ logpdf(ssm, y)
+        @test y_cor ≈ y
+        @test y_cor == unwhiten(ssm, α)
+
+        _lml, _y = logpdf_and_rand(rng, ssm)
+        @test _lml ≈ logpdf(ssm, _y)
+        @test length(_y) == length(y)
+
+        if check_infers
+            @inferred correlate(ssm, α, copy_first)
+            @inferred correlate(ssm, α, pick_last)
+            @inferred correlate(ssm, α)
+            @inferred unwhiten(ssm, α)
+            @inferred rand(rng, ssm)
+            @inferred logpdf_and_rand(rng, ssm)
+        end
+
+        if check_adjoints
+            adjoint_test(correlate, (ssm, α, copy_first); check_infers=check_infers, kwargs...)
+            adjoint_test(correlate, (ssm, α, pick_last); check_infers=check_infers, kwargs...)
+            adjoint_test(correlate, (ssm, α); check_infers=check_infers, kwargs...)
+            adjoint_test(unwhiten, (ssm, α); check_infers=check_infers, kwargs...)
+            adjoint_test(ssm -> rand(deepcopy(rng), ssm), (ssm, ); check_infers=check_infers, kwargs...)
+            adjoint_test(ssm -> logpdf_and_rand(deepcopy(rng), ssm), (ssm, ); check_infers=check_infers, kwargs...)
+        end
+    end
+
+    @testset "statistics" begin
+        ds = marginals(ssm)
+        @test vcat(mean.(ds)...) ≈ mean(ssm)
+        if ds isa AbstractVector{<:Gaussian}
+            @test vcat(diag.(cov.(ds))...) ≈ diag(cov(ssm))
+        else
+            @test vcat(var.(ds)) ≈ diag(cov(ssm))
+        end
+
+        @test isapprox(logpdf(Gaussian(mean(ssm), cov(ssm)), vcat(y...)), lml_decor)
+
+        check_infers && @inferred marginals(ssm)
+        # adjoint_test(marginals, (ssm, ); check_infers=check_infers, kwargs...)
+    end
+end
+
+function FiniteDifferences.rand_tangent(rng::AbstractRNG, A::StaticArray)
+    return map(x -> rand_tangent(rng, x), A)
+end
+
+FiniteDifferences.rand_tangent(::AbstractRNG, ::Base.OneTo) = Zero()
+
+# Hacks to make rand_tangent play nicely with Zygote.
+rand_zygote_tangent(A) = Zygote.wrap_chainrules_output(FiniteDifferences.rand_tangent(A))
+
+Zygote.wrap_chainrules_output(x::Array) = map(Zygote.wrap_chainrules_output, x)
+
+Zygote.wrap_chainrules_input(x::Array) = map(Zygote.wrap_chainrules_input, x)
+
+function LinearAlgebra.dot(A::Composite, B::Composite)
+    mutual_names = intersect(propertynames(A), propertynames(B))
+    return sum(n -> dot(getproperty(A, n), getproperty(B, n)), mutual_names)
 end

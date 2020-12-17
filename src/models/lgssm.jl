@@ -55,7 +55,7 @@ intermediate quantities.
 """
 function smooth(model::LGSSM, ys::AbstractVector)
 
-    lml, x_filter = filter(model, ys)
+    lml, x_filter = _filter(model, ys)
     ε = convert(eltype(model), 1e-12)
 
     # Smooth
@@ -110,6 +110,13 @@ function predict(model::NamedTuple{(:gmm, :Σ)}, x)
     return Gaussian(predict(x.m, x.P, gmm.A, gmm.a, gmm.Q)...)
 end
 
+function observe(model::NamedTuple{(:gmm, :Σ)}, x::Gaussian)
+    gmm = model.gmm
+    m_obs = gmm.H * x.m + gmm.h
+    P_obs = gmm.H * x.P * gmm.H' + model.Σ
+    return Gaussian(m_obs, P_obs)
+end
+
 """
     posterior_rand(rng::AbstractRNG, model::LGSSM, ys::Vector{<:AV{<:Real}})
 
@@ -122,7 +129,7 @@ function posterior_rand(
     ys::Vector{<:AV{<:Real}},
     N_samples::Int,
 )
-    _, x_filter = filter(model, ys)
+    _, x_filter = _filter(model, ys)
 
     chol_Q = cholesky.(Symmetric.(model.gmm.Q .+ Ref(1e-15I)))
 
@@ -165,49 +172,67 @@ correlate(model::AbstractSSM, y::AbstractVector) = correlate(model, y, copy_firs
 # Things defined in terms of decorrelate
 #
 
-whiten(model::AbstractSSM, ys::AbstractVector) = last(decorrelate(model, ys))
+whiten(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys)[2]
+
+# For _some_ reason beyond my comprehension, this adjoint ensures type-stability.
+function Zygote._pullback(
+    ctx::Zygote.Context, ::typeof(whiten), model::AbstractSSM, ys::AbstractVector,
+)
+    out, pb = Zygote._pullback(ctx, decorrelate, model, ys, copy_first)
+    function whiten_pullback(Δ)
+        _, Δmodel, Δys, _ = pb((0, Δ))
+        return nothing, Δmodel, Δys
+    end
+    return out[2], whiten_pullback
+end
 
 Stheno.logpdf(model::AbstractSSM, ys::AbstractVector) = first(decorrelate(model, ys))
 
-Base.filter(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys, pick_last)
-
-@adjoint function Base.filter(model::AbstractSSM, ys::AbstractVector)
-    return Zygote.pullback(decorrelate, model, ys, pick_last)
-end
-
-# Resolve ambiguity with Base.
-Base.filter(model::AbstractSSM, ys::Vector) = decorrelate(model, ys, pick_last)
-
-@adjoint function Base.filter(model::AbstractSSM, ys::Vector)
-    return Zygote.pullback(decorrelate, model, ys, pick_last)
-end
-
-
+_filter(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys, pick_last)
 
 #
 # Things defined in terms of correlate
 #
 
 function Random.rand(rng::AbstractRNG, model::AbstractSSM)
-    return last(correlate(model, rand_αs(rng, model, Val(dim_obs(model)))))
+    return correlate(model, rand_αs(rng, model))[2] # last isn't type-stable inside AD.
 end
 
-unwhiten(model::AbstractSSM, αs::AbstractVector) = last(correlate(model, αs))
+unwhiten(model::AbstractSSM, αs::AbstractVector) = correlate(model, αs)[2]
+
+# For _some_ reason beyond my comprehension, this adjoint ensures type-stability.
+function Zygote._pullback(
+    ctx::Zygote.Context, ::typeof(unwhiten), model::AbstractSSM, αs::AbstractVector,
+)
+    out, pb = Zygote._pullback(ctx, correlate, model, αs, copy_first)
+    function unwhiten_pullback(Δ)
+        _, Δmodel, Δαs, _ = pb((0, Δ))
+        return nothing, Δmodel, Δαs
+    end
+    return out[2], unwhiten_pullback
+end
 
 function logpdf_and_rand(rng::AbstractRNG, model::AbstractSSM)
-    return correlate(model, rand_αs(rng, model, Val(dim_obs(model))))
+    return correlate(model, rand_αs(rng, model))
 end
 
-function rand_αs(rng::AbstractRNG, model::LGSSM, ::Val{D}) where {D}
+function rand_αs(rng::AbstractRNG, model::AbstractSSM)
+    D = dim_obs(model)
     α = randn(rng, eltype(model), length(model) * D)
     return [α[(n - 1) * D + 1:n * D] for n in 1:length(model)]
 end
 
-function rand_αs(
-    rng::AbstractRNG,
-    model::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}},
-    ::Val{D},
-) where {D}
+function rand_αs(rng::AbstractRNG, model::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}})
+    D = dim_obs(model)
+    ot = output_type(model)
     α = randn(rng, eltype(model), length(model) * D)
-    return [SVector{D}(α[(n - 1) * D + 1:n * D]) for n in 1:length(model)]
+
+    # For some type-stability reasons, we have to ensure that
+    αs = Vector{output_type(model)}(undef, length(model))
+    map(n -> setindex!(αs, ot(α[(n - 1) * D + 1:n * D]), n), 1:length(model))
+    return αs
 end
+
+ChainRulesCore.@non_differentiable rand_αs(::AbstractRNG, ::AbstractSSM)
+
+output_type(ft::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}}) = eltype(ft.gmm.h)

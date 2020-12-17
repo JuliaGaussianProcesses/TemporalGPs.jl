@@ -1,27 +1,29 @@
-using TemporalGPs: smooth, Gaussian, GaussMarkovModel, is_of_storage_type, is_time_invariant
+using TemporalGPs:
+    smooth,
+    Gaussian,
+    GaussMarkovModel,
+    is_of_storage_type,
+    is_time_invariant,
+    from_vector_observations,
+    to_vector_observations,
+    NoContext
 
 println("scalar_lgssm:")
 @testset "scalar_lgssm" begin
 
     @testset "from_vector_observations pullback" begin
-        N = 10
-        Δy_reals = randn(N)
-
         @testset "Vector" begin
-            y_vecs = [randn(1) for _ in 1:N]
+            y_vecs = [randn(1) for _ in 1:10]
+            adjoint_test(from_vector_observations, (y_vecs, ))
             adjoint_test(
-                TemporalGPs.from_vector_observations,
-                Δy_reals,
-                y_vecs,
+                x-> to_vector_observations(ArrayStorage(Float64), x), (randn(10), ),
             )
         end
-
         @testset "SVector" begin
-            y_vecs = [SVector{1}(randn()) for _ in 1:N]
+            adjoint_test(from_vector_observations, ([SVector{1}(randn()) for _ in 1:11], ))
             adjoint_test(
-                TemporalGPs.from_vector_observations,
-                Δy_reals,
-                y_vecs,
+                x-> to_vector_observations(SArrayStorage(Float64), x),
+                (SVector{10}(randn(10)), ),
             )
         end
     end
@@ -54,81 +56,9 @@ println("scalar_lgssm:")
         y_vec = rand(MersenneTwister(123456), model)
         @test y == first.(y_vec)
 
+        ssm_interface_tests(rng, scalar_model; check_adjoints=true, context=NoContext())
+
         # Compute the log marginal likelihood of the observation.
         @test logpdf(scalar_model, y) == logpdf(model, y_vec)
-
-        # Verify that whiten and unwhiten are each others inverse.
-        α = TemporalGPs.whiten(scalar_model, y)
-        @test TemporalGPs.unwhiten(scalar_model, α) ≈ y
-
-        # Compute square roots of psd matrices for finite differencing safety.
-        sqrt_Qs = map(Q->cholesky(Symmetric(Q + 1e-2I)).U, Qs)
-        sqrt_Σs = map(Σ->cholesky(Symmetric(Σ)).U, Σs)
-
-        # Verify the gradients w.r.t. sampling from the model.
-        P_U = cholesky(x.P).U
-        P_U = storage.val isa SArrayStorage ? UpperTriangular(SMatrix(P_U.data)) : P_U
-        adjoint_test(
-            (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs) -> begin
-                Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
-                Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
-                P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
-                x = Gaussian(m, P)
-                gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
-                scalar_model = ScalarLGSSM(LGSSM(gmm, Σs))
-                return rand(MersenneTwister(123456), scalar_model)
-            end,
-            randn(rng, N),
-            As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs;
-            rtol=1e-6, atol=1e-6,
-        )
-
-        # Verify the gradients w.r.t. computing the logpdf of the model.
-        adjoint_test(
-            (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs, y) -> begin
-                Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
-                Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
-                P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
-                x = Gaussian(m, P)
-                gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
-                scalar_model = ScalarLGSSM(LGSSM(gmm, Σs))
-                return logpdf(scalar_model, y)
-            end,
-            randn(rng),
-            As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs, y;
-            atol=1e-6, rtol=1e-6,
-        )
-
-        # Verify the gradients w.r.t. whiten
-        adjoint_test(
-            (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs, y) -> begin
-                Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
-                Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
-                P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
-                x = Gaussian(m, P)
-                gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
-                scalar_model = ScalarLGSSM(LGSSM(gmm, Σs))
-                return TemporalGPs.whiten(scalar_model, y)
-            end,
-            randn(rng, N),
-            As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs, y;
-            atol=1e-6, rtol=1e-6,
-        )
-
-        # Verify the gradients w.r.t. unwhiten
-        adjoint_test(
-            (As, as, sqrt_Qs, Hs, hs, m, sqrt_P, sqrt_Σs, α) -> begin
-                Qs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Qs)
-                Σs = map(U->UpperTriangular(U)'UpperTriangular(U), sqrt_Σs)
-                P = UpperTriangular(sqrt_P)'UpperTriangular(sqrt_P)
-                x = Gaussian(m, P)
-                gmm = GaussMarkovModel(As, as, Qs, Hs, hs, x)
-                scalar_model = ScalarLGSSM(LGSSM(gmm, Σs))
-                return TemporalGPs.unwhiten(scalar_model, α)
-            end,
-            randn(rng, N),
-            As, as, sqrt_Qs, Hs, hs, x.m, P_U, sqrt_Σs, y;
-            atol=1e-6, rtol=1e-6,
-        )
     end
 end

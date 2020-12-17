@@ -18,7 +18,7 @@ println("lti_sde:")
             @test all(first.(build_Σs(σ²_ns)) == first.(σ²_ns))
 
             ΔΣs = SMatrix{1, 1}.(randn(rng, N))
-            adjoint_test(build_Σs, ΔΣs, σ²_ns)
+            adjoint_test(build_Σs, (σ²_ns, ))
         end
         @testset "homoscedastic" begin
             σ²_n = exp(randn(rng)) + 1e-3
@@ -26,7 +26,7 @@ println("lti_sde:")
             @test all(first.(build_Σs(σ²_ns)) == first.(σ²_ns))
 
             ΔΣs = (value=SMatrix{1, 1}(randn(rng)),)
-            adjoint_test(σ²_n->build_Σs(Fill(σ²_n, N)), ΔΣs, σ²_n)
+            adjoint_test(σ²_n->build_Σs(Fill(σ²_n, N)), (σ²_n, ))
         end
     end
 
@@ -38,8 +38,8 @@ println("lti_sde:")
 
         # construct a Gauss-Markov model with either dense storage or static storage.
         storages = (
-            (name="dense storage Float64", val=ArrayStorage(Float64), tol=1e-9),
-            (name="static storage Float64", val=SArrayStorage(Float64), tol=1e-9),
+            (name="dense storage Float64", val=ArrayStorage(Float64), tol=1e-7),
+            (name="static storage Float64", val=SArrayStorage(Float64), tol=1e-7),
             (name="dense storage Float32", val=ArrayStorage(Float32), tol=1e-4),
             (name="static storage Float32", val=SArrayStorage(Float32), tol=1e-4),
         )
@@ -87,6 +87,7 @@ println("lti_sde:")
 
             @test logpdf(ft, y) ≈ logpdf(ft_sde, y_sde)
 
+            tol = storage.tol
             if eltype(storage.val) == Float64
                 if t.val isa Vector
                     adjoint_test(
@@ -95,9 +96,8 @@ println("lti_sde:")
                             _ft = f(t, s...)
                             return logpdf(_ft, y)
                         end,
-                        randn(eltype(storage.val)),
-                        t.val, y;
-                        atol=1e-6, rtol=1e-6,
+                        (t.val, y);
+                        check_infers=false, atol=tol, rtol=tol,
                     )
                 else
                     adjoint_test(
@@ -107,9 +107,8 @@ println("lti_sde:")
                             _ft = _f(_t, s...)
                             return logpdf(_ft, y)
                         end,
-                        randn(eltype(storage.val)),
-                        t.val.Δt, y;
-                        atol=1e-6, rtol=1e-6,
+                        (t.val.Δt, y);
+                        check_infers=false, atol=tol, rtol=tol,
                     )
                 end
             end
@@ -125,7 +124,6 @@ println("lti_sde:")
             m_exact = mean.(f′_marginals)
             σ²_exact = std.(f′_marginals).^2
 
-            tol = storage.tol
             @test isapprox(m_ssm, m_exact; atol=tol, rtol=tol)
             @test isapprox(σ²_ssm, σ²_exact; atol=tol, rtol=tol)
         end

@@ -226,15 +226,3 @@ Zygote.@adjoint function blk_diag(A, B)
     end
     return blk_diag(A, B), blk_diag_adjoint
 end
-
-
-
-#
-# Product
-#
-
-function GaussMarkovModel(k::Stheno.Product, ts::AV, storage_type)
-    error("Not implemented")
-    model_l = GaussMarkovModel(k.kl, ts, storage_type)
-    model_r = GaussMarkovModel(k.kr, ts, storage_type)
-end
