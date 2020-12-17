@@ -90,7 +90,7 @@ function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real}, f::typeof(pi
     return correlate(model.model, αs_vec, f)
 end
 
-rand_αs(rng::AbstractRNG, model::ScalarLGSSM) = randn(rng, length(model))
+rand_αs(rng::AbstractRNG, model::ScalarLGSSM) = randn(rng, eltype(model), length(model))
 
 function smooth(model::ScalarLGSSM, ys::AbstractVector{T}) where {T<:Real}
     return smooth(model.model, to_vector_observations(storage_type(model), ys))
