@@ -172,7 +172,7 @@ correlate(model::AbstractSSM, y::AbstractVector) = correlate(model, y, copy_firs
 # Things defined in terms of decorrelate
 #
 
-whiten(model::AbstractSSM, ys::AbstractVector) = last(decorrelate(model, ys))
+whiten(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys)[2]
 
 # For _some_ reason beyond my comprehension, this adjoint ensures type-stability.
 function Zygote._pullback(
@@ -198,7 +198,7 @@ function Random.rand(rng::AbstractRNG, model::AbstractSSM)
     return correlate(model, rand_αs(rng, model))[2] # last isn't type-stable inside AD.
 end
 
-unwhiten(model::AbstractSSM, αs::AbstractVector) = last(correlate(model, αs))
+unwhiten(model::AbstractSSM, αs::AbstractVector) = correlate(model, αs)[2]
 
 # For _some_ reason beyond my comprehension, this adjoint ensures type-stability.
 function Zygote._pullback(

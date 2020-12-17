@@ -64,15 +64,8 @@ function from_vector_observations(ys::AV{<:Gaussian})
     return Normal.(only.(getfield.(ys, :m)), sqrt.(only.(getfield.(ys, :P))))
 end
 
-function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real}, f::typeof(copy_first))
-    αs_vec = to_vector_observations(storage_type(model), αs)
-    lml, ys = correlate(model.model, αs_vec, f)
-    return lml, from_vector_observations(ys)
-end
-
-function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real}, f::typeof(pick_last))
-    αs_vec = to_vector_observations(storage_type(model), αs)
-    return correlate(model.model, αs_vec, f)
+function Stheno.marginals(model::ScalarLGSSM)
+    return from_vector_observations(Stheno.marginals(model.model))
 end
 
 function decorrelate(model::ScalarLGSSM, ys::AbstractVector{<:Real}, f::typeof(copy_first))
@@ -86,32 +79,18 @@ function decorrelate(model::ScalarLGSSM, ys::AbstractVector{<:Real}, f::typeof(p
     return decorrelate(model.model, ys_vec, f)
 end
 
-function whiten(model::ScalarLGSSM, ys::AbstractVector{<:Real})
-    return decorrelate(model, ys)[2] # last breaks AD type-stability. Not sure why.
+function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real}, f::typeof(copy_first))
+    αs_vec = to_vector_observations(storage_type(model), αs)
+    lml, ys = correlate(model.model, αs_vec, f)
+    return lml, from_vector_observations(ys)
 end
 
-function rand(rng::AbstractRNG, model::ScalarLGSSM)
-    αs = randn(rng, eltype(model), length(model))
-    return correlate(model, αs)[2] # last breaks AD type-stability. Not sure why.
+function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real}, f::typeof(pick_last))
+    αs_vec = to_vector_observations(storage_type(model), αs)
+    return correlate(model.model, αs_vec, f)
 end
 
-function logpdf(model::ScalarLGSSM, y::AbstractVector{<:Real})
-    ys = to_vector_observations(storage_type(model), y)
-    return first(decorrelate(model.model, ys))
-end
-
-function unwhiten(model::ScalarLGSSM, αs::AbstractVector{<:Real})
-    return correlate(model, αs)[2] # last breaks AD type-stability. Not sure why.
-end
-
-function logpdf_and_rand(rng::AbstractRNG, model::ScalarLGSSM)
-    αs = randn(rng, eltype(model), length(model))
-    return correlate(model, αs)
-end
-
-function Stheno.marginals(model::ScalarLGSSM)
-    return from_vector_observations(Stheno.marginals(model.model))
-end
+rand_αs(rng::AbstractRNG, model::ScalarLGSSM) = randn(rng, length(model))
 
 function smooth(model::ScalarLGSSM, ys::AbstractVector{T}) where {T<:Real}
     return smooth(model.model, to_vector_observations(storage_type(model), ys))
