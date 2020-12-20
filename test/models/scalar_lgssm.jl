@@ -11,22 +11,22 @@ using TemporalGPs:
 println("scalar_lgssm:")
 @testset "scalar_lgssm" begin
 
-    # @testset "from_vector_observations pullback" begin
-    #     @testset "Vector" begin
-    #         y_vecs = [randn(1) for _ in 1:10]
-    #         adjoint_test(from_vector_observations, (y_vecs, ))
-    #         adjoint_test(
-    #             x-> to_vector_observations(ArrayStorage(Float64), x), (randn(10), ),
-    #         )
-    #     end
-    #     @testset "SVector" begin
-    #         adjoint_test(from_vector_observations, ([SVector{1}(randn()) for _ in 1:11], ))
-    #         adjoint_test(
-    #             x-> to_vector_observations(SArrayStorage(Float64), x),
-    #             (SVector{10}(randn(10)), ),
-    #         )
-    #     end
-    # end
+    @testset "from_vector_observations pullback" begin
+        @testset "Vector" begin
+            y_vecs = [randn(1) for _ in 1:10]
+            adjoint_test(from_vector_observations, (y_vecs, ))
+            adjoint_test(
+                x-> to_vector_observations(ArrayStorage(Float64), x), (randn(10), ),
+            )
+        end
+        @testset "SVector" begin
+            adjoint_test(from_vector_observations, ([SVector{1}(randn()) for _ in 1:11], ))
+            adjoint_test(
+                x-> to_vector_observations(SArrayStorage(Float64), x),
+                (SVector{10}(randn(10)), ),
+            )
+        end
+    end
 
     rng = MersenneTwister(123456)
     N = 3
