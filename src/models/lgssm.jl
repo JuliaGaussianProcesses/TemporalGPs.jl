@@ -50,42 +50,6 @@ function cov(model::LGSSM)
     return S + Σ
 end
 
-
-# Convert a latent Gaussian marginal into an observed Gaussian marginal.
-to_observed(H::AM, h::AV, x::Gaussian) = Gaussian(H * x.m + h, H * x.P * H')
-
-
-"""
-    smooth(model::LGSSM, ys::AbstractVector)
-
-Filter, smooth, and compute the log marginal likelihood of the data. Returns all
-intermediate quantities.
-"""
-function smooth(model::LGSSM, ys::AbstractVector)
-
-    lml, _, x_filter = decorrelate(model, ys)
-    ε = convert(eltype(model), 1e-12)
-
-    # Smooth
-    x_smooth = Vector{typeof(last(x_filter))}(undef, length(ys))
-    x_smooth[end] = x_filter[end]
-    for k in reverse(1:length(x_filter) - 1)
-        x = x_filter[k]
-        x′ = predict(model[k + 1], x)
-
-        U = cholesky(Symmetric(x′.P + ε * I)).U
-        Gt = U \ (U' \ (model.gmm.A[k + 1] * x.P))
-        x_smooth[k] = Gaussian(
-            _compute_ms(x.m, Gt, x_smooth[k + 1].m, x′.m),
-            _compute_Ps(x.P, Gt, x_smooth[k + 1].P, x′.P),
-        )
-    end
-
-    Hs = model.gmm.H
-    hs = model.gmm.h
-    return to_observed.(Hs, hs, x_filter), to_observed.(Hs, hs, x_smooth), lml
-end
-
 """
     _compute_ms(mf::AV, Gt::AM, ms′::AV, mp′::AV)
 
