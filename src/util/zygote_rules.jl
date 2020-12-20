@@ -12,10 +12,17 @@ Base.haskey(cx::NoContext, x) = false
 
 Zygote.accum_param(::NoContext, x, Δ) = Δ
 
-Zygote.accum(as::Tuple...) = map(accum, as...)
+@inline Zygote.accum(as::Tuple...) = map(accum, as...)
+
+@inline Zygote.accum(a::Tuple, b::Tuple, c::Nothing) = map(accum, a, b)
 
 @adjoint function SVector{D}(x::AbstractVector) where {D}
     return SVector{D}(x), Δ::AbstractVector -> (convert(typeof(x), Δ),)
+end
+
+function Zygote._pullback(::AContext, ::Type{<:SVector{1}}, x::Real)
+    SVector_pullback(Δ::SVector{1}) = (nothing, only(Δ))
+    return SVector{1}(x), SVector_pullback
 end
 
 @adjoint function SMatrix{D1, D2}(X::AbstractMatrix) where {D1, D2}
@@ -100,34 +107,36 @@ end
 # gradients.
 #
 
-function cholesky_pullback(Σ::Symmetric{<:Real, <:StridedMatrix})
+function cholesky_rrule(Σ::Symmetric{<:Real, <:StridedMatrix})
     C = cholesky(Σ)
-    return C, function(Δ::NamedTuple)
+    function cholesky_pullback(Δ::NamedTuple)
         U, Ū = C.U, Δ.factors
         Σ̄ = Ū * U'
         Σ̄ = LinearAlgebra.copytri!(Σ̄, 'U')
         Σ̄ = ldiv!(U, Σ̄)
         BLAS.trsm!('R', 'U', 'T', 'N', one(eltype(Σ)), U.data, Σ̄)
 
-        @inbounds for n in diagind(Σ̄)
+        for n in diagind(Σ̄)
             Σ̄[n] /= 2
         end
         return (UpperTriangular(Σ̄),)
     end
+    return C, cholesky_pullback
 end
 
-function cholesky_pullback(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
+function cholesky_rrule(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
     C = cholesky(S)
-    return C, function(Δ::NamedTuple)
+    function cholesky_pullback(Δ::NamedTuple)
         U, ΔU = C.U, Δ.factors
         ΔS = U \ (U \ SMatrix{N, N}(Symmetric(ΔU * U')))'
         ΔS = ΔS - Diagonal(ΔS ./ 2)
-        return (UpperTriangular(ΔS),)
+        return ((data=UpperTriangular(ΔS), ),)
     end
+    return C, cholesky_pullback
 end
 
 @adjoint function cholesky(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
-    return cholesky_pullback(S)
+    return cholesky_rrule(S)
 end
 
 function logdet_pullback(C::Cholesky)
@@ -151,6 +160,7 @@ end
 Zygote.accum(a::UpperTriangular, b::Diagonal) = Zygote.accum(b, a)
 
 Zygote._symmetric_back(Δ::UpperTriangular{<:Any, <:SArray}, uplo) = Δ
+Zygote._symmetric_back(Δ::SArray, uplo) = Δ
 
 
 # Temporary hacks.

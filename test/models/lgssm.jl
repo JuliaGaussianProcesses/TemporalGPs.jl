@@ -23,12 +23,23 @@ println("lgssm:")
 
     @testset "correctness" begin
         rng = MersenneTwister(123456)
-        N = 11
 
-        Dlats = [1, 3]
-        Dobss = [1, 2]
-        tvs = [true, false]
-        tvs = [true, false]
+        Ns = [
+            1,
+            5,
+        ]
+        Dlats = [
+            1,
+            2,
+        ]
+        Dobss = [
+            1,
+            2,
+        ]
+        tvs = [
+            true,
+            false,
+        ]
         storages = [
             (name="dense storage Float64", val=ArrayStorage(Float64)),
             (name="static storage Float64", val=SArrayStorage(Float64)),
@@ -36,14 +47,15 @@ println("lgssm:")
             # (name="static storage Float32", val=SArrayStorage(Float32)),
         ]
 
-        @testset "(time_varying=$tv, Dlat=$Dlat, Dobs=$Dobs, $(storage.name))" for
+        @testset "(time_varying=$tv, Dlat=$Dlat, Dobs=$Dobs, $(storage.name)), N=$N" for
             tv in tvs,
             Dlat in Dlats,
             Dobs in Dobss,
-            storage in storages
+            storage in storages,
+            N in Ns
 
             # Print current iteration to prevent CI timing out.
-            println("(time_varying=$tv, Dlat=$Dlat, Dobs=$Dobs, $(storage.name))")
+            println("(time_varying=$tv, Dlat=$Dlat, Dobs=$Dobs, $(storage.name), $N)")
 
             # Build LGSSM.
             model = tv ?
@@ -63,6 +75,7 @@ println("lgssm:")
             # Run standard battery of LGSSM tests.
             ssm_interface_tests(
                 rng, model; rtol=1e-5, atol=1e-5, test=(eltype(model) == Float64),
+                check_adjoints=true, context=NoContext(),
             )
 
             # # Verify posterior marginal computation and sampling.

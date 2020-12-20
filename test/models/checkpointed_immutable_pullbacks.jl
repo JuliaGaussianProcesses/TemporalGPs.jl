@@ -1,7 +1,6 @@
 using TemporalGPs:
     correlate,
     decorrelate,
-    copy_first,
     smooth,
     NoContext
 

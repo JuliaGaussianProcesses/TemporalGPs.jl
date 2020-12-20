@@ -1,5 +1,5 @@
 using ChainRulesCore: backing
-using TemporalGPs: Gaussian, copy_first, pick_last, correlate, decorrelate, harmonise
+using TemporalGPs: Gaussian, correlate, decorrelate, harmonise
 
 create_psd_matrix(A::AbstractMatrix) = A * A' + I
 
@@ -32,6 +32,11 @@ end
 
 function to_vec(x::Base.ReinterpretArray)
     return to_vec(collect(x))
+end
+
+function to_vec(::Missing)
+    Missing_from_vec(::Any) = missing
+    return Bool[], Missing_from_vec
 end
 
 function to_vec(x::T) where {T<:NamedTuple}
@@ -162,8 +167,6 @@ function to_vec(X::KroneckerProduct)
     return X_vec, KroneckerProduct_from_vec
 end
 
-to_vec(::typeof(copy_first)) = Bool[], _ -> copy_first
-to_vec(::typeof(pick_last)) = Bool[], _ -> pick_last
 to_vec(::Nothing) = Bool[], _ -> nothing
 
 # Ensure that to_vec works for the types that we care about in this package.
@@ -283,6 +286,10 @@ function fd_isapprox(x::Gaussian, y::Gaussian, rtol, atol)
     return isapprox(x.m, y.m; rtol=rtol, atol=atol) &&
         isapprox(x.P, y.P; rtol=rtol, atol=atol)
 end
+function fd_isapprox(x::Real, y::Zero, rtol, atol)
+    return fd_isapprox(x, zero(x), rtol, atol)
+end
+
 
 function adjoint_test(
     f, ȳ, x::Tuple, ẋ::Tuple;
@@ -310,6 +317,8 @@ function adjoint_test(
 
     # Check type inference if requested.
     if check_infers
+        # @code_warntype Zygote._pullback(context, f, x...)
+        # @code_warntype pb(ȳ)
         @inferred Zygote._pullback(context, f, x...)
         @inferred pb(ȳ)
     end
@@ -318,8 +327,12 @@ function adjoint_test(
 end
 
 function adjoint_test(f, input::Tuple; kwargs...)
-    ∂input = map(rand_tangent, input)
     Δoutput = rand_zygote_tangent(f(input...))
+    return adjoint_test(f, Δoutput, input; kwargs...)
+end
+
+function adjoint_test(f, Δoutput, input::Tuple; kwargs...)
+    ∂input = map(rand_tangent, input)
     return adjoint_test(f, Δoutput, input, ∂input; kwargs...)
 end
 
@@ -347,7 +360,7 @@ end
 using BenchmarkTools
 
 function check_adjoint_allocations(
-    f, Δoutput, input...;
+    f, Δoutput, input::Tuple;
     context=Zygote.Context(),
     max_forward_allocs=0,
     max_backward_allocs=0,
@@ -357,6 +370,10 @@ function check_adjoint_allocations(
         @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
     ) <= max_forward_allocs
     @test allocs(@benchmark $pb($Δoutput) samples=1 evals=1) <= max_backward_allocs
+end
+
+function check_adjoint_allocations(f, input::Tuple; kwargs...)
+    return check_adjoint_allocations(f, rand_zygote_tangent(f(input...)), input; kwargs...)
 end
 
 function benchmark_adjoint(f, ȳ, args...; disp=false)
@@ -402,86 +419,128 @@ consistent and implements the required interface.
 function ssm_interface_tests(
     rng::AbstractRNG, ssm::AbstractSSM; check_infers=true, check_adjoints=true, kwargs...
 )
-    y = rand(rng, ssm)
-    lml_decor, α = decorrelate(ssm, y, copy_first)
+    y_no_missing = rand(rng, ssm)
 
     @testset "basics" begin
         @inferred storage_type(ssm)
         @inferred dim_latent(ssm)
-        (@inferred dim_obs(ssm)) == length(first(y))
-        @test length(ssm) == length(y)
-        @test eltype(ssm) == eltype(first(y))
+        (@inferred dim_obs(ssm)) == length(first(y_no_missing))
+        @test length(ssm) == length(y_no_missing)
+        @test eltype(ssm) == eltype(first(y_no_missing))
         @test is_of_storage_type(ssm, storage_type(ssm))
     end
 
-    @testset "decorrelate" begin
-        @test decorrelate(ssm, y, copy_first) == decorrelate(ssm, y)
-        @test lml_decor == logpdf(ssm, y)
-        @test α == whiten(ssm, y)
-        @test decorrelate(ssm, y, pick_last) == _filter(ssm, y)
-
-        if check_infers
-            @inferred decorrelate(ssm, y, copy_first)
-            @inferred decorrelate(ssm, y, pick_last)
-            @inferred decorrelate(ssm, y)
-            @inferred logpdf(ssm, y)
-            @inferred whiten(ssm, y)
-            @inferred _filter(ssm, y)
-        end
-
-        if check_adjoints
-            adjoint_test(decorrelate, (ssm, y, copy_first); check_infers=check_infers, kwargs...)
-            adjoint_test(decorrelate, (ssm, y, pick_last); check_infers=check_infers, kwargs...)
-            adjoint_test(decorrelate, (ssm, y); check_infers=check_infers, kwargs...)
-            adjoint_test(logpdf, (ssm, y); check_infers=check_infers, kwargs...)
-            adjoint_test(whiten, (ssm, y); check_infers=check_infers, kwargs...)
-            adjoint_test(_filter, (ssm, y); check_infers=check_infers, kwargs...)
-        end
+    # Construct a missing-data example.
+    y_missing = Vector{Union{Missing, eltype(y_no_missing)}}(undef, length(y_no_missing))
+    y_missing .= y_no_missing
+    y_missing[1] = missing
+    if length(ssm) >= 3
+        y_missing[3] = missing
     end
+    missing_idx = length(ssm) >= 3 ? [1, 3] : [1]
+    α_missing = whiten(ssm, y_missing)
 
-    @testset "correlate" begin
-        lml, y_cor = correlate(ssm, α, copy_first)
-        @test (lml, y_cor) == correlate(ssm, α)
-        @test lml ≈ logpdf(ssm, y)
-        @test y_cor ≈ y
-        @test y_cor == unwhiten(ssm, α)
+    @testset "$(data.name)" for data in [
+        (name="no-missings", y=y_no_missing),
+        (name="with-missings", y=y_missing),
+    ]
+        _check_infers = data.name == "with-missings" ? false : check_infers
 
-        _lml, _y = logpdf_and_rand(rng, ssm)
-        @test _lml ≈ logpdf(ssm, _y)
-        @test length(_y) == length(y)
+        y = data.y
+        lml, α, xs = decorrelate(ssm, y)
 
-        if check_infers
-            @inferred correlate(ssm, α, copy_first)
-            @inferred correlate(ssm, α, pick_last)
-            @inferred correlate(ssm, α)
-            @inferred unwhiten(ssm, α)
-            @inferred rand(rng, ssm)
-            @inferred logpdf_and_rand(rng, ssm)
+        @testset "decorrelate" begin
+            @test lml == logpdf(ssm, y)
+            @test α == whiten(ssm, y)
+            @test xs == _filter(ssm, y)
+
+            if _check_infers
+                @inferred decorrelate(ssm, y)
+                @inferred logpdf(ssm, y)
+                @inferred whiten(ssm, y)
+                @inferred _filter(ssm, y)
+            end
+
+            if check_adjoints
+                adjoint_test(
+                    decorrelate, (ssm, y);
+                    check_infers=_check_infers, context=NoContext(), kwargs...,
+                )
+                Δoutput = rand_zygote_tangent((lml, α, xs))
+                @testset "$(typeof(a1)), $(typeof(a2)), $(typeof(a3))" for
+                    a1 in [nothing, Δoutput[1]],
+                    a2 in [nothing, Δoutput[2]],
+                    a3 in [nothing, Δoutput[3]]
+
+                    adjoint_test(
+                        decorrelate, (a1, a2, a3), (ssm, y);
+                        check_infers=_check_infers, kwargs...,
+                    )
+                end
+                adjoint_test(logpdf, (ssm, y); check_infers=_check_infers, kwargs...)
+                adjoint_test(whiten, (ssm, y); check_infers=_check_infers, kwargs...)
+                adjoint_test(_filter, (ssm, y); check_infers=_check_infers, kwargs...)
+            end
         end
 
-        if check_adjoints
-            adjoint_test(correlate, (ssm, α, copy_first); check_infers=check_infers, kwargs...)
-            adjoint_test(correlate, (ssm, α, pick_last); check_infers=check_infers, kwargs...)
-            adjoint_test(correlate, (ssm, α); check_infers=check_infers, kwargs...)
-            adjoint_test(unwhiten, (ssm, α); check_infers=check_infers, kwargs...)
-            adjoint_test(ssm -> rand(deepcopy(rng), ssm), (ssm, ); check_infers=check_infers, kwargs...)
-            adjoint_test(ssm -> logpdf_and_rand(deepcopy(rng), ssm), (ssm, ); check_infers=check_infers, kwargs...)
+        data.name == "with-missings" && continue
+
+        @testset "correlate" begin
+            lml, y_cor, xs = correlate(ssm, α)
+
+            @test lml ≈ logpdf(ssm, y)
+            @test y_cor ≈ y
+            @test y_cor == unwhiten(ssm, α)
+
+            _lml, _y = logpdf_and_rand(rng, ssm)
+            @test _lml ≈ logpdf(ssm, _y)
+            @test length(_y) == length(y)
+
+            if check_infers
+                @inferred correlate(ssm, α)
+                @inferred unwhiten(ssm, α)
+                @inferred rand(rng, ssm)
+                @inferred logpdf_and_rand(rng, ssm)
+            end
+
+            if check_adjoints
+                Δoutput = rand_zygote_tangent((lml, y_cor, xs))
+                @testset "$(typeof(a1)), $(typeof(a2)), $(typeof(a3))" for
+                    a1 in [nothing, Δoutput[1]],
+                    a2 in [nothing, Δoutput[2]],
+                    a3 in [nothing, Δoutput[3]]
+
+                    adjoint_test(
+                        correlate, (a1, a2, a3), (ssm, α);
+                        check_infers=check_infers, kwargs...,
+                    )
+                end
+                adjoint_test(unwhiten, (ssm, α); check_infers=check_infers, kwargs...)
+                adjoint_test(
+                    ssm -> rand(deepcopy(rng), ssm), (ssm, );
+                    check_infers=check_infers, kwargs...,
+                )
+                adjoint_test(
+                    ssm -> logpdf_and_rand(deepcopy(rng), ssm), (ssm, );
+                    check_infers=check_infers, kwargs...,
+                )
+            end
         end
-    end
 
-    @testset "statistics" begin
-        ds = marginals(ssm)
-        @test vcat(mean.(ds)...) ≈ mean(ssm)
-        if ds isa AbstractVector{<:Gaussian}
-            @test vcat(diag.(cov.(ds))...) ≈ diag(cov(ssm))
-        else
-            @test vcat(var.(ds)) ≈ diag(cov(ssm))
+        @testset "statistics" begin
+            ds = marginals(ssm)
+            @test vcat(mean.(ds)...) ≈ mean(ssm)
+            if ds isa AbstractVector{<:Gaussian}
+                @test vcat(diag.(cov.(ds))...) ≈ diag(cov(ssm))
+            else
+                @test vcat(var.(ds)) ≈ diag(cov(ssm))
+            end
+
+            @test isapprox(logpdf(Gaussian(mean(ssm), cov(ssm)), vcat(y...)), lml)
+
+            check_infers && @inferred marginals(ssm)
+            # adjoint_test(marginals, (ssm, ); check_infers=check_infers, kwargs...)
         end
-
-        @test isapprox(logpdf(Gaussian(mean(ssm), cov(ssm)), vcat(y...)), lml_decor)
-
-        check_infers && @inferred marginals(ssm)
-        # adjoint_test(marginals, (ssm, ); check_infers=check_infers, kwargs...)
     end
 end
 

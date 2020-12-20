@@ -36,21 +36,22 @@ include("test_util.jl")
         include(joinpath("models", "gauss_markov.jl"))
         include(joinpath("models", "lgssm.jl"))
         include(joinpath("models", "immutable_inference.jl"))
-        include(joinpath("models", "checkpointed_immutable_pullbacks.jl"))
+        # include(joinpath("models", "checkpointed_immutable_pullbacks.jl"))
         include(joinpath("models", "scalar_lgssm.jl"))
+        include(joinpath("models", "missings.jl"))
     end
 
-    @testset "gp" begin
-        include(joinpath("gp", "to_gauss_markov.jl"))
-        include(joinpath("gp", "lti_sde.jl"))
-        include(joinpath("gp", "finite_lti_sde.jl"))
-        include(joinpath("gp", "posterior_lti_sde.jl"))
-    end
+    # @testset "gp" begin
+    #     include(joinpath("gp", "to_gauss_markov.jl"))
+    #     include(joinpath("gp", "lti_sde.jl"))
+    #     include(joinpath("gp", "finite_lti_sde.jl"))
+    #     include(joinpath("gp", "posterior_lti_sde.jl"))
+    # end
 
-    println("space_time:")
-    @testset "space_time" begin
-        include(joinpath("space_time", "rectilinear_grid.jl"))
-        include(joinpath("space_time", "separable_kernel.jl"))
-        include(joinpath("space_time", "to_gauss_markov.jl"))
-    end
+    # println("space_time:")
+    # @testset "space_time" begin
+    #     include(joinpath("space_time", "rectilinear_grid.jl"))
+    #     include(joinpath("space_time", "separable_kernel.jl"))
+    #     include(joinpath("space_time", "to_gauss_markov.jl"))
+    # end
 end
