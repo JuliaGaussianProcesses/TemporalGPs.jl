@@ -290,7 +290,6 @@ function fd_isapprox(x::Real, y::Zero, rtol, atol)
     return fd_isapprox(x, zero(x), rtol, atol)
 end
 
-
 function adjoint_test(
     f, ȳ, x::Tuple, ẋ::Tuple;
     rtol=1e-9,
