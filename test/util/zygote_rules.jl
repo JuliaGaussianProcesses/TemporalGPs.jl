@@ -1,5 +1,5 @@
 using StaticArrays
-using TemporalGPs: time_exp, logdet_pullback, cholesky_pullback
+using TemporalGPs: time_exp, logdet_pullback
 
 @testset "zygote_rules" begin
     @testset "SVector" begin
@@ -74,8 +74,8 @@ using TemporalGPs: time_exp, logdet_pullback, cholesky_pullback
         Cs = cholesky(Ss)
 
         @testset "cholesky" begin
-            C_fwd, pb = cholesky_pullback(Symmetric(S))
-            Cs_fwd, pbs = cholesky_pullback(Symmetric(Ss))
+            C_fwd, pb = Zygote.pullback(cholesky, Symmetric(S))
+            Cs_fwd, pbs = Zygote.pullback(cholesky, Symmetric(Ss))
 
             @test eltype(C_fwd) == T
             @test eltype(Cs_fwd) == T
@@ -89,12 +89,12 @@ using TemporalGPs: time_exp, logdet_pullback, cholesky_pullback
             ΔS, = pb((factors=ΔC, ))
             ΔSs, = pbs((factors=ΔCs, ))
 
-            @test ΔS ≈ ΔSs
+            @test ΔS ≈ ΔSs.data
             @test eltype(ΔS) == T
-            @test eltype(ΔSs) == T
+            @test eltype(ΔSs.data) == T
 
             @test allocs(@benchmark(cholesky(Symmetric($Ss)); samples=1, evals=1)) == 0
-            @test allocs(@benchmark(cholesky_pullback(Symmetric($Ss)); samples=1, evals=1)) == 0
+            @test allocs(@benchmark(Zygote._pullback($(Context()), cholesky, Symmetric($Ss)); samples=1, evals=1)) == 0
             @test allocs(@benchmark($pbs((factors=$ΔCs,)); samples=1, evals=1)) == 0
         end
         @testset "logdet" begin

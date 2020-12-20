@@ -14,7 +14,7 @@ using Zygote
 using FiniteDifferences: rand_tangent
 using Kronecker: KroneckerProduct
 using Stheno: var
-using TemporalGPs: AbstractSSM, _filter, whiten, unwhiten
+using TemporalGPs: AbstractSSM, _filter, whiten, unwhiten, NoContext
 using Zygote: Context, _pullback
 
 include("test_util.jl")
@@ -30,16 +30,19 @@ include("test_util.jl")
         include(joinpath("util", "regular_data.jl"))
     end
 
+    println("models:")
     include(joinpath("models", "model_test_utils.jl"))
     include(joinpath("models", "test_model_test_utils.jl"))
     @testset "models" begin
         include(joinpath("models", "gauss_markov.jl"))
         include(joinpath("models", "lgssm.jl"))
         include(joinpath("models", "immutable_inference.jl"))
-        include(joinpath("models", "checkpointed_immutable_pullbacks.jl"))
+        # include(joinpath("models", "checkpointed_immutable_pullbacks.jl"))
         include(joinpath("models", "scalar_lgssm.jl"))
+        include(joinpath("models", "missings.jl"))
     end
 
+    println("gp:")
     @testset "gp" begin
         include(joinpath("gp", "to_gauss_markov.jl"))
         include(joinpath("gp", "lti_sde.jl"))

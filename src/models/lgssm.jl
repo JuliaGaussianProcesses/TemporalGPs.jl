@@ -11,6 +11,14 @@ struct LGSSM{Tgmm<:GaussMarkovModel, TΣ<:AV{<:AM{<:Real}}} <: AbstractSSM
     Σ::TΣ
 end
 
+function Zygote._pullback(
+    ::AContext, ::Type{<:LGSSM}, gmm::GaussMarkovModel, Σ::AV{<:AM{<:Real}},
+)
+    LGSSM_pullback(::Nothing) = (nothing, nothing, nothing)
+    LGSSM_pullback(Δ::NamedTuple) = (nothing, Δ.gmm, Δ.Σ)
+    return LGSSM(gmm, Σ), LGSSM_pullback
+end
+
 Base.:(==)(x::LGSSM, y::LGSSM) = (x.gmm == y.gmm) && (x.Σ == y.Σ)
 
 Base.length(ft::LGSSM) = length(ft.gmm)
@@ -55,7 +63,7 @@ intermediate quantities.
 """
 function smooth(model::LGSSM, ys::AbstractVector)
 
-    lml, x_filter = _filter(model, ys)
+    lml, _, x_filter = decorrelate(model, ys)
     ε = convert(eltype(model), 1e-12)
 
     # Smooth
@@ -129,7 +137,7 @@ function posterior_rand(
     ys::Vector{<:AV{<:Real}},
     N_samples::Int,
 )
-    _, x_filter = _filter(model, ys)
+    x_filter = _filter(model, ys)
 
     chol_Q = cholesky.(Symmetric.(model.gmm.Q .+ Ref(1e-15I)))
 
@@ -160,35 +168,15 @@ end
 
 
 #
-# This dispatch to methods specialised to the array type used to represent the LGSSM.
-#
-
-decorrelate(model::AbstractSSM, y::AbstractVector) = decorrelate(model, y, copy_first)
-correlate(model::AbstractSSM, y::AbstractVector) = correlate(model, y, copy_first)
-
-
-
-#
 # Things defined in terms of decorrelate
 #
 
+Stheno.logpdf(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys)[1]
+
 whiten(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys)[2]
 
-# For _some_ reason beyond my comprehension, this adjoint ensures type-stability.
-function Zygote._pullback(
-    ctx::Zygote.Context, ::typeof(whiten), model::AbstractSSM, ys::AbstractVector,
-)
-    out, pb = Zygote._pullback(ctx, decorrelate, model, ys, copy_first)
-    function whiten_pullback(Δ)
-        _, Δmodel, Δys, _ = pb((0, Δ))
-        return nothing, Δmodel, Δys
-    end
-    return out[2], whiten_pullback
-end
+_filter(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys)[3]
 
-Stheno.logpdf(model::AbstractSSM, ys::AbstractVector) = first(decorrelate(model, ys))
-
-_filter(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys, pick_last)
 
 #
 # Things defined in terms of correlate
@@ -200,20 +188,9 @@ end
 
 unwhiten(model::AbstractSSM, αs::AbstractVector) = correlate(model, αs)[2]
 
-# For _some_ reason beyond my comprehension, this adjoint ensures type-stability.
-function Zygote._pullback(
-    ctx::Zygote.Context, ::typeof(unwhiten), model::AbstractSSM, αs::AbstractVector,
-)
-    out, pb = Zygote._pullback(ctx, correlate, model, αs, copy_first)
-    function unwhiten_pullback(Δ)
-        _, Δmodel, Δαs, _ = pb((0, Δ))
-        return nothing, Δmodel, Δαs
-    end
-    return out[2], unwhiten_pullback
-end
-
 function logpdf_and_rand(rng::AbstractRNG, model::AbstractSSM)
-    return correlate(model, rand_αs(rng, model))
+    lml, ys, _ = correlate(model, rand_αs(rng, model))
+    return lml, ys
 end
 
 function rand_αs(rng::AbstractRNG, model::AbstractSSM)

@@ -15,7 +15,7 @@ function test_harmonise(a, b; recurse=true)
     @test are_harmonised(h[1], h′[2])
 end
 
-@testset "haromonise" begin
+@testset "harmonise" begin
     test_harmonise(5.0, 4.0)
 
     @testset "AbstractZero" begin

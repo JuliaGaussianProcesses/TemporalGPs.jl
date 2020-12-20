@@ -1,37 +1,24 @@
 #
 # This file contains pullbacks for stuff in immutable_inference.jl. There is no good reason
-# to understand what's going on here.
+# to understand what's going on here unless you're working on AD and this package.
 #
 
 #
 # Objects in which to storage / accumulate the adjoint w.r.t. the hypers.
 #
 
-function get_adjoint_storage(x::Vector, init::T) where {T<:AbstractVecOrMat{<:Real}}
-    Δx = Vector{T}(undef, length(x))
-    Δx[end] = init
-    return Δx
-end
+zeroed_adjoint(x::Array{<:Real}) = zero(x)
+zeroed_adjoint(x::SArray{<:Any, <:Real}) = zero(x)
+zeroed_adjoint(::Type{T}) where {T<:Real} = zero(T)
+zeroed_adjoint(::Type{Union{Nothing, T}}) where {T<:Real} = nothing
 
-get_adjoint_storage(x::Fill, init) = (value=init,)
+zeroed_adjoint(x::Gaussian) = (m=zeroed_adjoint(x.m), P=zeroed_adjoint(x.P))
 
-function get_adjoint_storage(x::LGSSM, Δx::NamedTuple{(:gmm, :Σ)})
-    return (
-        gmm = get_adjoint_storage(x.gmm, Δx.gmm),
-        Σ = get_adjoint_storage(x.Σ, Δx.Σ),
-    )
-end
+get_adjoint(Δx::AbstractVector, n::Int) = Δx[n]
+get_adjoint(::Nothing, ::Int) = nothing
 
-function get_adjoint_storage(x::GaussMarkovModel, Δx::NamedTuple{(:A, :a, :Q, :H, :h)})
-    return (
-        A = get_adjoint_storage(x.A, Δx.A),
-        a = get_adjoint_storage(x.a, Δx.a),
-        Q = get_adjoint_storage(x.Q, Δx.Q),
-        H = get_adjoint_storage(x.H, Δx.H),
-        h = get_adjoint_storage(x.h, Δx.h),
-    )
-end
-
+get_adjoint(x, Δx::AbstractVector, n::Int) = Δx[n]
+get_adjoint(x, ::Nothing, ::Int) = zeroed_adjoint(x)
 
 # Diagonal type constraint for the compiler's benefit.
 @inline function _accum_at(Δxs::Vector{T}, n::Int, Δx::T) where {T}
@@ -67,85 +54,78 @@ end
 
 _accum_at(Δxs::Nothing, n::Int, Δx::Nothing) = nothing
 
-function get_pb(::typeof(copy_first))
-    copy_first_pullback(Δ) = (copy(Δ), nothing)
-    copy_first_pullback(Δ::Nothing) = (nothing, nothing)
-    return copy_first_pullback
+function get_adjoint_storage(x::Vector, init::T) where {T<:AbstractVecOrMat{<:Real}}
+    Δx = Vector{T}(undef, length(x))
+    Δx[end] = init
+    return Δx
 end
 
-get_pb(::typeof(pick_last)) = Δ->(nothing, Δ)
+get_adjoint_storage(x::Fill, init) = (value=init,)
+
+function get_adjoint_storage(x::LGSSM, Δx::NamedTuple{(:gmm, :Σ)})
+    return (
+        gmm = get_adjoint_storage(x.gmm, Δx.gmm),
+        Σ = get_adjoint_storage(x.Σ, Δx.Σ),
+    )
+end
+
+function get_adjoint_storage(x::GaussMarkovModel, Δx::NamedTuple{(:A, :a, :Q, :H, :h)})
+    return (
+        A = get_adjoint_storage(x.A, Δx.A),
+        a = get_adjoint_storage(x.a, Δx.a),
+        Q = get_adjoint_storage(x.Q, Δx.Q),
+        H = get_adjoint_storage(x.H, Δx.H),
+        h = get_adjoint_storage(x.h, Δx.h),
+    )
+end
 
 for (foo, step_foo, foo_pullback) in [
     (:correlate, :step_correlate, :correlate_pullback),
     (:decorrelate, :step_decorrelate, :decorrelate_pullback),
 ]
     @eval function Zygote._pullback(
-        ::AContext, ::typeof($foo), model::LGSSM, ys::AV{<:AV{<:Real}}, f,
+        ::AContext, ::typeof($foo), model::LGSSM, ys::AbstractVector{<:AbstractVector},
     )
-        @assert length(model) == length(ys)
-        T = length(model)
+        lml, αs, xs = $foo(model, ys)
 
-        # Pre-allocate for filtering distributions. The indexing is slightly different for
-        # these than for other quantities. In particular, xs[t] := x_{t-1}.
-        xs = Vector{typeof(model.gmm.x0)}(undef, T + 1)
-        xs[1] = model.gmm.x0 # the filtering distribution at t = 0
-
-        # Process first observation.
-        lml, α, x = $step_foo(model[1], xs[1], first(ys))
-        xs[2] = x # the filtering distribution at t = 1
-
-        # Allocate for remainder of operations.
-        v = f(α, x)
-        vs = Vector{typeof(v)}(undef, T)
-        vs[1] = v
-
-        # Process remaining observations.
-        for t in 2:T
-            lml_, α, x = $step_foo(model[t], xs[t], ys[t])
-            xs[t + 1] = x # the filtering distribution at t = t.
-            lml += lml_
-            vs[t] = f(α, x)
+        function step_pullback(t::Int, Δlml, Δαs, Δx, model, ys)
+            x = t > 1 ? xs[t - 1] : model.gmm.x0
+            _, pb = _pullback(NoContext(), $step_foo, model[t], x, ys[t])
+            Δ_t = (Δlml, get_adjoint(αs[t], Δαs, t), Δx)
+            _, Δmodel_t, Δx, Δy = pb(Δ_t)
+            return Δmodel_t, Δx, Δy
         end
 
-        function $foo_pullback(Δ::Tuple{Any, Union{AbstractVector, Nothing}})
+        function $foo_pullback(
+            Δ::Union{
+                Nothing,
+                Tuple{Any, Union{AbstractVector, Nothing}, Union{AbstractVector, Nothing}},
+            },
+        )
 
+            Δ = Δ === nothing ? (nothing, nothing, nothing) : Δ
             Δlml = Δ[1]
-            Δvs = Δ[2] isa Nothing ? Fill(nothing, T) : Δ[2]
+            Δαs = Δ[2]
+            Δxs = Δ[3]
 
-            # Compute the pullback through the last element of the chain to get
-            # initialisations for cotangents to accumulate.
-            Δys = Vector{eltype(ys)}(undef, T)
-            (Δα, Δx__) = get_pb(f)(last(Δvs))
-            if Δα === nothing
-                Δα = zero(first(ys))
-            end
-            _, pullback_last = _pullback(NoContext(), $step_foo, model[T], xs[T], ys[T])
-            Δstep_foo, Δmodel_at_T, Δx, Δy = pullback_last((Δlml, Δα, Δx__))
-            Δmodel = get_adjoint_storage(model, Δmodel_at_T)
-            Δys[T] = Δy
+            # Get model adjoint type by performing 1st iteration of reverse-pass.
+            T = length(model)
+            Δmodel_T, Δx, Δy = step_pullback(T, Δlml, Δαs, get_adjoint(Δxs, T), model, ys)
+            Δmodel = get_adjoint_storage(model, Δmodel_T)
+            Δys = get_adjoint_storage(ys, Δy)
 
-            # Work backwards through the chain.
-            for t in reverse(1:T-1)
-                Δα, Δx__ = get_pb(f)(Δvs[t])
-                if Δα === nothing
-                    Δα = zero(first(ys))
-                end
-                Δx_ = Zygote.accum(Δx, Δx__)
-                _, pullback_t = _pullback(NoContext(), $step_foo, model[t], xs[t], ys[t])
-                _, Δmodel_at_t, Δx, Δy = pullback_t((Δlml, Δα, Δx_))
-                Δmodel = _accum_at(Δmodel, t, Δmodel_at_t)
+            # Iterate backwards through the data.
+            for t in reverse(1:(T-1))
+                Δx = accum(get_adjoint(Δxs, t), Δx)
+                Δmodel_t, Δx, Δy = step_pullback(t, Δlml, Δαs, Δx, model, ys)
+                Δmodel = _accum_at(Δmodel, t, Δmodel_t)
                 Δys[t] = Δy
             end
 
-            # Merge all gradient info associated with the model into the same place.
-            Δmodel_ = (
-                gmm = merge(Δmodel.gmm, (x0=Δx,)),
-                Σ = Δmodel.Σ,
-            )
-
-            return nothing, Δmodel_, Δys, nothing
+            return nothing, (gmm=merge(Δmodel.gmm, (x0=Δx,)), Σ=Δmodel.Σ), Δys
         end
 
-        return (lml, vs), $foo_pullback
+        return (lml, αs, xs), $foo_pullback
     end
+
 end

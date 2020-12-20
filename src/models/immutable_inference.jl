@@ -2,10 +2,6 @@
 # High-level inference stuff that you really only want to have to write once...
 #
 
-copy_first(a, b) = copy(a)
-
-pick_last(a, b) = b
-
 function Stheno.marginals(model::LGSSM)
 
     # Allocate for marginals based on type of initial state.
@@ -15,7 +11,7 @@ function Stheno.marginals(model::LGSSM)
     ys[1] = y
 
     # Process all latents.
-    @inbounds for t in 2:length(model)
+    for t in 2:length(model)
         x = predict(model[t], x)
         ys[t] = observe(model[t], x)
     end
@@ -23,40 +19,39 @@ function Stheno.marginals(model::LGSSM)
     return ys
 end
 
-function decorrelate(model::LGSSM, ys::AV{<:AV{<:Real}}, f)
+function decorrelate(model::LGSSM, ys::AbstractVector{T}) where {T<:AbstractVector}
     @assert length(model) == length(ys)
 
-    # Process first latent.
-    lml, α, x = step_decorrelate(model[1], model.gmm.x0, first(ys))
-    v = f(α, x)
-    vs = Vector{typeof(v)}(undef, length(model))
-    vs[1] = v
+    x = model.gmm.x0
+    αs = Vector{T}(undef, length(model))
+    xs = Vector{typeof(x)}(undef, length(model))
+    lml = zero(eltype(model))
 
-    # Process remaining latents.
-    @inbounds for t in 2:length(model)
+    for t in 1:length(model)
         lml_, α, x = step_decorrelate(model[t], x, ys[t])
         lml += lml_
-        vs[t] = f(α, x)
+        αs[t] = α
+        xs[t] = x
     end
-    return lml, vs
+
+    return lml, αs, xs
 end
 
-function correlate(model::LGSSM, αs::AV{<:AV{<:Real}}, f)
+function correlate(model::LGSSM, αs::AbstractVector{T}) where {T<:AbstractVector}
     @assert length(model) == length(αs)
 
-    # Process first latent.
-    lml, y, x = step_correlate(model[1], model.gmm.x0, first(αs))
-    v = f(y, x)
-    vs = Vector{typeof(v)}(undef, length(model))
-    vs[1] = v
+    x = model.gmm.x0
+    ys = Vector{T}(undef, length(model))
+    xs = Vector{typeof(x)}(undef, length(model))
+    lml = zero(eltype(model))
 
-    # Process remaining latents.
-    @inbounds for t in 2:length(model)
+    for t in 1:length(model)
         lml_, y, x = step_correlate(model[t], x, αs[t])
         lml += lml_
-        vs[t] = f(y, x)
+        ys[t] = y
+        xs[t] = x
     end
-    return lml, vs
+    return lml, ys, xs
 end
 
 
@@ -65,14 +60,14 @@ end
 # step decorrelate / correlate
 #
 
-@inline function step_decorrelate(model::NamedTuple{(:gmm, :Σ)}, x::Gaussian, y::AV{<:Real})
+@inline function step_decorrelate(model::NamedTuple{(:gmm, :Σ)}, x::Gaussian, y)
     gmm = model.gmm
     mp, Pp = predict(x.m, x.P, gmm.A, gmm.a, gmm.Q)
     mf, Pf, lml, α = update_decorrelate(mp, Pp, gmm.H, gmm.h, model.Σ, y)
     return lml, α, Gaussian(mf, Pf)
 end
 
-@inline function step_correlate(model::NamedTuple{(:gmm, :Σ)}, x::Gaussian, α::AV{<:Real})
+@inline function step_correlate(model::NamedTuple{(:gmm, :Σ)}, x::Gaussian, α)
     gmm = model.gmm
     mp, Pp = predict(x.m, x.P, gmm.A, gmm.a, gmm.Q)
     mf, Pf, lml, y = update_correlate(mp, Pp, gmm.H, gmm.h, model.Σ, α)
@@ -92,7 +87,6 @@ end
 @inline function update_decorrelate(
     mp::AV{T}, Pp::AM{T}, H::AM{T}, h::AV{T}, Σ::AM{T}, y::AV{T},
 ) where {T<:Real}
-
     V = H * Pp
     S_1 = V * H' + Σ
     S = cholesky(Symmetric(S_1))
