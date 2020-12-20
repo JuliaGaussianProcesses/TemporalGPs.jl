@@ -63,7 +63,6 @@ intermediate quantities.
 """
 function smooth(model::LGSSM, ys::AbstractVector)
 
-    # lml, x_filter = _filter(model, ys)
     lml, _, x_filter = decorrelate(model, ys)
     ε = convert(eltype(model), 1e-12)
 
