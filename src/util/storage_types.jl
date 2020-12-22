@@ -6,6 +6,8 @@ is_of_storage_type(::Any, ::StorageType) = false
 
 is_of_storage_type(::T, ::StorageType{T}) where {T<:Real} = true
 
+is_of_storage_type(x::AbstractArray{<:Real}, s::StorageType) = false
+
 is_of_storage_type(x::AbstractArray, s::StorageType) = all(is_of_storage_type.(x, Ref(s)))
 
 # A Tuple of objects are of a particular storage type if each element of the tuple is of

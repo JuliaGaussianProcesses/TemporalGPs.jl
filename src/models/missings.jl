@@ -7,7 +7,9 @@
 #
 # In an ideal world, strategy 1 would work. Unfortunately Zygote isn't up to it yet.
 
-function decorrelate(model::LGSSM, ys::AbstractVector{<:Union{T, Missing}}) where {T}
+function decorrelate(
+    model::LGSSM, ys::AbstractVector{<:Union{T, Missing}},
+) where {T<:AbstractVector{<:Real}}
     Σs_filled_in, ys_filled_in = fill_in_missings(model.Σ, ys)
     model_with_missings = LGSSM(model.gmm, Σs_filled_in)
     uncorrected_lml, αs, xs = decorrelate(model_with_missings, ys_filled_in)
@@ -17,7 +19,7 @@ end
 
 function fill_in_missings(
     Σs::AbstractVector{<:AbstractMatrix}, y::AbstractVector{Union{T, Missing}},
-) where {T}
+) where {T<:AbstractVector{<:Real}}
 
     # Fill in observation covariance matrices with very large values.
     Σs_filled_in = map(n -> y[n] isa Missing ? build_large_var(Σs[n]) : Σs[n], eachindex(y))

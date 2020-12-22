@@ -50,43 +50,17 @@ function cov(model::LGSSM)
     return S + Σ
 end
 
-"""
-    _compute_ms(mf::AV, Gt::AM, ms′::AV, mp′::AV)
-
-Compute the smoothing mean `ms`, given the filtering mean `mf`, transpose of the smoothing
-gain `Gt`, smoothing mean at the next time step `ms′`, and predictive mean at next time step
-`mp′`.
-"""
-_compute_ms(mf::AV, Gt::AM, ms′::AV, mp′::AV) = mf + Gt' * (ms′ - mp′)
-
-"""
-    _compute_Ps(Pf::AM, Gt::AM, Ps′::AM, Pp′::AM)
-
-Compute the smoothing covariance `Ps`, given the filtering covariance `Pf`, transpose of the
-smoothing gain `Gt`, smoothing covariance at the next time step `Ps′`, and the predictive
-covariance at the next time step `Pp′`.
-"""
-_compute_Ps(Pf::AM, Gt::AM, Ps′::AM, Pp′::AM) = Pf + Gt' * (Ps′ - Pp′) * Gt
-
-function _compute_Ps(
-    Pf::Symmetric{<:Real, <:Matrix},
-    Gt::Matrix,
-    Ps′::Symmetric{<:Real, <:Matrix},
-    Pp′::Matrix,
-)
-    return Symmetric(Pf + Gt' * (Ps′ - Pp′) * Gt)
-end
-
 function predict(model::NamedTuple{(:gmm, :Σ)}, x)
     gmm = model.gmm
     return Gaussian(predict(x.m, x.P, gmm.A, gmm.a, gmm.Q)...)
 end
 
 function observe(model::NamedTuple{(:gmm, :Σ)}, x::Gaussian)
-    gmm = model.gmm
-    m_obs = gmm.H * x.m + gmm.h
-    P_obs = gmm.H * x.P * gmm.H' + model.Σ
-    return Gaussian(m_obs, P_obs)
+    return observe(model.gmm.H, model.gmm.h, model.Σ, x)
+end
+
+function observe(H::AbstractMatrix, h::AbstractVector, Σ::AbstractMatrix, x::Gaussian)
+    return Gaussian(H * x.m + h, H * x.P * H' + Σ)
 end
 
 """
@@ -157,7 +131,7 @@ function logpdf_and_rand(rng::AbstractRNG, model::AbstractSSM)
     return lml, ys
 end
 
-function rand_αs(rng::AbstractRNG, model::AbstractSSM)
+function rand_αs(rng::AbstractRNG, model::LGSSM)
     D = dim_obs(model)
     α = randn(rng, eltype(model), length(model) * D)
     return [α[(n - 1) * D + 1:n * D] for n in 1:length(model)]

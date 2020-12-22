@@ -144,6 +144,20 @@ function random_ti_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
 end
 
 
+function random_tv_posterior_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
+    lgssm = random_tv_lgssm(rng, Dlat, Dobs, N, storage)
+    y = rand(rng, lgssm)
+    Σs = map(_ -> random_nice_psd_matrix(rng, Dobs, storage), eachindex(y))
+    return posterior(lgssm, y, Σs)
+end
+
+function random_ti_posterior_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
+    lgssm = random_ti_lgssm(rng, Dlat, Dobs, N, storage)
+    y = rand(rng, lgssm)
+    Σs = Fill(random_nice_psd_matrix(rng, Dobs, storage), length(lgssm))
+    return posterior(lgssm, y, Σs)
+end
+
 
 #
 # Validation of internal consistency.

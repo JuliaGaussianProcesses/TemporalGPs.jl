@@ -19,7 +19,7 @@ function Stheno.marginals(model::LGSSM)
     return ys
 end
 
-function decorrelate(model::LGSSM, ys::AbstractVector{T}) where {T<:AbstractVector}
+function decorrelate(model::LGSSM, ys::AbstractVector{T}) where {T<:AbstractVector{<:Real}}
     @assert length(model) == length(ys)
 
     x = model.gmm.x0
@@ -37,7 +37,7 @@ function decorrelate(model::LGSSM, ys::AbstractVector{T}) where {T<:AbstractVect
     return lml, αs, xs
 end
 
-function correlate(model::LGSSM, αs::AbstractVector{T}) where {T<:AbstractVector}
+function correlate(model::LGSSM, αs::AbstractVector{T}) where {T<:AbstractVector{<:Real}}
     @assert length(model) == length(αs)
 
     x = model.gmm.x0

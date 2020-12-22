@@ -1,16 +1,6 @@
 using ChainRulesCore: backing
 using TemporalGPs: Gaussian, correlate, decorrelate, harmonise
 
-create_psd_matrix(A::AbstractMatrix) = A * A' + I
-
-function create_psd_stable_matrix(A::AbstractMatrix)
-    B = create_psd_matrix(A)
-    λ, U = eigen(B)
-    λ .+= 1
-    λ ./= (maximum(λ) + 1e-1 * maximum(λ))
-    return Matrix(Symmetric(U * Diagonal(λ) * U'))
-end
-
 
 
 # Make FiniteDifferences work with some of the types in this package. Shame this isn't
@@ -137,7 +127,13 @@ function to_vec(model::TemporalGPs.CheckpointedLGSSM)
     return model_vec, CheckpointedLGSSM_from_vec
 end
 
-
+function to_vec(model::TemporalGPs.PosteriorLGSSM)
+    model_vec, lgssm_from_vec = to_vec(model.model)
+    function PosteriorLGSSM_from_vec(model_vec)
+        return TemporalGPs.PosteriorLGSSM(lgssm_from_vec(model_vec))
+    end
+    return model_vec, PosteriorLGSSM_from_vec
+end
 
 function to_vec(X::BlockDiagonal)
     Xs = blocks(X)
@@ -290,6 +286,14 @@ function fd_isapprox(x::Real, y::Zero, rtol, atol)
     return fd_isapprox(x, zero(x), rtol, atol)
 end
 
+function fd_isapprox(x::T, y::T, rtol, atol) where {T}
+    if !isstructtype(T)
+        throw(ArgumentError("Non-struct types are not supported by this fallback."))
+    end
+
+    return all(n -> fd_isapprox(getfield(x, n), getfield(y, n), rtol, atol), fieldnames(T))
+end
+
 function adjoint_test(
     f, ȳ, x::Tuple, ẋ::Tuple;
     rtol=1e-9,
@@ -308,6 +312,8 @@ function adjoint_test(
     ẏ = jvp(fdm, f, zip(x, ẋ)...)
     inner_fd = dot(harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)...)
 
+    # @show inner_fd - inner_ad
+
     # Check that Zygote didn't modify the forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)
 
@@ -316,8 +322,8 @@ function adjoint_test(
 
     # Check type inference if requested.
     if check_infers
-        # @code_warntype Zygote._pullback(context, f, x...)
-        # @code_warntype pb(ȳ)
+        @code_warntype Zygote._pullback(context, f, x...)
+        @code_warntype pb(ȳ)
         @inferred Zygote._pullback(context, f, x...)
         @inferred pb(ȳ)
     end
@@ -449,6 +455,10 @@ function ssm_interface_tests(
         lml, α, xs = decorrelate(ssm, y)
 
         @testset "decorrelate" begin
+
+            @test is_of_storage_type(α, storage_type(ssm))
+            @test is_of_storage_type(xs, storage_type(ssm))
+
             @test lml == logpdf(ssm, y)
             @test α == whiten(ssm, y)
             @test xs == _filter(ssm, y)
@@ -486,6 +496,9 @@ function ssm_interface_tests(
 
         @testset "correlate" begin
             lml, y_cor, xs = correlate(ssm, α)
+
+            @test is_of_storage_type(y_cor, storage_type(ssm))
+            @test is_of_storage_type(xs, storage_type(ssm))
 
             @test lml ≈ logpdf(ssm, y)
             @test y_cor ≈ y
