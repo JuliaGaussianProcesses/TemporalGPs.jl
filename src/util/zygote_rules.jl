@@ -14,6 +14,8 @@ Zygote.accum_param(::NoContext, x, Δ) = Δ
 
 @inline Zygote.accum(as::Tuple...) = map(accum, as...)
 
+@inline Zygote.accum(as::AbstractArray...) = map(accum, as...)
+
 @inline Zygote.accum(a::Tuple, b::Tuple, c::Nothing) = map(accum, a, b)
 
 @adjoint function SVector{D}(x::AbstractVector) where {D}

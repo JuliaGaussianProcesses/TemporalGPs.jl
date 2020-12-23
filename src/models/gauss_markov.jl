@@ -25,6 +25,13 @@ struct GaussMarkovModel{
     x0::Tx0
 end
 
+function Zygote._pullback(::AContext, ::Type{<:GaussMarkovModel}, A, a, Q, H, h, x0)
+    function GaussMarkovModel_pullback(Δ)
+        return (nothing, Δ.A, Δ.a, Δ.Q, Δ.H, Δ.h, Δ.x0)
+    end
+    return GaussMarkovModel(A, a, Q, H, h, x0), GaussMarkovModel_pullback
+end
+
 function Base.eltype(
     ::GaussMarkovModel{<:AbstractVector{TA}},
 ) where {T<:Real, TA<:AbstractMatrix{T}}

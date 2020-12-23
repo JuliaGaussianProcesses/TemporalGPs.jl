@@ -37,13 +37,12 @@ function cov(model::PosteriorLGSSM)
     return vcat(x_unflipped...)
 end
 
-function transition_dynamics(model::LGSSM, t::Int)
-    t = t > length(model) ? length(model) : t
-    return (A=model.gmm.A[t], a=model.gmm.a[t], Q=model.gmm.Q[t])
+@inline function transition_dynamics(model::LGSSM)
+    return map((A, a, Q) -> (A=A, a=a, Q=Q), model.gmm.A, model.gmm.a, model.gmm.Q)
 end
 
-function emission_dynamics(model::LGSSM, t::Int)
-    return (H=model.gmm.H[t], h=model.gmm.h[t], Σ=model.Σ[t])
+function emission_dynamics(model::LGSSM)
+    return map((H, h, Σ) -> (H=H, h=h, Σ=Σ), model.gmm.H, model.gmm.h, model.Σ)
 end
 
 function invert_dynamics(transition, emission, xf::Gaussian, Σ_new::AbstractMatrix{<:Real})
@@ -64,10 +63,15 @@ function posterior(
     y::AbstractVector{<:AbstractVector{<:Real}},
     Σs_new::AbstractVector{<:AbstractMatrix},
 )
-    xfs = _filter(prior, y)
-    transitions = map(t -> transition_dynamics(prior, t), eachindex(y) .+ 1)
-    emissions = map(t -> emission_dynamics(prior, t), eachindex(y))
-    new_dynamics = map(invert_dynamics, transitions, emissions, xfs, Σs_new)
+    @show typeof(Σs_new)
+    println("Doing a thing")
+    prior = Zygote.hook(Δ -> ((@show typeof(Δ)); Δ), prior)
+    p1 = Zygote.hook(Δ -> ((@show "p1", typeof(Δ)); Δ), prior)
+    p2 = Zygote.hook(Δ -> ((@show "p2", typeof(Δ)); Δ), prior)
+    p3 = Zygote.hook(Δ -> ((@show "p3", typeof(Δ)); Δ), prior)
+    xfs = Zygote.hook(Δ -> ((@show typeof(Δ)); Δ), _filter(p1, y))
+    transition = Zygote.hook(Δ -> ((@show typeof(Δ)); Δ), transition_dynamics(p2))
+    new_dynamics = map(invert_dynamics, transition, emission_dynamics(p3), xfs, Σs_new)
 
     As = reverse(map(x -> x[1], new_dynamics))
     as = reverse(map(x -> x[2], new_dynamics))
@@ -77,11 +81,21 @@ function posterior(
     Σs = reverse(map(x -> x[6], new_dynamics))
 
     # Create an arbitrary x0 that is consistent.
-    transition = transition_dynamics(prior, length(prior) + 1)
-    mp_, Pp_ = predict(xfs[end].m, xfs[end].P, transition.A, transition.a, transition.Q)
+    t = transition[end]
+    x_end = xfs[end]
+    mp_, Pp_ = predict(x_end.m, x_end.P, t.A, t.a, t.Q)
     x0 = Gaussian(mp_, Pp_)
 
     return PosteriorLGSSM(LGSSM(GaussMarkovModel(As, as, Qs, Hs, hs, x0), Σs))
+end
+
+function posterior(
+    prior::LGSSM,
+    y::AbstractVector{<:AbstractVector{<:Real}},
+    Σs_new::Fill,
+)
+    println("Doing this one")
+    return posterior(prior, y, collect(Σs_new))
 end
 
 _collect(U::Adjoint{<:Any, <:Matrix}) = collect(U)

@@ -1,3 +1,5 @@
+using TemporalGPs: transition_dynamics, emission_dynamics, invert_dynamics
+
 @testset "posterior_lgssm" begin
     rng = MersenneTwister(123456)
 
@@ -14,8 +16,8 @@
         2,
     ]
     tvs = [
-        true,
-        # false,
+        # true,
+        false,
     ]
     storages = [
         (name="dense storage Float64", val=ArrayStorage(Float64)),
@@ -54,9 +56,24 @@
                 eachindex(y),
             )
 
-            @inferred posterior(model, y, Σs)
-            @inferred posterior(model, y)
-            adjoint_test(posterior, (model, y, Σs); context=NoContext())
+            @testset "invert_dynamics" begin
+                transitions = transition_dynamics(model)
+                emissions = emission_dynamics(model)
+                xfs = _filter(model, y)
+                @inferred invert_dynamics(transitions[1], emissions[1], xfs[1], Σs[1])
+                adjoint_test(
+                    invert_dynamics, (transitions[1], emissions[1], xfs[1], Σs[1]);
+                    context=NoContext(),
+                )
+            end
+            @testset "posterior" begin
+                @inferred posterior(model, y, Σs)
+                @inferred posterior(model, y)
+                adjoint_test(
+                    posterior, (model, y, Σs);
+                    context=NoContext(), check_infers=storage.val isa ArrayStorage,
+                )
+            end
         end
     end
 end
