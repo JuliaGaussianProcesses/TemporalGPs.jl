@@ -8,7 +8,7 @@
 # In an ideal world, strategy 1 would work. Unfortunately Zygote isn't up to it yet.
 
 function decorrelate(
-    model::LGSSM, ys::AbstractVector{<:Union{T, Missing}},
+    model::AbstractSSM, ys::AbstractVector{<:Union{T, Missing}},
 ) where {T<:AbstractVector{<:Real}}
     Σs_filled_in, ys_filled_in = fill_in_missings(model.Σ, ys)
     model_with_missings = LGSSM(model.gmm, Σs_filled_in)

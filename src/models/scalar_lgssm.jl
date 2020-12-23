@@ -28,79 +28,118 @@ is_of_storage_type(model::ScalarLGSSM, s::StorageType) = is_of_storage_type(mode
 
 is_time_invariant(model::ScalarLGSSM) = is_time_invariant(model.model)
 
-function Stheno.marginals(model::ScalarLGSSM)
-    return from_vector_observations(Stheno.marginals(model.model))
+Base.eachindex(model::ScalarLGSSM) = eachindex(model.model)
+
+Base.getindex(model::ScalarLGSSM, t::Int) = ElementOfScalarSSM(model.model[t])
+
+x0(model::ScalarLGSSM) = x0(model.model)
+
+struct ElementOfScalarSSM{T}
+    data::T
 end
 
-function decorrelate(model::ScalarLGSSM, ys::AbstractVector{<:Union{Missing, Real}})
-    ys_vec = to_vector_observations(storage_type(model), ys)
-    lml, αs, xs = decorrelate(model.model, ys_vec)
-    return lml, from_vector_observations(αs), xs
+function step_marginals(x::Gaussian, model::ElementOfScalarSSM)
+    y, x = step_marginals(x, model.data)
+    return Gaussian(only(y.m), only(y.P)), x
 end
 
-function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real})
-    αs_vec = to_vector_observations(storage_type(model), αs)
-    lml, ys, xs = correlate(model.model, αs_vec)
-    return lml, from_vector_observations(ys), xs
+function step_decorrelate(x::Gaussian, (model, y)::Tuple{ElementOfScalarSSM, Any})
+    (lml, α_vec), x = step_decorrelate(x, (model.data, SVector{1}(y)))
+    return (lml, only(α_vec)), x
 end
 
-rand_αs(rng::AbstractRNG, model::ScalarLGSSM) = randn(rng, eltype(model), length(model))
-
-function smooth(model::ScalarLGSSM, ys::AbstractVector{T}) where {T<:Real}
-    return smooth(model.model, to_vector_observations(storage_type(model), ys))
+function step_correlate(x::Gaussian, (model, α)::Tuple{ElementOfScalarSSM, Any})
+    (lml, y_vec), x = step_correlate(x, (model.data, SVector{1}(α)))
+    return (lml, only(y_vec)), x
 end
 
-function posterior_rand(rng::AbstractRNG, model::ScalarLGSSM, y::Vector{<:Real})
-    fs = posterior_rand(rng, model.model, [SVector{1}(yn) for yn in y], 1)
-    return first.(fs)
-end
+rand_αs(rng::AbstractRNG, model::ScalarLGSSM) = randn(rng, length(model))
 
-checkpointed(model::ScalarLGSSM) = ScalarLGSSM(checkpointed(model.model))
+# storage_type(x::ElementOfScalarSSM) = storage_type(x.data)
+
+# storage_type(x::NamedTuple) = storage_type(first(x))
+
+# storage_type(x::Vector{T}) where {T<:Real} = ArrayStorage{T}()
+
+# storage_type(x::SMatrix{P, Q, T} where {P, Q}) where {T<:Real} = SArrayStorage{T}()
+
+# _expand_to_vec(::ArrayStorage, y::Real) = [y]
+# _expand_to_vec(::SArrayStorage, y::Real) = SVector{1}(y)
+
+
+# function Stheno.marginals(model::ScalarLGSSM)
+#     return from_vector_observations(Stheno.marginals(model.model))
+# end
+
+# function decorrelate(model::ScalarLGSSM, ys::AbstractVector{<:Union{Missing, Real}})
+#     ys_vec = to_vector_observations(storage_type(model), ys)
+#     lml, αs, xs = decorrelate(model.model, ys_vec)
+#     return lml, from_vector_observations(αs), xs
+# end
+
+# function correlate(model::ScalarLGSSM, αs::AbstractVector{<:Real})
+#     αs_vec = to_vector_observations(storage_type(model), αs)
+#     lml, ys, xs = correlate(model.model, αs_vec)
+#     return lml, from_vector_observations(ys), xs
+# end
+
+# rand_αs(rng::AbstractRNG, model::ScalarLGSSM) = randn(rng, eltype(model), length(model))
+
+# function smooth(model::ScalarLGSSM, ys::AbstractVector{T}) where {T<:Real}
+#     return smooth(model.model, to_vector_observations(storage_type(model), ys))
+# end
+
+# function posterior_rand(rng::AbstractRNG, model::ScalarLGSSM, y::Vector{<:Real})
+#     fs = posterior_rand(rng, model.model, [SVector{1}(yn) for yn in y], 1)
+#     return first.(fs)
+# end
+
+# checkpointed(model::ScalarLGSSM) = ScalarLGSSM(checkpointed(model.model))
 
 # Functionality for converting between vectors of 1-vectors and vectors of reals / missings.
 
-# Converts a vector of observations to a vector of 1-vectors.
-to_vector_observations(::ArrayStorage{T}, y::AV{T}) where {T<:Real} = map(y_ -> [y_], y)
+# # Converts a vector of observations to a vector of 1-vectors.
+# to_vector_observations(::ArrayStorage{T}, y::AV{T}) where {T<:Real} = map(y_ -> [y_], y)
 
-function to_vector_observations(::ArrayStorage{T}, y::AV{Union{T, Missing}}) where {T<:Real}
-    return map(y_ -> y_ === Missing() ? Missing() : [y_], y)
-end
+# function to_vector_observations(::ArrayStorage{T}, y::AV{Union{T, Missing}}) where {T<:Real}
+#     return map(y_ -> y_ === Missing() ? Missing() : [y_], y)
+# end
 
-function to_vector_observations(::SArrayStorage{T}, y::AV{T}) where {T<:Real}
-    return map(SVector{1, T}, y)
-end
+# function to_vector_observations(::SArrayStorage{T}, y::AV{T}) where {T<:Real}
+#     return map(SVector{1, T}, y)
+# end
 
-function to_vector_observations(
-    ::SArrayStorage{T}, y::AV{Union{T, Missing}},
-) where {T<:Real}
-    return map(y_ -> y_ === Missing() ? Missing() : SVector{1, T}(y_), y)
-end
+# function to_vector_observations(
+#     ::SArrayStorage{T}, y::AV{Union{T, Missing}},
+# ) where {T<:Real}
+#     return map(y_ -> y_ === Missing() ? Missing() : SVector{1, T}(y_), y)
+# end
 
-@adjoint function to_vector_observations(s::StorageType{T}, y::AV{T}) where {T<:Real}
-    function pullback_to_vector_observations(Δ::AV)
-        return (nothing, from_vector_observations(Δ))
-    end
-    return to_vector_observations(s, y), pullback_to_vector_observations
-end
+# @adjoint function to_vector_observations(s::StorageType{T}, y::AV{T}) where {T<:Real}
+#     function pullback_to_vector_observations(Δ::AV)
+#         return (nothing, from_vector_observations(Δ))
+#     end
+#     return to_vector_observations(s, y), pullback_to_vector_observations
+# end
 
-# Converts a vector of 1-vectors into a vector of reals.
-from_vector_observations(ys::AV{<:AV{<:Real}}) = map(first, ys)
+# # Converts a vector of 1-vectors into a vector of reals.
+# from_vector_observations(ys::AV{<:AV{<:Real}}) = map(first, ys)
 
-@adjoint function from_vector_observations(ys::AV{<:AV{<:Real}})
-    function pullback_from_vector_observations(Δ::AbstractVector{<:Real})
-        return (map(x -> [x], Δ), )
-    end
-    return from_vector_observations(ys), pullback_from_vector_observations
-end
+# @adjoint function from_vector_observations(ys::AV{<:AV{<:Real}})
+#     function pullback_from_vector_observations(Δ::AbstractVector{<:Real})
+#         return (map(x -> [x], Δ), )
+#     end
+#     return from_vector_observations(ys), pullback_from_vector_observations
+# end
 
-@adjoint function from_vector_observations(ys::AV{<:SVector{1, <:Real}})
-    function pullback_from_vector_observations(Δ::AbstractVector{<:Real})
-        return (map(SVector{1, eltype(Δ)}, Δ),)
-    end
-    return from_vector_observations(ys), pullback_from_vector_observations
-end
+# @adjoint function from_vector_observations(ys::AV{<:SVector{1, <:Real}})
+#     function pullback_from_vector_observations(Δ::AbstractVector{<:Real})
+#         return (map(SVector{1, eltype(Δ)}, Δ),)
+#     end
+#     return from_vector_observations(ys), pullback_from_vector_observations
+# end
 
-# Converts a vector of 1-dimensional Gaussians into a vector of Normals.
-function from_vector_observations(ys::AV{<:Gaussian})
-    return Normal.(only.(getfield.(ys, :m)), sqrt.(only.(getfield.(ys, :P))))
-end
+# # Converts a vector of 1-dimensional Gaussians into a vector of Normals.
+# function from_vector_observations(ys::AV{<:Gaussian})
+#     return Normal.(only.(getfield.(ys, :m)), sqrt.(only.(getfield.(ys, :P))))
+# end

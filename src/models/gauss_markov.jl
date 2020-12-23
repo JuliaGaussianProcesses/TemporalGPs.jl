@@ -41,13 +41,7 @@ end
 Base.length(ft::GaussMarkovModel) = length(ft.A)
 
 function Base.getindex(ft::GaussMarkovModel, n::Int)
-    return (
-        A = ft.A[n],
-        a = ft.a[n],
-        Q = ft.Q[n],
-        H = ft.H[n],
-        h = ft.h[n],
-    )
+    return (A=ft.A[n], a=ft.a[n], Q=ft.Q[n], H=ft.H[n], h=ft.h[n])
 end
 
 function Base.:(==)(x::GaussMarkovModel, y::GaussMarkovModel)
@@ -71,6 +65,8 @@ end
 
 is_time_invariant(gmm::GaussMarkovModel) = false
 is_time_invariant(gmm::GaussMarkovModel{<:Fill, <:Fill, <:Fill, <:Fill, <:Fill}) = true
+
+x0(gmm::GaussMarkovModel) = gmm.x0
 
 
 """
@@ -156,4 +152,30 @@ function cov(gmm::GaussMarkovModel)
     end
 
     return Array(BlockArrays.mortar(Pfs))
+end
+
+function get_adjoint_storage(x::GaussMarkovModel, Δx::NamedTuple{(:A, :a, :Q, :H, :h)})
+    return (
+        A = get_adjoint_storage(x.A, Δx.A),
+        a = get_adjoint_storage(x.a, Δx.a),
+        Q = get_adjoint_storage(x.Q, Δx.Q),
+        H = get_adjoint_storage(x.H, Δx.H),
+        h = get_adjoint_storage(x.h, Δx.h),
+        x0 = nothing,
+    )
+end
+
+@inline function _accum_at(
+    Δxs::NamedTuple{(:A, :a, :Q, :H, :h, :x0)},
+    n::Int,
+    Δx::NamedTuple{(:A, :a, :Q, :H, :h)},
+)
+    return (
+        A = _accum_at(Δxs.A, n, Δx.A),
+        a = _accum_at(Δxs.a, n, Δx.a),
+        Q = _accum_at(Δxs.Q, n, Δx.Q),
+        H = _accum_at(Δxs.H, n, Δx.H),
+        h = _accum_at(Δxs.h, n, Δx.h),
+        x0 = nothing,
+    )
 end

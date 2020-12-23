@@ -127,13 +127,13 @@ function to_vec(model::TemporalGPs.CheckpointedLGSSM)
     return model_vec, CheckpointedLGSSM_from_vec
 end
 
-function to_vec(model::TemporalGPs.PosteriorLGSSM)
-    model_vec, lgssm_from_vec = to_vec(model.model)
-    function PosteriorLGSSM_from_vec(model_vec)
-        return TemporalGPs.PosteriorLGSSM(lgssm_from_vec(model_vec))
-    end
-    return model_vec, PosteriorLGSSM_from_vec
-end
+# function to_vec(model::TemporalGPs.PosteriorLGSSM)
+#     model_vec, lgssm_from_vec = to_vec(model.model)
+#     function PosteriorLGSSM_from_vec(model_vec)
+#         return TemporalGPs.PosteriorLGSSM(lgssm_from_vec(model_vec))
+#     end
+#     return model_vec, PosteriorLGSSM_from_vec
+# end
 
 function to_vec(X::BlockDiagonal)
     Xs = blocks(X)
@@ -301,16 +301,20 @@ function adjoint_test(
     fdm=central_fdm(5, 1),
     test=true,
     check_infers=true,
-    context=Zygote.Context(),
+    context=NoContext(),
+    kwargs...,
 )
     # Compute <Jᵀ ȳ, ẋ> = <x̄, ẋ> using Zygote.
     y, pb = Zygote._pullback(context, f, x...)
     x̄ = pb(ȳ)[2:end]
     inner_ad = dot(harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)...)
+    # @show x̄
 
     # Approximate <ȳ, J ẋ> = <ȳ, ẏ> using FiniteDifferences.
     ẏ = jvp(fdm, f, zip(x, ẋ)...)
     inner_fd = dot(harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)...)
+
+    # @show FiniteDifferences.j′vp(fdm, f, ȳ, x...)
 
     # @show inner_fd - inner_ad
 
@@ -341,7 +345,6 @@ function adjoint_test(f, Δoutput, input::Tuple; kwargs...)
     return adjoint_test(f, Δoutput, input, ∂input; kwargs...)
 end
 
-
 function print_adjoints(adjoint_ad, adjoint_fd, rtol, atol)
     @show typeof(adjoint_ad), typeof(adjoint_fd)
 
@@ -364,12 +367,16 @@ end
 
 using BenchmarkTools
 
+# Also checks the forwards-pass because it's helpful.
 function check_adjoint_allocations(
     f, Δoutput, input::Tuple;
-    context=Zygote.Context(),
+    context=NoContext(),
+    max_primal_allocs=0,
     max_forward_allocs=0,
     max_backward_allocs=0,
+    kwargs...,
 )
+    @test allocs(@benchmark($f($input...); samples=1, evals=1)) <= max_primal_allocs
     _, pb = _pullback(context, f, input...)
     @test allocs(
         @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
@@ -422,9 +429,23 @@ consistent and implements the required interface.
 `AbstractSSM`.
 """
 function ssm_interface_tests(
-    rng::AbstractRNG, ssm::AbstractSSM; check_infers=true, check_adjoints=true, kwargs...
+    rng::AbstractRNG, ssm::AbstractSSM;
+    check_infers=true, check_adjoints=true, check_allocs=true, kwargs...
 )
     y_no_missing = rand(rng, ssm)
+
+    @testset "rand" begin
+        @test is_of_storage_type(y_no_missing, storage_type(ssm))
+        @test y_no_missing isa AbstractVector
+        @test length(y_no_missing) == length(ssm)
+        check_infers && @inferred rand(rng, ssm)
+        if check_adjoints
+            adjoint_test(
+                ssm -> rand(MersenneTwister(123456), ssm), (ssm, );
+                check_infers=check_infers, kwargs...,
+            )
+        end
+    end
 
     @testset "basics" begin
         @inferred storage_type(ssm)
@@ -435,124 +456,89 @@ function ssm_interface_tests(
         @test is_of_storage_type(ssm, storage_type(ssm))
     end
 
-    # Construct a missing-data example.
-    y_missing = Vector{Union{Missing, eltype(y_no_missing)}}(undef, length(y_no_missing))
-    y_missing .= y_no_missing
-    y_missing[1] = missing
-    if length(ssm) >= 3
-        y_missing[3] = missing
+    @testset "marginals" begin
+        xs = marginals(ssm)
+        @test is_of_storage_type(xs, storage_type(ssm))
+        @test xs isa AbstractVector{<:Gaussian}
+        @test length(xs) == length(ssm)
+        check_infers && @inferred marginals(ssm)
+        if check_adjoints
+            adjoint_test(marginals, (ssm, ); check_infers=check_infers, kwargs...)
+        end
     end
-    missing_idx = length(ssm) >= 3 ? [1, 3] : [1]
-    α_missing = whiten(ssm, y_missing)
+
+    # # Construct a missing-data example.
+    # y_missing = Vector{Union{Missing, eltype(y_no_missing)}}(undef, length(y_no_missing))
+    # y_missing .= y_no_missing
+    # y_missing[1] = missing
+    # if length(ssm) >= 3
+    #     y_missing[3] = missing
+    # end
+    # missing_idx = length(ssm) >= 3 ? [1, 3] : [1]
+    # α_missing = decorrelate(ssm, y_missing)
 
     @testset "$(data.name)" for data in [
         (name="no-missings", y=y_no_missing),
-        (name="with-missings", y=y_missing),
+        # (name="with-missings", y=y_missing),
     ]
         _check_infers = data.name == "with-missings" ? false : check_infers
 
         y = data.y
-        lml, α, xs = decorrelate(ssm, y)
-
+        @testset "logpdf" begin
+            lml = logpdf(ssm, y)
+            @test lml isa Real
+            @test is_of_storage_type(lml, storage_type(ssm))
+            _check_infers && @inferred logpdf(ssm, y)
+        end
         @testset "decorrelate" begin
-
+            α = decorrelate(ssm, y)
             @test is_of_storage_type(α, storage_type(ssm))
-            @test is_of_storage_type(xs, storage_type(ssm))
-
-            @test lml == logpdf(ssm, y)
-            @test α == whiten(ssm, y)
-            @test xs == _filter(ssm, y)
-
-            if _check_infers
-                @inferred decorrelate(ssm, y)
-                @inferred logpdf(ssm, y)
-                @inferred whiten(ssm, y)
-                @inferred _filter(ssm, y)
-            end
-
-            if check_adjoints
-                adjoint_test(
-                    decorrelate, (ssm, y);
-                    check_infers=_check_infers, context=NoContext(), kwargs...,
-                )
-                Δoutput = rand_zygote_tangent((lml, α, xs))
-                @testset "$(typeof(a1)), $(typeof(a2)), $(typeof(a3))" for
-                    a1 in [nothing, Δoutput[1]],
-                    a2 in [nothing, Δoutput[2]],
-                    a3 in [nothing, Δoutput[3]]
-
-                    adjoint_test(
-                        decorrelate, (a1, a2, a3), (ssm, y);
-                        check_infers=_check_infers, kwargs...,
-                    )
-                end
-                adjoint_test(logpdf, (ssm, y); check_infers=_check_infers, kwargs...)
-                adjoint_test(whiten, (ssm, y); check_infers=_check_infers, kwargs...)
-                adjoint_test(_filter, (ssm, y); check_infers=_check_infers, kwargs...)
-            end
+            @test α isa AbstractVector
+            @test length(α) == length(ssm)
+            _check_infers && @inferred decorrelate(ssm, y)
         end
-
-        data.name == "with-missings" && continue
-
+        @testset "_filter" begin
+            xs = _filter(ssm, y)
+            @test is_of_storage_type(xs, storage_type(ssm))
+            @test xs isa AbstractVector{<:Gaussian}
+            @test length(xs) == length(ssm)
+            _check_infers && @inferred _filter(ssm, y)
+        end
         @testset "correlate" begin
-            lml, y_cor, xs = correlate(ssm, α)
-
-            @test is_of_storage_type(y_cor, storage_type(ssm))
-            @test is_of_storage_type(xs, storage_type(ssm))
-
-            @test lml ≈ logpdf(ssm, y)
-            @test y_cor ≈ y
-            @test y_cor == unwhiten(ssm, α)
-
-            _lml, _y = logpdf_and_rand(rng, ssm)
-            @test _lml ≈ logpdf(ssm, _y)
-            @test length(_y) == length(y)
-
-            if check_infers
-                @inferred correlate(ssm, α)
-                @inferred unwhiten(ssm, α)
-                @inferred rand(rng, ssm)
-                @inferred logpdf_and_rand(rng, ssm)
-            end
-
-            if check_adjoints
-                Δoutput = rand_zygote_tangent((lml, y_cor, xs))
-                @testset "$(typeof(a1)), $(typeof(a2)), $(typeof(a3))" for
-                    a1 in [nothing, Δoutput[1]],
-                    a2 in [nothing, Δoutput[2]],
-                    a3 in [nothing, Δoutput[3]]
-
-                    adjoint_test(
-                        correlate, (a1, a2, a3), (ssm, α);
-                        check_infers=check_infers, kwargs...,
-                    )
-                end
-                adjoint_test(unwhiten, (ssm, α); check_infers=check_infers, kwargs...)
-                adjoint_test(
-                    ssm -> rand(deepcopy(rng), ssm), (ssm, );
-                    check_infers=check_infers, kwargs...,
-                )
-                adjoint_test(
-                    ssm -> logpdf_and_rand(deepcopy(rng), ssm), (ssm, );
-                    check_infers=check_infers, kwargs...,
-                )
-            end
+            α = correlate(ssm, y)
+            @test is_of_storage_type(α, storage_type(ssm))
+            @test α isa AbstractVector
+            @test length(α) == length(ssm)
+            _check_infers && @inferred correlate(ssm, y)
         end
 
-        @testset "statistics" begin
-            ds = marginals(ssm)
-            @test vcat(mean.(ds)...) ≈ mean(ssm)
-            if ds isa AbstractVector{<:Gaussian}
-                @test vcat(diag.(cov.(ds))...) ≈ diag(cov(ssm))
-            else
-                @test vcat(var.(ds)) ≈ diag(cov(ssm))
+        # Hack to only run the AD tests if requested.
+        @testset "adjoints" for _ in (check_adjoints ? [1] : [])
+            adjoint_test(logpdf, (ssm, y); check_infers=_check_infers, kwargs...)
+            adjoint_test(decorrelate, (ssm, y); check_infers=_check_infers, kwargs...)
+            adjoint_test(_filter, (ssm, y); check_infers=_check_infers, kwargs...)
+            adjoint_test(correlate, (ssm, y); check_infers=_check_infers, kwargs...)
+
+            if check_allocs
+                check_adjoint_allocations(logpdf, (ssm, y); kwargs...)
+                check_adjoint_allocations(decorrelate, (ssm, y); kwargs...)
+                check_adjoint_allocations(_filter, (ssm, y); kwargs...)
+                check_adjoint_allocations(correlate, (ssm, y); kwargs...)
             end
-
-            @test isapprox(logpdf(Gaussian(mean(ssm), cov(ssm)), vcat(y...)), lml)
-
-            check_infers && @inferred marginals(ssm)
-            # adjoint_test(marginals, (ssm, ); check_infers=check_infers, kwargs...)
         end
+    end
+
+    @testset "statistics" begin
+        ds = marginals(ssm)
+        @test vcat(mean.(ds)...) ≈ mean(ssm)
+        if ds isa AbstractVector{<:Gaussian}
+            @test vcat(diag.(cov.(ds))...) ≈ diag(cov(ssm))
+        else
+            @test vcat(var.(ds)) ≈ diag(cov(ssm))
+        end
+
+        y = y_no_missing
+        @test isapprox(logpdf(Gaussian(mean(ssm), cov(ssm)), vcat(y...)), logpdf(ssm, y))
     end
 end
 

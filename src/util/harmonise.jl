@@ -37,6 +37,9 @@ harmonise(a::Any, b::AbstractZero) = (a, b)
 harmonise(a::AbstractZero, b::Any) = (a, b)
 harmonise(a::AbstractZero, b::AbstractZero) = (a, b)
 
+# Resolve ambiguity.
+harmonise(a::AbstractZero, b::Composite{<:Any, <:NamedTuple}) = (a, b)
+
 harmonise(a::Number, b::Number) = (a, b)
 
 function harmonise(a::Tuple, b::Tuple)

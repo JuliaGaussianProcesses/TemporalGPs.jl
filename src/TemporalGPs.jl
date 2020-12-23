@@ -40,14 +40,10 @@ module TemporalGPs
     # Linear-Gaussian State Space Models.
     include(joinpath("models", "gauss_markov.jl"))
     include(joinpath("models", "lgssm.jl"))
-
-    include(joinpath("models", "immutable_inference.jl"))
-    include(joinpath("models", "immutable_inference_pullbacks.jl"))
-    include(joinpath("models", "checkpointed_immutable_pullbacks.jl")) 
+    include(joinpath("models", "reverse_ssm.jl"))
+    include(joinpath("models", "posterior.jl"))
     include(joinpath("models", "scalar_lgssm.jl"))
     include(joinpath("models", "missings.jl"))
-
-    include(joinpath("models", "posterior_lgssm.jl"))
 
     # Converting GPs to Linear-Gaussian SSMs.
     include(joinpath("gp", "to_gauss_markov.jl"))
