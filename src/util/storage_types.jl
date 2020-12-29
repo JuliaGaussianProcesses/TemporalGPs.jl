@@ -42,3 +42,14 @@ struct ArrayStorage{T<:Real} <: StorageType{T} end
 ArrayStorage(T) = ArrayStorage{T}()
 
 is_of_storage_type(::Array{T}, ::ArrayStorage{T}) where {T<:Real} = true
+
+
+#
+# Working with scalars.
+#
+
+struct ScalarStorage{T<:Real} <: StorageType{T} end
+
+ScalarStorage(T) = ScalarStorage{T}()
+
+is_of_storage_type(::T, ::ScalarStorage{T}) where {T<:Real} = true

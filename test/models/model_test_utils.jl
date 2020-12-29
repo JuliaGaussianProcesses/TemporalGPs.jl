@@ -1,7 +1,15 @@
-using TemporalGPs: GaussMarkovModel, dim_latent, dim_obs, LGSSM, ScalarLGSSM, Gaussian,
-    StorageType, is_time_invariant, is_of_storage_type, storage_type
-
-
+using TemporalGPs:
+    GaussMarkovModel,
+    dim_latent,
+    dim_obs,
+    LGSSM,
+    ScalarLGSSM,
+    Gaussian,
+    StorageType,
+    ScalarStorage,
+    is_time_invariant,
+    is_of_storage_type,
+    storage_type
 
 #
 # Generation of positive semi-definite matrices.
@@ -41,6 +49,10 @@ end
 
 function random_nice_psd_matrix(rng::AbstractRNG, N::Integer, ::SArrayStorage{T}) where {T}
     return SMatrix{N, N, T}(random_nice_psd_matrix(rng, N, ArrayStorage(T)))
+end
+
+function random_nice_psd_matrix(rng::AbstractRNG, ::Integer, ::ScalarStorage{T}) where {T}
+    return rand(rng, T) + convert(T, 0.1)
 end
 
 

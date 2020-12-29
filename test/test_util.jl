@@ -118,14 +118,23 @@ function to_vec(model::TemporalGPs.ScalarLGSSM)
     return model_vec, ScalarLGSSM_from_vec
 end
 
-function to_vec(model::TemporalGPs.CheckpointedLGSSM)
-    model_vec, lgssm_from_vec = to_vec(model.model)
+function to_vec(x::TemporalGPs.ElementOfScalarSSM)
+    v, el_from_vec = to_vec(x.data)
 
-    function CheckpointedLGSSM_from_vec(model_vec::AbstractVector{<:Real})
-        return TemporalGPs.CheckpointedLGSSM(lgssm_from_vec(model_vec))
+    function ElementOfScalarSSM_from_vec(v::AbstractVector{<:Real})
+        return TemporalGPs.ElementOfScalarSSM(el_from_vec(v))
     end
-    return model_vec, CheckpointedLGSSM_from_vec
+    return v, ElementOfScalarSSM_from_vec
 end
+
+# function to_vec(model::TemporalGPs.CheckpointedLGSSM)
+#     model_vec, lgssm_from_vec = to_vec(model.model)
+
+#     function CheckpointedLGSSM_from_vec(model_vec::AbstractVector{<:Real})
+#         return TemporalGPs.CheckpointedLGSSM(lgssm_from_vec(model_vec))
+#     end
+#     return model_vec, CheckpointedLGSSM_from_vec
+# end
 
 # function to_vec(model::TemporalGPs.PosteriorLGSSM)
 #     model_vec, lgssm_from_vec = to_vec(model.model)
@@ -435,7 +444,7 @@ function ssm_interface_tests(
     y_no_missing = rand(rng, ssm)
 
     @testset "rand" begin
-        @test is_of_storage_type(y_no_missing, storage_type(ssm))
+        @test is_of_storage_type(y_no_missing[1], storage_type(ssm))
         @test y_no_missing isa AbstractVector
         @test length(y_no_missing) == length(ssm)
         check_infers && @inferred rand(rng, ssm)
@@ -492,7 +501,7 @@ function ssm_interface_tests(
         end
         @testset "decorrelate" begin
             α = decorrelate(ssm, y)
-            @test is_of_storage_type(α, storage_type(ssm))
+            @test is_of_storage_type(α[1], storage_type(ssm))
             @test α isa AbstractVector
             @test length(α) == length(ssm)
             _check_infers && @inferred decorrelate(ssm, y)
@@ -506,7 +515,7 @@ function ssm_interface_tests(
         end
         @testset "correlate" begin
             α = correlate(ssm, y)
-            @test is_of_storage_type(α, storage_type(ssm))
+            @test is_of_storage_type(α[1], storage_type(ssm))
             @test α isa AbstractVector
             @test length(α) == length(ssm)
             _check_infers && @inferred correlate(ssm, y)
@@ -532,15 +541,18 @@ function ssm_interface_tests(
         ds = marginals(ssm)
         @test vcat(mean.(ds)...) ≈ mean(ssm)
         if ds isa AbstractVector{<:Gaussian}
-            @test vcat(diag.(cov.(ds))...) ≈ diag(cov(ssm))
+            @test vcat(_diag.(cov.(ds))...) ≈ _diag(cov(ssm))
         else
-            @test vcat(var.(ds)) ≈ diag(cov(ssm))
+            @test vcat(var.(ds)) ≈ _diag(cov(ssm))
         end
 
         y = y_no_missing
         @test isapprox(logpdf(Gaussian(mean(ssm), cov(ssm)), vcat(y...)), logpdf(ssm, y))
     end
 end
+
+_diag(x) = diag(x)
+_diag(x::Real) = x
 
 function FiniteDifferences.rand_tangent(rng::AbstractRNG, A::StaticArray)
     return map(x -> rand_tangent(rng, x), A)

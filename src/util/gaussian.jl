@@ -46,7 +46,9 @@ Stheno.cov(x::Gaussian) = x.P
 
 storage_type(x::Gaussian{<:SVector{D, T}}) where {D, T<:Real} = SArrayStorage(T)
 
-storage_type(gmm::Gaussian{<:Vector{T}}) where {D, T<:Real} = ArrayStorage(T)
+storage_type(gmm::Gaussian{<:Vector{T}}) where {T<:Real} = ArrayStorage(T)
+
+storage_type(x::Gaussian{T}) where {T<:Real} = ScalarStorage(T)
 
 function Zygote._pullback(::AContext, ::Type{<:Gaussian}, m, P)
     Gaussian_pullback(Δ::Nothing) = (nothing, nothing, nothing)

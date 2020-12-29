@@ -23,7 +23,7 @@ Zygote.accum_param(::NoContext, x, Δ) = Δ
 end
 
 function Zygote._pullback(::AContext, ::Type{<:SVector{1}}, x::Real)
-    SVector_pullback(Δ::SVector{1}) = (nothing, only(Δ))
+    SVector_pullback(Δ::AbstractVector) = (nothing, only(Δ))
     return SVector{1}(x), SVector_pullback
 end
 
@@ -97,10 +97,20 @@ Zygote.@adjoint function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf}
 end
 
 @adjoint function Base.getindex(x::Fill, n::Int)
-    function getindex_FillArray(Δ)
+    function getindex_FillArray_pullback(Δ)
         return ((value = Δ, axes = nothing), nothing)
     end
     return x[n], getindex_FillArray
+end
+
+@adjoint function Base.getindex(x::SVector{1}, n::Int)
+    getindex_SArray_pullback(Δ) = (SVector{1}(Δ), nothing)
+    return x[n], getindex_SArray_pullback
+end
+
+@adjoint function Base.getindex(x::SVector{1, 1}, n::Int)
+    getindex_pullback(Δ) = (SMatrix{1, 1}(Δ), nothing)
+    return x[n], getindex_SArray_pullback
 end
 
 

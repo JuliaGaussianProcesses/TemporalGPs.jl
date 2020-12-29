@@ -49,26 +49,26 @@ function Stheno.marginals(model::AbstractSSM)
     return scan_emit(step_marginals, model, x0(model), eachindex(model))[1]
 end
 
-function Stheno.logpdf(model::AbstractSSM, y::AbstractVector{<:AbstractVector{<:Real}})
+function Stheno.logpdf(model::AbstractSSM, y::AbstractVector)
     pick_lml(((lml, _), x)) = (lml, x)
     return sum(scan_emit(
         pick_lml ∘ step_decorrelate, zip(model, y), x0(model), eachindex(model),
     )[1])
 end
 
-function decorrelate(model::AbstractSSM, y::AbstractVector{<:AbstractVector{<:Real}})
+function decorrelate(model::AbstractSSM, y::AbstractVector)
     pick_α(((_, α), x)) = (α, x)
     α, _ = scan_emit(pick_α ∘ step_decorrelate, zip(model, y), x0(model), eachindex(model))
     return α
 end
 
-function _filter(model::AbstractSSM, y::AbstractVector{<:AbstractVector{<:Real}})
+function _filter(model::AbstractSSM, y::AbstractVector)
     pick_x((_, x)) = (x, x)
     xs, _ = scan_emit(pick_x ∘ step_decorrelate, zip(model, y), x0(model), eachindex(model))
     return xs
 end
 
-function correlate(model::AbstractSSM, α::AbstractVector{<:AbstractVector{<:Real}})
+function correlate(model::AbstractSSM, α::AbstractVector)
     pick_y(((_, y), x)) = (y, x)
     ys, _ = scan_emit(pick_y ∘ step_correlate, zip(model, α), x0(model), eachindex(model))
     return ys

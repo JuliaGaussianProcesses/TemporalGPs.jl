@@ -17,7 +17,15 @@ module TemporalGPs
     using Kronecker: KroneckerProduct
     using Zygote: _pullback
 
-    import Stheno: mean, cov, pairwise, logpdf, AV, AM, FiniteGP, AbstractGP
+    import Stheno:
+        mean,
+        cov,
+        pairwise,
+        logpdf,
+        AV,
+        AM,
+        FiniteGP,
+        AbstractGP
 
     export
         to_sde,
@@ -43,7 +51,7 @@ module TemporalGPs
     include(joinpath("models", "reverse_ssm.jl"))
     include(joinpath("models", "posterior.jl"))
     include(joinpath("models", "scalar_lgssm.jl"))
-    include(joinpath("models", "missings.jl"))
+    # include(joinpath("models", "missings.jl"))
 
     # Converting GPs to Linear-Gaussian SSMs.
     include(joinpath("gp", "to_gauss_markov.jl"))
