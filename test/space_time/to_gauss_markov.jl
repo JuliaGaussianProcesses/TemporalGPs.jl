@@ -1,4 +1,4 @@
-using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type, is_time_invariant
+using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
 
 @testset "to_gauss_markov" begin
     rng = MersenneTwister(123456)
@@ -38,7 +38,6 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type, is_time_invar
         ft_sde = f_sde(x, σ².val...)
 
         should_be_time_invariant = (t.val isa Vector) ? false : true
-        @test is_time_invariant(ft_sde) == should_be_time_invariant
         @test is_of_storage_type(ft_sde, ArrayStorage(Float64))
 
         validate_dims(ft_sde)

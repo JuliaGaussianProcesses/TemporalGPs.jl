@@ -1,6 +1,5 @@
 using TemporalGPs:
     is_of_storage_type,
-    is_time_invariant,
     step_marginals,
     step_decorrelate,
     step_correlate
@@ -38,7 +37,6 @@ println("scalar_lgssm:")
         Σs = model.Σ
 
         @test is_of_storage_type(scalar_model, storage.val)
-        @test is_time_invariant(scalar_model) == false
 
         # Generate a sample from the model.
         y_vec = rand(rng, model)

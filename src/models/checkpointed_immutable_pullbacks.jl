@@ -1,10 +1,10 @@
-struct CheckpointedLGSSM{Tmodel<:LGSSM} <: AbstractSSM
+struct CheckpointedLGSSM{Tmodel<:LGSSM} <: AbstractLGSSM
     model::Tmodel
 end
 
 
 #
-# Implement the AbstractSSM interface.
+# Implement the AbstractLGSSM interface.
 #
 
 Base.:(==)(x::CheckpointedLGSSM, y::CheckpointedLGSSM) = x.model == y.model
@@ -20,8 +20,6 @@ Base.eltype(ft::CheckpointedLGSSM) = eltype(ft.model)
 storage_type(ft::CheckpointedLGSSM) = storage_type(ft.model)
 
 is_of_storage_type(ft::CheckpointedLGSSM, s::StorageType) = is_of_storage_type(ft.model, s)
-
-is_time_invariant(model::CheckpointedLGSSM) = is_time_invariant(model.model)
 
 Base.getindex(model::CheckpointedLGSSM, n::Int) = getindex(model.model, n)
 

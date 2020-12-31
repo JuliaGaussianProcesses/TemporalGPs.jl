@@ -1,4 +1,4 @@
-using TemporalGPs: build_Σs, smooth, posterior_rand
+using TemporalGPs: build_Σs
 
 _logistic(x) = 1 / (1 + exp(-x))
 
@@ -72,8 +72,6 @@ println("lti_sde:")
             lgssm = TemporalGPs.build_lgssm(ft_sde)
 
             hetero_noise = σ².val isa Tuple{Union{Vector, Diagonal}}
-            should_be_time_invariant = (t.val isa Vector || hetero_noise) ? false : true
-            @test is_time_invariant(lgssm) == should_be_time_invariant
 
             validate_dims(lgssm)
 
@@ -113,7 +111,7 @@ println("lti_sde:")
                 end
             end
 
-            _, y_smooth, _ = smooth(lgssm, y_sde)
+            y_smooth = marginals(posterior(lgssm, y_sde))
 
             # Check posterior marginals
             m_ssm = [first(y.m) for y in y_smooth]

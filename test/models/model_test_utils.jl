@@ -7,9 +7,9 @@ using TemporalGPs:
     Gaussian,
     StorageType,
     ScalarStorage,
-    is_time_invariant,
     is_of_storage_type,
-    storage_type
+    storage_type,
+    LinearGaussianDynamics
 
 #
 # Generation of positive semi-definite matrices.
@@ -75,15 +75,31 @@ end
 
 
 #
+# Generation of LinearGaussianDynamics.
+#
+
+function random_linear_gaussian_dynamics(
+    rng::AbstractRNG, Dlat::Int, Dobs::Int, s::StorageType,
+)
+    return LinearGaussianDynamics(
+        random_matrix(rng, Dobs, Dlat, s),
+        random_vector(rng, Dobs, s),
+        random_nice_psd_matrix(rng, Dobs, s),
+    )
+end
+
+
+
+#
 # Generation of GaussMarkovModels.
 #
 
-function random_tv_gmm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::StorageType)
+function random_tv_gmm(
+    rng::AbstractRNG, ordering, Dlat::Int, Dobs::Int, N::Int, s::StorageType,
+)
 
     As = map(_ -> -random_nice_psd_matrix(rng, Dlat, s), 1:N)
     as = map(_ -> random_vector(rng, Dlat, s), 1:N)
-    Hs = map(_ -> random_matrix(rng, Dobs, Dlat, s), 1:N)
-    hs = map(_ -> random_vector(rng, Dobs, s), 1:N)
     x0 = random_gaussian(rng, Dlat, s)
 
     # For some reason this operation seems to be _incredibly_ inaccurate. My guess is that
@@ -91,31 +107,30 @@ function random_tv_gmm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::Storag
     # large constant to the diagonal to ensure that all Qs are positive definite.
     Qs = map(n -> x0.P - Symmetric(As[n] * x0.P * As[n]') + eltype(s)(1e-1) * I, 1:N)
 
-    return GaussMarkovModel(As, as, Qs, Hs, hs, x0)
+    return GaussMarkovModel(ordering, As, as, Qs, x0)
 end
 
-function random_ti_gmm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, s::StorageType)
+function random_ti_gmm(
+    rng::AbstractRNG, ordering, Dlat::Int, Dobs::Int, N::Int, s::StorageType,
+)
 
     As = Fill(-random_nice_psd_matrix(rng, Dlat, s), N)
     as = Fill(random_vector(rng, Dlat, s), N)
-    Hs = Fill(random_matrix(rng, Dobs, Dlat, s), N)
-    hs = Fill(random_vector(rng, Dobs, s), N)
     x0 = random_gaussian(rng, Dlat, s)
 
     # For some reason this operation seems to be _incredibly_ inaccurate. My guess is that
     # the numerics are horrible for some reason, but I'm not sure why. Hence we add a pretty
     # large constant to the diagonal to ensure that all Qs are positive definite.
     Qs = Fill(x0.P - As[1] * x0.P * As[1]' + eltype(s)(1e-1) * I, N)
-    return GaussMarkovModel(As, as, Qs, Hs, hs, x0)
+    return GaussMarkovModel(ordering, As, as, Qs, x0)
 end
 
 function FiniteDifferences.rand_tangent(rng::AbstractRNG, gmm::T) where {T<:GaussMarkovModel}
     return Composite{T}(
-        A = rand_tangent(rng, gmm.A),
-        a = rand_tangent(rng, gmm.a),
-        Q = map(Q -> random_nice_psd_matrix(rng, size(Q, 1), storage_type(gmm)), gmm.Q),
-        H = rand_tangent(rng, gmm.H),
-        h = rand_tangent(rng, gmm.h),
+        ordering = nothing,
+        As = rand_tangent(rng, gmm.As),
+        as = rand_tangent(rng, gmm.as),
+        Qs = map(Q -> random_nice_psd_matrix(rng, size(Q, 1), storage_type(gmm)), gmm.Qs),
         x0 = rand_tangent(rng, gmm.x0),
     )
 end
@@ -125,24 +140,30 @@ end
 # Generation of LGSSMs.
 #
 
-function random_tv_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
-    gmm = random_tv_gmm(rng, Dlat, Dobs, N, storage)
-    Σ = map(_ -> random_nice_psd_matrix(rng, Dobs, storage), 1:N)
-    return LGSSM(gmm, Σ)
+function random_tv_lgssm(rng::AbstractRNG, ordering, Dlat::Int, Dobs::Int, N::Int, storage)
+    gmm = random_tv_gmm(rng, ordering, Dlat, Dobs, N, storage)
+    Hs = map(_ -> random_matrix(rng, Dobs, Dlat, storage), 1:N)
+    hs = map(_ -> random_vector(rng, Dobs, storage), 1:N)
+    Σs = map(_ -> random_nice_psd_matrix(rng, Dobs, storage), 1:N)
+    return LGSSM(gmm, Hs, hs, Σs)
 end
 
-function random_ti_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
-    gmm = random_ti_gmm(rng, Dlat, Dobs, N, storage)
-    Σ = Fill(random_nice_psd_matrix(rng, Dobs, storage), N)
-    return LGSSM(gmm, Σ)
+function random_ti_lgssm(rng::AbstractRNG, ordering, Dlat::Int, Dobs::Int, N::Int, storage)
+    gmm = random_ti_gmm(rng, ordering, Dlat, Dobs, N, storage)
+    Hs = Fill(random_matrix(rng, Dobs, Dlat, storage), N)
+    hs = Fill(random_vector(rng, Dobs, storage), N)
+    Σs = Fill(random_nice_psd_matrix(rng, Dobs, storage), N)
+    return LGSSM(gmm, Hs, hs, Σs)
 end
 
 function FiniteDifferences.rand_tangent(rng::AbstractRNG, ssm::T) where {T<:LGSSM}
     return Composite{T}(
-        gmm=rand_tangent(rng, ssm.gmm),
-        Σ=map(
+        gmm = rand_tangent(rng, ssm.gmm),
+        Hs = rand_tangent(rng, ssm.Hs),
+        hs = rand_tangent(rng, ssm.hs),
+        Σs = map(
             _ -> random_nice_psd_matrix(rng, dim_obs(ssm), storage_type(ssm)),
-            ssm.Σ,
+            ssm.Σs,
         ),
     )
 end
@@ -154,7 +175,6 @@ end
 function random_ti_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
     return ScalarLGSSM(random_ti_lgssm(rng, Dlat, 1, N, storage))
 end
-
 
 function random_tv_posterior_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
     lgssm = random_tv_lgssm(rng, Dlat, Dobs, N, storage)
@@ -212,15 +232,14 @@ function validate_dims(model::ScalarLGSSM)
     return nothing
 end
 
-function __verify_model_properties(model, Dlat, Dobs, N, storage_type, should_be_invariant)
+function __verify_model_properties(model, Dlat, Dobs, N, storage_type)
     @test is_of_storage_type(model, storage_type)
     @test length(model) == N
     @test dim_obs(model) == Dobs
     @test dim_latent(model) == Dlat
-    @test is_time_invariant(model) == should_be_invariant
     validate_dims(model)
 end
 
-function __verify_model_properties(model, Dlat, N, storage_type, should_be_invariant)
-    return __verify_model_properties(model, Dlat, 1, N, storage_type, should_be_invariant)
+function __verify_model_properties(model, Dlat, N, storage_type)
+    return __verify_model_properties(model, Dlat, 1, N, storage_type)
 end

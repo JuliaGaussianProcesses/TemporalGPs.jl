@@ -31,25 +31,5 @@
             @test size(x.P) == (3, 3)
             @test all(eigvals(x.P) .> 0) 
         end
-        @testset "$model_type" for (generator, model_type, is_time_invariant) in [
-            (random_tv_gmm, GaussMarkovModel, false),
-            (random_ti_gmm, GaussMarkovModel, true),
-            (random_tv_lgssm, LGSSM, false),
-            (random_ti_lgssm, LGSSM, true),
-        ]
-            rng = MersenneTwister(123456)
-            model = generator(rng, 4, 2, 10, storage.val)
-            @test model isa model_type
-            __verify_model_properties(model, 4, 2, 10, storage.val, is_time_invariant)
-        end
-        @testset "ScalarLGSSM - $is_time_invariant" for (generator, is_time_invariant) in [
-            (random_tv_scalar_lgssm, false),
-            (random_ti_scalar_lgssm, true),
-        ]
-            rng = MersenneTwister(123456)
-            model = generator(rng, 4, 10, storage.val)
-            @test model isa ScalarLGSSM
-            __verify_model_properties(model, 4, 10, storage.val, is_time_invariant)
-        end
     end
 end

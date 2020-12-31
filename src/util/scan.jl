@@ -41,11 +41,9 @@ function Zygote._pullback(::AContext, ::typeof(scan_emit), f, xs, init_state, id
         states[t] = state
     end
 
-    step_pb(f, state, x, Δy, Δstate) = _pullback(NoContext(), f, state, x)[2]((Δy, Δstate))
-
     function scan_emit_pullback(Δ)
 
-        Δ === nothing && return (nothing, nothing, nothing, nothing)
+        Δ === nothing && return nothing
         Δys = Δ[1]
         Δstate = Δ[2]
 
@@ -57,8 +55,11 @@ function Zygote._pullback(::AContext, ::typeof(scan_emit), f, xs, init_state, id
             Δxs = get_adjoint_storage(xs, Δx)
 
             for t in reverse(2:(T - 1))
+                a = _getindex(xs, idx[t])
+                b = Δys[idx[t]]
+                c = states[idx[t-1]]
                 _, Δstate, Δx = step_pb(
-                    f, states[idx[t-1]], _getindex(xs, idx[t]), Δys[idx[t]], Δstate,
+                    f, c, a, b, Δstate,
                 )
                 Δxs = _accum_at(Δxs, idx[t], Δx)
             end
@@ -80,6 +81,11 @@ function Zygote._pullback(::AContext, ::typeof(scan_emit), f, xs, init_state, id
     end
 
     return (ys, state), scan_emit_pullback
+end
+
+@inline function step_pb(f, state, x, Δy, Δstate)
+    _, pb = _pullback(NoContext(), f, state, x)
+    return pb((Δy, Δstate))
 end
 
 # Helper functionality for constructing appropriate differentials.

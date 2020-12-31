@@ -29,6 +29,8 @@ struct SArrayStorage{T<:Real} <: StorageType{T} end
 
 SArrayStorage(T) = SArrayStorage{T}()
 
+storage_type(::SArray{<:Any, T}) where {T} = SArrayStorage(T)
+
 is_of_storage_type(::SArray{<:Any, T}, ::SArrayStorage{T}) where {T<:Real} = true
 
 
@@ -41,6 +43,8 @@ struct ArrayStorage{T<:Real} <: StorageType{T} end
 
 ArrayStorage(T) = ArrayStorage{T}()
 
+storage_type(::Array{T}) where {T} = ArrayStorage(T)
+
 is_of_storage_type(::Array{T}, ::ArrayStorage{T}) where {T<:Real} = true
 
 
@@ -51,5 +55,7 @@ is_of_storage_type(::Array{T}, ::ArrayStorage{T}) where {T<:Real} = true
 struct ScalarStorage{T<:Real} <: StorageType{T} end
 
 ScalarStorage(T) = ScalarStorage{T}()
+
+storage_type(::T) where {T<:Real} = T
 
 is_of_storage_type(::T, ::ScalarStorage{T}) where {T<:Real} = true

@@ -36,7 +36,7 @@ using TemporalGPs: transition_dynamics, emission_dynamics, invert_dynamics
         # Print current iteration to prevent CI timing out.
         println("(time_varying=$tv, Dlat=$Dlat, Dobs=$Dobs, $(storage.name), $N)")
 
-        # @testset "standardised AbstractSSM tests" begin
+        # @testset "standardised AbstractLGSSM tests" begin
         #     model = tv ?
         #         random_tv_posterior_lgssm(rng, Dlat, Dobs, N, storage.val) :
         #         random_ti_posterior_lgssm(rng, Dlat, Dobs, N, storage.val)

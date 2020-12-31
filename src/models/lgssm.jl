@@ -1,190 +1,92 @@
-abstract type AbstractSSM end
-
 """
-    LGSSM <: AbstractSSM
+    LGSSM <: AbstractLGSSM
 
 A linear-Gaussian state-space model. Represented in terms of a Gauss-Markov model `gmm` and
 a vector of observation covariance matrices.
 """
-struct LGSSM{Tgmm<:GaussMarkovModel, TΣ<:AV{<:AM{<:Real}}} <: AbstractSSM
+struct LGSSM{
+    Tgmm <: GaussMarkovModel,
+    THs <: AbstractVector,
+    Ths <: AbstractVector,
+    TΣs <: AbstractVector,
+} <: AbstractLGSSM
     gmm::Tgmm
-    Σ::TΣ
+    Hs::THs
+    hs::Ths
+    Σs::TΣs
 end
 
-Base.:(==)(x::LGSSM, y::LGSSM) = (x.gmm == y.gmm) && (x.Σ == y.Σ)
+ordering(model::LGSSM) = ordering(model.gmm)
 
-Base.length(ft::LGSSM) = length(ft.gmm)
+function Base.:(==)(x::LGSSM, y::LGSSM)
+    return (x.gmm == y.gmm) && (x.Hs == y.Hs) && (x.hs == y.hs) && (x.Σs == y.Σs)
+end
 
-Base.eachindex(model::LGSSM) = 1:length(model)
+Base.length(model::LGSSM) = length(model.gmm)
 
-dim_obs(ft::LGSSM) = dim_obs(ft.gmm)
+Base.eachindex(model::LGSSM) = eachindex(model.gmm)
 
-dim_latent(ft::LGSSM) = dim_latent(ft.gmm)
+dim_obs(model::LGSSM) = length(first(model.hs))
 
-Base.eltype(ft::LGSSM) = eltype(ft.gmm)
+dim_latent(model::LGSSM) = dim(model.gmm)
 
-storage_type(ft::LGSSM) = storage_type(ft.gmm)
+Base.eltype(model::LGSSM) = eltype(model.gmm)
+
+storage_type(model::LGSSM) = storage_type(model.gmm)
 
 Zygote.@nograd storage_type
 
-is_of_storage_type(ft::LGSSM, s::StorageType) = is_of_storage_type((ft.gmm, ft.Σ), s)
+function is_of_storage_type(model::LGSSM, s::StorageType)
+    return is_of_storage_type((model.gmm, model.Hs, model.hs, model.Σs), s)
+end
 
 x0(model::LGSSM) = x0(model.gmm)
-
-is_time_invariant(model::LGSSM) = false
-
-is_time_invariant(model::LGSSM{<:GaussMarkovModel, <:Fill}) = is_time_invariant(model.gmm)
-
-Base.getindex(model::LGSSM, n::Int) = (gmm = model.gmm[n], Σ = model.Σ[n])
-
-mean(model::LGSSM) = mean(model.gmm)
-
-function cov(model::LGSSM)
-    S = Stheno.cov(model.gmm)
-    Σ = Stheno.block_diagonal(model.Σ)
-    return S + Σ
-end
-
-function Stheno.marginals(model::AbstractSSM)
-    return scan_emit(step_marginals, model, x0(model), eachindex(model))[1]
-end
-
-function Stheno.logpdf(model::AbstractSSM, y::AbstractVector)
-    pick_lml(((lml, _), x)) = (lml, x)
-    return sum(scan_emit(
-        pick_lml ∘ step_decorrelate, zip(model, y), x0(model), eachindex(model),
-    )[1])
-end
-
-function decorrelate(model::AbstractSSM, y::AbstractVector)
-    pick_α(((_, α), x)) = (α, x)
-    α, _ = scan_emit(pick_α ∘ step_decorrelate, zip(model, y), x0(model), eachindex(model))
-    return α
-end
-
-function _filter(model::AbstractSSM, y::AbstractVector)
-    pick_x((_, x)) = (x, x)
-    xs, _ = scan_emit(pick_x ∘ step_decorrelate, zip(model, y), x0(model), eachindex(model))
-    return xs
-end
-
-function correlate(model::AbstractSSM, α::AbstractVector)
-    pick_y(((_, y), x)) = (y, x)
-    ys, _ = scan_emit(pick_y ∘ step_correlate, zip(model, α), x0(model), eachindex(model))
-    return ys
-end
-
-Stheno.rand(rng::AbstractRNG, model::AbstractSSM) = correlate(model, rand_αs(rng, model))
-
-function rand_αs(rng::AbstractRNG, model::AbstractSSM)
-    return map(_ -> randn(rng, eltype(model), dim_obs(model)), 1:length(model))
-end
 
 function rand_αs(rng::AbstractRNG, model::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}})
     return map(_ -> randn(rng, SVector{dim_obs(model), eltype(model)}), 1:length(model))
 end
 
-ChainRulesCore.@non_differentiable rand_αs(::AbstractRNG, ::AbstractSSM)
-
-#
-# step
-#
-
-function step_marginals(x::Gaussian, model::NamedTuple{(:gmm, :Σ)})
-    x = predict(model, x)
-    y = observe(model, x)
-    return y, x
+struct ElementOfLGSSM{Tordering, Ttransition, Temission}
+    ordering::Tordering
+    transition::Ttransition
+    emission::Temission
 end
 
-function step_decorrelate(x::Gaussian, (model, y)::Tuple{NamedTuple{(:gmm, :Σ)}, Any})
-    gmm = model.gmm
-    mp, Pp = predict(x.m, x.P, gmm.A, gmm.a, gmm.Q)
-    mf, Pf, lml, α = update_decorrelate(mp, Pp, gmm.H, gmm.h, model.Σ, y)
-    return (lml, α), Gaussian(mf, Pf)
-end
+ordering(x::ElementOfLGSSM) = x.ordering
 
-function step_correlate(x::Gaussian, (model, α)::Tuple{NamedTuple{(:gmm, :Σ)}, Any})
-    gmm = model.gmm
-    mp, Pp = predict(x.m, x.P, gmm.A, gmm.a, gmm.Q)
-    mf, Pf, lml, y = update_correlate(mp, Pp, gmm.H, gmm.h, model.Σ, α)
-    return (lml, y), Gaussian(mf, Pf)
+transition_dynamics(x::ElementOfLGSSM) = x.transition
+
+emission_dynamics(x::ElementOfLGSSM) = x.emission
+
+function Base.getindex(model::LGSSM, n::Int)
+    return ElementOfLGSSM(
+        ordering(model),
+        model.gmm[n],
+        LinearGaussianDynamics(model.Hs[n], model.hs[n], model.Σs[n]),
+    )
 end
 
 
+# AD stuff. No need to understand this.
 
-#
-# predict and update
-#
-
-function predict(mf::AV{T}, Pf::AM{T}, A::AM{T}, a::AV{T}, Q::AM{T}) where {T<:Real}
-    return A * mf + a, (A * Pf) * A' + Q
+function get_adjoint_storage(x::LGSSM, Δx::NamedTuple{(:ordering, :transition, :emission)})
+    return (
+        gmm = get_adjoint_storage(x.gmm, Δx.transition),
+        Hs = get_adjoint_storage(x.Hs, Δx.emission.A),
+        hs = get_adjoint_storage(x.hs, Δx.emission.a),
+        Σs = get_adjoint_storage(x.Σs, Δx.emission.Q),
+    )
 end
 
-function predict(model::NamedTuple{(:gmm, :Σ)}, x)
-    gmm = model.gmm
-    return Gaussian(predict(x.m, x.P, gmm.A, gmm.a, gmm.Q)...)
-end
-
-function observe(model::NamedTuple{(:gmm, :Σ)}, x::Gaussian)
-    return observe(model.gmm.H, model.gmm.h, model.Σ, x)
-end
-
-function observe(H::AbstractMatrix, h::AbstractVector, Σ::AbstractMatrix, x::Gaussian)
-    return Gaussian(H * x.m + h, H * x.P * H' + Σ)
-end
-
-function update_decorrelate(
-    mp::AV{T}, Pp::AM{T}, H::AM{T}, h::AV{T}, Σ::AM{T}, y::AV{T},
-) where {T<:Real}
-    V = H * Pp
-    S_1 = V * H' + Σ
-    S = cholesky(Symmetric(S_1))
-    U = S.U
-    B = U' \ V
-    α = U' \ (y - H * mp - h)
-
-    mf = mp + B'α
-    Pf = _compute_Pf(Pp, B)
-    lml = -(length(y) * T(log(2π)) + logdet(S) + α'α) / 2
-    return mf, Pf, lml, α
-end
-
-function update_correlate(
-    mp::AV{T}, Pp::AM{T}, H::AM{T}, h::AV{T}, Σ::AM{T}, α::AV{T},
-) where {T<:Real}
-
-    V = H * Pp
-    S = cholesky(Symmetric(V * H' + Σ))
-    B = S.U' \ V
-    y = S.U'α + (H * mp + h)
-
-    mf = mp + B'α
-    Pf = _compute_Pf(Pp, B)
-    lml = -(length(y) * T(log(2π)) + logdet(S) + α'α) / 2
-    return mf, Pf, lml, y
-end
-
-_compute_Pf(Pp::AM{T}, B::AM{T}) where {T<:Real} = Pp - B'B
-
-# function _compute_Pf(Pp::Matrix{T}, B::Matrix{T}) where {T<:Real}
-#     # Copy of Pp is necessary to ensure that the memory isn't modified.
-#     # return BLAS.syrk!('U', 'T', -one(T), B, one(T), copy(Pp))
-#     # I probably _do_ need a custom adjoint for this...
-#     return LinearAlgebra.copytri!(BLAS.syrk!('U', 'T', -one(T), B, one(T), copy(Pp)), 'U')
-# end
-
-function get_adjoint_storage(x::LGSSM, Δx::NamedTuple{(:gmm, :Σ)})
-    return (gmm = get_adjoint_storage(x.gmm, Δx.gmm), Σ = get_adjoint_storage(x.Σ, Δx.Σ))
-end
-
-function _accum_at(Δxs::NamedTuple{(:gmm, :Σ)}, n::Int, Δx::NamedTuple{(:gmm, :Σ)})
-    return (gmm = _accum_at(Δxs.gmm, n, Δx.gmm), Σ = _accum_at(Δxs.Σ, n, Δx.Σ))
-end
-
-function Zygote._pullback(
-    ::AContext, ::Type{<:LGSSM}, gmm::GaussMarkovModel, Σ::AV{<:AM{<:Real}},
+function _accum_at(
+    Δxs::NamedTuple{(:gmm, :Hs, :hs, :Σs)},
+    n::Int,
+    Δx::NamedTuple{(:ordering, :transition, :emission)},
 )
-    LGSSM_pullback(::Nothing) = (nothing, nothing, nothing)
-    LGSSM_pullback(Δ::NamedTuple) = (nothing, Δ.gmm, Δ.Σ)
-    return LGSSM(gmm, Σ), LGSSM_pullback
+    return (
+        gmm = _accum_at(Δxs.gmm, n, Δx.transition),
+        Hs = _accum_at(Δxs.Hs, n, Δx.emission.A),
+        hs = _accum_at(Δxs.hs, n, Δx.emission.a),
+        Σs = _accum_at(Δxs.Σs, n, Δx.emission.Q),
+    )
 end

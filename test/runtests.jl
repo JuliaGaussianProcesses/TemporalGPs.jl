@@ -14,7 +14,7 @@ using Zygote
 using FiniteDifferences: rand_tangent
 using Kronecker: KroneckerProduct
 using Stheno: var
-using TemporalGPs: AbstractSSM, _filter, NoContext
+using TemporalGPs: AbstractLGSSM, _filter, NoContext
 using Zygote: Context, _pullback
 
 include("test_util.jl")
@@ -34,21 +34,21 @@ include("test_util.jl")
     include(joinpath("models", "model_test_utils.jl"))
     # include(joinpath("models", "test_model_test_utils.jl"))
     @testset "models" begin
-        # include(joinpath("models", "gauss_markov.jl"))
-        # include(joinpath("models", "lgssm.jl"))
-        # include(joinpath("models", "reverse_ssm.jl"))
+        # include(joinpath("models", "linear_gaussian_dynamics.jl"))
+        # include(joinpath("models", "gauss_markov_model.jl"))
+        include(joinpath("models", "lgssm.jl"))
         # include(joinpath("models", "posterior.jl"))
-        include(joinpath("models", "scalar_lgssm.jl"))
+        # include(joinpath("models", "scalar_lgssm.jl"))
         # include(joinpath("models", "missings.jl"))
     end
 
-    # println("gp:")
-    # @testset "gp" begin
-    #     include(joinpath("gp", "to_gauss_markov.jl"))
-    #     include(joinpath("gp", "lti_sde.jl"))
-    #     include(joinpath("gp", "finite_lti_sde.jl"))
-    #     include(joinpath("gp", "posterior_lti_sde.jl"))
-    # end
+    println("gp:")
+    @testset "gp" begin
+        # include(joinpath("gp", "to_gauss_markov.jl"))
+        # include(joinpath("gp", "lti_sde.jl"))
+        # include(joinpath("gp", "finite_lti_sde.jl"))
+        # include(joinpath("gp", "posterior_lti_sde.jl"))
+    end
 
     # println("space_time:")
     # @testset "space_time" begin

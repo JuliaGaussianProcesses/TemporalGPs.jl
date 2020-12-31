@@ -1,4 +1,4 @@
-using TemporalGPs: GaussMarkovModel, is_time_invariant, is_of_storage_type
+using TemporalGPs: GaussMarkovModel, is_of_storage_type
 
 println("to_gauss_markov:")
 @testset "to_gauss_markov" begin
@@ -88,9 +88,6 @@ println("to_gauss_markov:")
             k = kernel_info.ctor(θ...)
             ft = GaussMarkovModel(k, t.val, storage.val)
 
-            should_be_time_invariant = (t.val isa Vector) ? false : true
-            @test is_time_invariant(ft) == should_be_time_invariant
-
             is_of_storage_type(ft, storage.val)
             validate_dims(ft)
 
@@ -125,6 +122,7 @@ println("to_gauss_markov:")
                         end,
                         (θ, );
                         check_infers=false,
+                        context=Zygote.Context(),
                     )
                 end
             end

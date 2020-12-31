@@ -12,6 +12,8 @@ Base.haskey(cx::NoContext, x) = false
 
 Zygote.accum_param(::NoContext, x, Δ) = Δ
 
+Zygote.@nograd eltype
+
 @inline Zygote.accum(as::Tuple...) = map(accum, as...)
 
 @inline Zygote.accum(as::AbstractArray...) = map(accum, as...)
@@ -188,28 +190,28 @@ function Zygote._pullback(::NoContext, ::typeof(literal_getproperty), C::Cholesk
 end
 
 
-function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}) where i
-  y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
-  back(::Nothing) = nothing
-  back(ȳ) = b(ȳ[1])
-  (y, i+1), back
-end
+# function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}) where i
+#   y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
+#   back(::Nothing) = nothing
+#   back(ȳ) = b(ȳ[1])
+#   (y, i+1), back
+# end
 
-function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}, st) where i
-  y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
-  back(::Nothing) = nothing
-  back(ȳ) = (b(ȳ[1])..., nothing)
-  (y, i+1), back
-end
+# function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}, st) where i
+#   y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
+#   back(::Nothing) = nothing
+#   back(ȳ) = (b(ȳ[1])..., nothing)
+#   (y, i+1), back
+# end
 
-Zygote._pullback(cx::AContext, ::typeof(getproperty), x, f::Symbol) =
-  Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
+# Zygote._pullback(cx::AContext, ::typeof(getproperty), x, f::Symbol) =
+#   Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
 
-Zygote._pullback(cx::AContext, ::typeof(getfield), x, f::Symbol) =
-  Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
+# Zygote._pullback(cx::AContext, ::typeof(getfield), x, f::Symbol) =
+#   Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
 
-Zygote._pullback(cx::AContext, ::typeof(literal_getindex), x::NamedTuple, ::Val{f}) where f =
-  Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
+# Zygote._pullback(cx::AContext, ::typeof(literal_getindex), x::NamedTuple, ::Val{f}) where f =
+#   Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
 
-Zygote._pullback(cx::AContext, ::typeof(literal_getproperty), x::Tuple, ::Val{f}) where f =
-  Zygote._pullback(cx, Zygote.literal_getindex, x, Val(f))
+# Zygote._pullback(cx::AContext, ::typeof(literal_getproperty), x::Tuple, ::Val{f}) where f =
+#   Zygote._pullback(cx, Zygote.literal_getindex, x, Val(f))

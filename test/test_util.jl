@@ -1,5 +1,15 @@
 using ChainRulesCore: backing
-using TemporalGPs: Gaussian, correlate, decorrelate, harmonise
+using TemporalGPs:
+    Gaussian,
+    correlate,
+    decorrelate,
+    harmonise,
+    Forward,
+    Reverse,
+    GaussMarkovModel,
+    LGSSM,
+    ordering,
+    LinearGaussianDynamics
 
 
 
@@ -18,10 +28,6 @@ end
 
 function to_vec(x::Union{Zeros, Ones})
     return Vector{eltype(x)}(undef, 0), _ -> x
-end
-
-function to_vec(x::Base.ReinterpretArray)
-    return to_vec(collect(x))
 end
 
 function to_vec(::Missing)
@@ -51,98 +57,28 @@ function to_vec(x::T) where {T<:StaticArray}
     return x_vec, StaticArray_to_vec
 end
 
-function to_vec(x::TemporalGPs.Gaussian)
-    m_vec, m_from_vec = to_vec(x.m)
-    P_vec, P_from_vec = to_vec(x.P)
-
-    x_vec, x_back = to_vec((m_vec, P_vec))
-
-    function Gaussian_from_vec(x_vec)
-        mP_vec = x_back(x_vec)
-
-        m = m_from_vec(mP_vec[1])
-        P = P_from_vec(mP_vec[2])
-
-        return TemporalGPs.Gaussian(m, P)
-    end
-
-    return x_vec, Gaussian_from_vec
+function to_vec(x::Tuple{})
+    empty_tuple_from_vec(v) = x
+    return Bool[], empty_tuple_from_vec
 end
 
-function to_vec(gmm::TemporalGPs.GaussMarkovModel)
-    A_vec, A_back = to_vec(gmm.A)
-    a_vec, a_back = to_vec(gmm.a)
-    Q_vec, Q_back = to_vec(gmm.Q)
-    H_vec, H_back = to_vec(gmm.H)
-    h_vec, h_back = to_vec(gmm.h)
-    x0_vec, x0_back = to_vec(gmm.x0)
+# Fallback method for `to_vec`. Won't always do what you wanted, but should be fine a decent
+# chunk of the time.
+function to_vec(x::T) where {T}
+    Base.isstructtype(T) || throw(error("Expected a struct type"))
 
-    gmm_vec, gmm_back = to_vec((A_vec, a_vec, Q_vec, H_vec, h_vec, x0_vec))
+    val_vecs_and_backs = map(name -> to_vec(getfield(x, name)), fieldnames(T))
+    vals = first.(val_vecs_and_backs)
+    backs = last.(val_vecs_and_backs)
+    v, vals_from_vec = to_vec(vals)
 
-    function GaussMarkovModel_from_vec(gmm_vec)
-        vecs = gmm_back(gmm_vec)
-        A = A_back(vecs[1])
-        a = a_back(vecs[2])
-        Q = Q_back(vecs[3])
-        H = H_back(vecs[4])
-        h = h_back(vecs[5])
-        x0 = x0_back(vecs[6])
-        return TemporalGPs.GaussMarkovModel(A, a, Q, H, h, x0)
+    function structtype_from_vec(v::Vector{<:Real})
+        val_vecs = vals_from_vec(v)
+        vals = map((b, v) -> b(v), backs, val_vecs)
+        return T(vals...)
     end
-
-    return gmm_vec, GaussMarkovModel_from_vec
+    return v, structtype_from_vec
 end
-
-function to_vec(model::TemporalGPs.LGSSM)
-    gmm_vec, gmm_from_vec = to_vec(model.gmm)
-    Σ_vec, Σ_from_vec = to_vec(model.Σ)
-
-    model_vec, back = to_vec((gmm_vec, Σ_vec))
-
-    function LGSSM_from_vec(model_vec)
-        tmp = back(model_vec)
-        gmm = gmm_from_vec(tmp[1])
-        Σ = Σ_from_vec(tmp[2])
-        return TemporalGPs.LGSSM(gmm, Σ)
-    end
-
-    return model_vec, LGSSM_from_vec
-end
-
-function to_vec(model::TemporalGPs.ScalarLGSSM)
-    model_vec, lgssm_from_vec = to_vec(model.model)
-
-    function ScalarLGSSM_from_vec(model_vec::AbstractVector{<:Real})
-        return TemporalGPs.ScalarLGSSM(lgssm_from_vec(model_vec))
-    end
-    return model_vec, ScalarLGSSM_from_vec
-end
-
-function to_vec(x::TemporalGPs.ElementOfScalarSSM)
-    v, el_from_vec = to_vec(x.data)
-
-    function ElementOfScalarSSM_from_vec(v::AbstractVector{<:Real})
-        return TemporalGPs.ElementOfScalarSSM(el_from_vec(v))
-    end
-    return v, ElementOfScalarSSM_from_vec
-end
-
-# function to_vec(model::TemporalGPs.CheckpointedLGSSM)
-#     model_vec, lgssm_from_vec = to_vec(model.model)
-
-#     function CheckpointedLGSSM_from_vec(model_vec::AbstractVector{<:Real})
-#         return TemporalGPs.CheckpointedLGSSM(lgssm_from_vec(model_vec))
-#     end
-#     return model_vec, CheckpointedLGSSM_from_vec
-# end
-
-# function to_vec(model::TemporalGPs.PosteriorLGSSM)
-#     model_vec, lgssm_from_vec = to_vec(model.model)
-#     function PosteriorLGSSM_from_vec(model_vec)
-#         return TemporalGPs.PosteriorLGSSM(lgssm_from_vec(model_vec))
-#     end
-#     return model_vec, PosteriorLGSSM_from_vec
-# end
 
 function to_vec(X::BlockDiagonal)
     Xs = blocks(X)
@@ -204,6 +140,15 @@ to_vec(::Nothing) = Bool[], _ -> nothing
             @test back(x_vec) == x
         end
     end
+    @testset "to_vec(::LinearGaussianDynamics)" begin
+        A = randn(2, 2)
+        a = randn(2)
+        Q = randn(2, 2)
+        model = LinearGaussianDynamics(A, a, Q)
+        model_vec, model_from_vec = to_vec(model)
+        @test model_vec isa Vector{<:Real}
+        @test model_from_vec(model_vec) == model
+    end
     @testset "to_vec(::GaussMarkovModel)" begin
         N = 11
         A = [randn(2, 2) for _ in 1:N]
@@ -212,7 +157,7 @@ to_vec(::Nothing) = Bool[], _ -> nothing
         H = [randn(3, 2) for _ in 1:N]
         h = [randn(3) for _ in 1:N]
         x0 = TemporalGPs.Gaussian(randn(2), randn(2, 2))
-        gmm = TemporalGPs.GaussMarkovModel(A, a, Q, H, h, x0)
+        gmm = TemporalGPs.GaussMarkovModel(Forward(), A, a, Q, x0)
 
         gmm_vec, gmm_from_vec = to_vec(gmm)
         @test gmm_vec isa Vector{<:Real}
@@ -226,12 +171,12 @@ to_vec(::Nothing) = Bool[], _ -> nothing
         Q = [randn(2, 2) for _ in 1:N]
         H = [randn(3, 2) for _ in 1:N]
         h = [randn(3) for _ in 1:N]
-        x0 = TemporalGPs.Gaussian(randn(2), randn(2, 2))
-        gmm = TemporalGPs.GaussMarkovModel(A, a, Q, H, h, x0)
+        x0 = Gaussian(randn(2), randn(2, 2))
+        gmm = GaussMarkovModel(Forward(), A, a, Q, x0)
 
         Σ = [randn(3, 3) for _ in 1:N]
 
-        model = TemporalGPs.LGSSM(gmm, Σ)
+        model = TemporalGPs.LGSSM(gmm, H, h, Σ)
 
         model_vec, model_from_vec = to_vec(model)
         @test model_from_vec(model_vec) == model
@@ -316,8 +261,8 @@ function adjoint_test(
     # Compute <Jᵀ ȳ, ẋ> = <x̄, ẋ> using Zygote.
     y, pb = Zygote._pullback(context, f, x...)
     x̄ = pb(ȳ)[2:end]
-    inner_ad = dot(harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)...)
     # @show x̄
+    inner_ad = dot(harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)...)
 
     # Approximate <ȳ, J ẋ> = <ȳ, ẏ> using FiniteDifferences.
     ẏ = jvp(fdm, f, zip(x, ẋ)...)
@@ -435,10 +380,10 @@ is not to ensure correctness of any given implementation, only to ensure that it
 consistent and implements the required interface.
 
 `build_ssm` should be a unary function that, when called on `θ`, should return an
-`AbstractSSM`.
+`AbstractLGSSM`.
 """
 function ssm_interface_tests(
-    rng::AbstractRNG, ssm::AbstractSSM;
+    rng::AbstractRNG, ssm::AbstractLGSSM;
     check_infers=true, check_adjoints=true, check_allocs=true, kwargs...
 )
     y_no_missing = rand(rng, ssm)
@@ -473,6 +418,9 @@ function ssm_interface_tests(
         check_infers && @inferred marginals(ssm)
         if check_adjoints
             adjoint_test(marginals, (ssm, ); check_infers=check_infers, kwargs...)
+        end
+        if check_allocs
+            check_adjoint_allocations(marginals, (ssm, ); kwargs...)
         end
     end
 
@@ -537,18 +485,18 @@ function ssm_interface_tests(
         end
     end
 
-    @testset "statistics" begin
-        ds = marginals(ssm)
-        @test vcat(mean.(ds)...) ≈ mean(ssm)
-        if ds isa AbstractVector{<:Gaussian}
-            @test vcat(_diag.(cov.(ds))...) ≈ _diag(cov(ssm))
-        else
-            @test vcat(var.(ds)) ≈ _diag(cov(ssm))
-        end
+    # @testset "statistics" begin
+    #     ds = marginals(ssm)
+    #     @test vcat(mean.(ds)...) ≈ mean(ssm)
+    #     if ds isa AbstractVector{<:Gaussian}
+    #         @test vcat(_diag.(cov.(ds))...) ≈ _diag(cov(ssm))
+    #     else
+    #         @test vcat(var.(ds)) ≈ _diag(cov(ssm))
+    #     end
 
-        y = y_no_missing
-        @test isapprox(logpdf(Gaussian(mean(ssm), cov(ssm)), vcat(y...)), logpdf(ssm, y))
-    end
+    #     y = y_no_missing
+    #     @test isapprox(logpdf(Gaussian(mean(ssm), cov(ssm)), vcat(y...)), logpdf(ssm, y))
+    # end
 end
 
 _diag(x) = diag(x)
@@ -565,7 +513,9 @@ rand_zygote_tangent(A) = Zygote.wrap_chainrules_output(FiniteDifferences.rand_ta
 
 Zygote.wrap_chainrules_output(x::Array) = map(Zygote.wrap_chainrules_output, x)
 
-Zygote.wrap_chainrules_input(x::Array) = map(Zygote.wrap_chainrules_input, x)
+function Zygote.wrap_chainrules_input(x::Array)
+    return map(Zygote.wrap_chainrules_input, x)
+end
 
 function LinearAlgebra.dot(A::Composite, B::Composite)
     mutual_names = intersect(propertynames(A), propertynames(B))

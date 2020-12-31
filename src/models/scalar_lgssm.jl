@@ -1,12 +1,12 @@
 """
-    ScalarLGSSM{Tmodel<:AbstractSSM} <: AbstractSSM
+    ScalarLGSSM{Tmodel<:AbstractLGSSM} <: AbstractLGSSM
 
 Linear Gaussian SSM whose outputs should be scalars. A lightweight wrapper around a regular
 (vector-valued) LGSSM. Most of what this wrapper does is transform `AbstractVector`s of
 `T <: Real`s into `AbstractVector`s of `SVector{1, T}`s, and then pass the data on to a
 vector-valued ssm.
 """
-struct ScalarLGSSM{Tmodel<:AbstractSSM} <: AbstractSSM
+struct ScalarLGSSM{Tmodel<:AbstractLGSSM} <: AbstractLGSSM
     model::Tmodel
 end
 
@@ -25,8 +25,6 @@ mean(model::ScalarLGSSM) = mean(model.model)
 cov(model::ScalarLGSSM) = cov(model.model)
 
 is_of_storage_type(model::ScalarLGSSM, s::StorageType) = is_of_storage_type(model.model, s)
-
-is_time_invariant(model::ScalarLGSSM) = is_time_invariant(model.model)
 
 Base.eachindex(model::ScalarLGSSM) = eachindex(model.model)
 
@@ -53,7 +51,7 @@ function step_correlate(x::Gaussian, (model, α)::Tuple{ElementOfScalarSSM, Any}
     return (lml, y_vec[1]), x
 end
 
-rand_αs(rng::AbstractRNG, model::ScalarLGSSM) = randn(rng, length(model))
+rand_αs(rng::AbstractRNG, model::ScalarLGSSM) = randn(rng, eltype(model), length(model))
 
 
 function get_adjoint_storage(x::ScalarLGSSM, Δx::NamedTuple{(:data,)})

@@ -1,4 +1,4 @@
-struct PosteriorLGSSM{Tmodel<:LGSSM} <: AbstractSSM
+struct PosteriorLGSSM{Tmodel<:LGSSM} <: AbstractLGSSM
     model::Tmodel
 end
 

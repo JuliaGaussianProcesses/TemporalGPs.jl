@@ -1,9 +1,9 @@
 """
-    PosteriorLGSSM{Tmodel<:LGSSM, Txfs<:AbstractVector{<:Gaussian}} <: AbstractSSM
+    PosteriorLGSSM{Tmodel<:LGSSM, Txfs<:AbstractVector{<:Gaussian}} <: AbstractLGSSM
 
 Represents the posterior distribution over an LGSSM given the filtering distributions xfs.
 """
-struct PosteriorLGSSM{Tmodel<:LGSSM, Txfs<:AbstractVector{<:Gaussian}, TΣs} <: AbstractSSM
+struct PosteriorLGSSM{Tmodel<:LGSSM, Txfs<:AbstractVector{<:Gaussian}, TΣs} <: AbstractLGSSM
     model::Tmodel
     xfs::Txfs
     Σs::TΣs
@@ -34,8 +34,6 @@ Base.length(ft::PosteriorLGSSM) = length(ft.model)
 function is_of_storage_type(model::PosteriorLGSSM, s::StorageType)
     return is_of_storage_type((model.model, model.xfs), s)
 end
-
-is_time_invariant(model::PosteriorLGSSM) = false
 
 function transition_dynamics(model::LGSSM, t::Int)
     t = t > length(model) ? length(model) : t

@@ -1,4 +1,4 @@
-using TemporalGPs: storage_type, is_of_storage_type, is_time_invariant
+using TemporalGPs: storage_type, is_of_storage_type
 
 println("gauss_markov:")
 @testset "gauss_markov" begin
@@ -27,39 +27,23 @@ println("gauss_markov:")
 
         rng = MersenneTwister(123456)
         gmm = tv == true ?
-            random_tv_gmm(rng, Dlat, Dobs, N, storage.val) :
-            random_ti_gmm(rng, Dlat, Dobs, N, storage.val)
+            random_tv_gmm(rng, Forward(), Dlat, Dobs, N, storage.val) :
+            random_ti_gmm(rng, Forward(), Dlat, Dobs, N, storage.val)
 
         @test eltype(gmm) == eltype(storage.val)
         @test storage_type(gmm) == storage.val
 
         @test length(gmm) == N
-        @test getindex(gmm, N) == (
-            A = gmm.A[N],
-            a = gmm.a[N],
-            Q = gmm.Q[N],
-            H = gmm.H[N],
-            h = gmm.h[N],
-        )
+        @test getindex(gmm, N) isa TemporalGPs.LinearGaussianDynamics
 
         @test is_of_storage_type(gmm, storage.val)
-        @test is_time_invariant(gmm) == 1 - tv
 
         @testset "==" begin
             gmm_other = tv == true ?
-                random_tv_gmm(rng, Dlat, Dobs, N, storage.val) :
-                random_ti_gmm(rng, Dlat, Dobs, N, storage.val)
+                random_tv_gmm(rng, Forward(), Dlat, Dobs, N, storage.val) :
+                random_ti_gmm(rng, Forward(), Dlat, Dobs, N, storage.val)
             @test gmm == gmm
             @test gmm != gmm_other
-        end
-
-        @testset "mean / cov" begin
-            m = mean(gmm)
-            @test length(m) == N * Dobs
-
-            P = cov(gmm)
-            @test size(P) ==(N * Dobs, N * Dobs)
-            @test all(eigvals(Symmetric(P)) .> -1e-9)
         end
     end
 end

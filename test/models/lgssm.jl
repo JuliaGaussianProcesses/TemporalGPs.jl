@@ -3,11 +3,8 @@ using TemporalGPs:
     step_marginals,
     step_decorrelate,
     step_correlate,
-    update_decorrelate,
-    update_correlate,
     storage_type,
-    is_of_storage_type,
-    is_time_invariant
+    is_of_storage_type
 
 using Stheno: GP, GPC
 using Zygote, StaticArrays
@@ -15,30 +12,17 @@ using Zygote, StaticArrays
 println("lgssm:")
 @testset "lgssm" begin
 
-    @testset "mean and cov" begin
-        rng = MersenneTwister(123456)
-        Dlat = 3
-        Dobs = 2
-        N = 5
-        model = random_tv_lgssm(rng, Dlat, Dobs, N, ArrayStorage(Float64))
-        @test mean(model) == mean(model.gmm)
-
-        P = cov(model)
-        @test size(P) == (N * Dobs, N * Dobs)
-        @test all(eigvals(P) .> 0)
-    end
-
     @testset "correctness" begin
         rng = MersenneTwister(123456)
 
-        # Ns = [1, 5]
-        # Dlats = [1, 2]
-        # Dobss = [1, 2]
-        # tvs = [true, false]
-        Ns = [50]
-        Dlats = [2]
-        Dobss = [2]
-        tvs = [false]
+        Ns = [1, 50]
+        Dlats = [1, 2]
+        Dobss = [1, 2]
+        tvs = [true, false]
+        # Ns = [100]
+        # Dlats = [2]
+        # Dobss = [2]
+        # tvs = [true]
         storages = [
             (name="dense storage Float64", val=ArrayStorage(Float64)),
             (name="static storage Float64", val=SArrayStorage(Float64)),
@@ -58,18 +42,17 @@ println("lgssm:")
 
             # Build LGSSM.
             model = tv ?
-                random_tv_lgssm(rng, Dlat, Dobs, N, storage.val) :
-                random_ti_lgssm(rng, Dlat, Dobs, N, storage.val)
+                random_tv_lgssm(rng, Forward(), Dlat, Dobs, N, storage.val) :
+                random_ti_lgssm(rng, Forward(), Dlat, Dobs, N, storage.val)
 
             # Verify that model properties are as requested.
             @test eltype(model) == eltype(storage.val)
             @test storage_type(model) == storage.val
 
             @test length(model) == N
-            @test getindex(model, N) == (gmm = model.gmm[N], Σ = model.Σ[N])
+            @test getindex(model, N) isa TemporalGPs.ElementOfLGSSM
 
             @test is_of_storage_type(model, storage.val)
-            @test is_time_invariant(model) == 1 - tv
 
             y = first(rand(model))
             x0 = model.gmm.x0

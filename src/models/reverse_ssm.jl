@@ -1,7 +1,7 @@
 """
 Transition dynamics take you from t to t-1, rather than t-1 to t.
 """
-struct ReverseSSM{Tmodel<:AbstractSSM} <: AbstractSSM
+struct ReverseSSM{Tmodel<:AbstractLGSSM} <: AbstractLGSSM
     model::Tmodel
 end
 
@@ -37,3 +37,6 @@ function step_correlate(x::Gaussian, (model, α)::Tuple{ElementOfReverseSSM, Any
     mp, Pp = predict(mf, Pf, gmm.A, gmm.a, gmm.Q)
     return (lml, y), Gaussian(mp, Pp)
 end
+
+
+# Hacks to handle the ScalarLGSSM case, since the abstractions don't _quite_ work yet.

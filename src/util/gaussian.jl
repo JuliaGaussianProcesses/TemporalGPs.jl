@@ -55,3 +55,5 @@ function Zygote._pullback(::AContext, ::Type{<:Gaussian}, m, P)
     Gaussian_pullback(Δ) = (nothing, Δ.m, Δ.P)
     return Gaussian(m, P), Gaussian_pullback
 end
+
+Base.length(x::Gaussian) = 0
