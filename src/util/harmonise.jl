@@ -99,3 +99,10 @@ function harmonise(a::Composite{<:Any, <:NamedTuple}, b)
 end
 
 harmonise(a, b::Composite{<:Any, <:NamedTuple}) = reverse(harmonise(b, a))
+
+# Special-cased handling for `Adjoint`s. Due to our usual AD setup, a differential for an
+# Adjoint can be represented either by a matrix or a `Composite`. Both ought to `to_vec` to
+# the same thing though, so this should be fine for now, if a little unsatisfactory.
+function harmonise(a::Adjoint, b::Composite{<:Adjoint, <:NamedTuple})
+    return Composite{Any}(parent=parent(a)), b
+end

@@ -9,7 +9,7 @@ using TemporalGPs:
     GaussMarkovModel,
     LGSSM,
     ordering,
-    LinearGaussianConditional,
+    SmallOutputLGC,
     posterior_and_lml,
     predict,
     conditional_rand,
@@ -146,11 +146,11 @@ to_vec(::Nothing) = Bool[], _ -> nothing
             @test back(x_vec) == x
         end
     end
-    @testset "to_vec(::LinearGaussianConditional)" begin
+    @testset "to_vec(::SmallOutputLGC)" begin
         A = randn(2, 2)
         a = randn(2)
         Q = randn(2, 2)
-        model = LinearGaussianConditional(A, a, Q)
+        model = SmallOutputLGC(A, a, Q)
         model_vec, model_from_vec = to_vec(model)
         @test model_vec isa Vector{<:Real}
         @test model_from_vec(model_vec) == model
@@ -266,23 +266,6 @@ function adjoint_test(
 )
     # Compute <Jᵀ ȳ, ẋ> = <x̄, ẋ> using Zygote.
     y, pb = Zygote._pullback(context, f, x...)
-    x̄ = pb(ȳ)[2:end]
-    # @show x̄
-    inner_ad = dot(harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)...)
-
-    # Approximate <ȳ, J ẋ> = <ȳ, ẏ> using FiniteDifferences.
-    ẏ = jvp(fdm, f, zip(x, ẋ)...)
-    inner_fd = dot(harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)...)
-
-    # @show FiniteDifferences.j′vp(fdm, f, ȳ, x...)
-
-    # @show inner_fd - inner_ad
-
-    # Check that Zygote didn't modify the forwards-pass.
-    test && @test fd_isapprox(y, f(x...), rtol, atol)
-
-    # Check for approximate agreement in "inner-products".
-    test && @test fd_isapprox(inner_ad, inner_fd, rtol, atol)
 
     # Check type inference if requested.
     if check_infers
@@ -291,6 +274,26 @@ function adjoint_test(
         @inferred Zygote._pullback(context, f, x...)
         @inferred pb(ȳ)
     end
+
+    x̄ = pb(ȳ)[2:end]
+    # @show x̄
+    # @show harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)
+    inner_ad = dot(harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)...)
+
+    # Approximate <ȳ, J ẋ> = <ȳ, ẏ> using FiniteDifferences.
+    ẏ = jvp(fdm, f, zip(x, ẋ)...)
+    inner_fd = dot(harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)...)
+
+    # @show FiniteDifferences.j′vp(fdm, f, ȳ, x...)
+    # @show harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)
+
+    # @show inner_fd - inner_ad
+
+    # Check that Zygote didn't modify the forwards-pass.
+    test && @test fd_isapprox(y, f(x...), rtol, atol)
+
+    # Check for approximate agreement in "inner-products".
+    test && @test fd_isapprox(inner_ad, inner_fd, rtol, atol)
 
     return x̄
 end

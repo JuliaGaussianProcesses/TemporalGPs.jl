@@ -9,7 +9,9 @@ using TemporalGPs:
     ScalarStorage,
     is_of_storage_type,
     storage_type,
-    LinearGaussianDynamics
+    SmallOutputLGC,
+    ScalarOutputLGC,
+    LargeOutputLGC
 
 #
 # Generation of positive semi-definite matrices.
@@ -75,13 +77,33 @@ end
 
 
 #
-# Generation of LinearGaussianDynamics.
+# Generation of SmallOutputLGC.
 #
 
-function random_linear_gaussian_dynamics(
-    rng::AbstractRNG, Dlat::Int, Dobs::Int, s::StorageType,
-)
-    return LinearGaussianDynamics(
+function random_small_output_lgc(rng::AbstractRNG, Dlat::Int, Dobs::Int, s::StorageType)
+    return SmallOutputLGC(
+        random_matrix(rng, Dobs, Dlat, s),
+        random_vector(rng, Dobs, s),
+        random_nice_psd_matrix(rng, Dobs, s),
+    )
+end
+
+function random_scalar_output_lgc(rng::AbstractRNG, Dlat::Int, s::StorageType)
+    return ScalarOutputLGC(
+        random_vector(rng, Dlat, s)',
+        randn(rng, eltype(s)),
+        rand(rng, eltype(s)) + 0.1,
+    )
+end
+
+function lgc_from_scalar_output_lgc(lgc::ScalarOutputLGC)
+    return SmallOutputLGC(
+        collect(lgc.A), [lgc.a], reshape([lgc.Q], 1, 1),
+    )
+end
+
+function random_large_output_lgc(rng::AbstractRNG, Dlat::Int, Dobs::Int, s::StorageType)
+    return LargeOutputLGC(
         random_matrix(rng, Dobs, Dlat, s),
         random_vector(rng, Dobs, s),
         random_nice_psd_matrix(rng, Dobs, s),

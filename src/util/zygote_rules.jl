@@ -181,6 +181,12 @@ Zygote._symmetric_back(Δ::SArray, uplo) = Δ
 
 using Zygote: literal_getproperty, literal_indexed_iterate, literal_getindex
 
+function Zygote._pullback(::NoContext, ::typeof(*), A::Adjoint, B::AbstractMatrix)
+    times_pullback(::Nothing) = nothing
+    times_pullback(Δ) = nothing, Adjoint(B * Δ'), A' * Δ
+    return A * B, times_pullback
+end
+
 function Zygote._pullback(::NoContext, ::typeof(literal_getproperty), C::Cholesky, ::Val{:U})
     function literal_getproperty_pullback(Δ)
         return (nothing, (uplo=nothing, info=nothing, factors=UpperTriangular(Δ)))
@@ -188,6 +194,8 @@ function Zygote._pullback(::NoContext, ::typeof(literal_getproperty), C::Cholesk
     literal_getproperty_pullback(Δ::Nothing) = nothing
     return literal_getproperty(C, Val(:U)), literal_getproperty_pullback
 end
+
+Zygote.accum(x::Adjoint...) = Adjoint(Zygote.accum(map(parent, x)...))
 
 
 # function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}) where i
