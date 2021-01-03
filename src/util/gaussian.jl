@@ -22,6 +22,8 @@ dim(x::Gaussian) = length(x.m)
 
 Random.rand(rng::AbstractRNG, x::Gaussian) = vec(rand(rng, x, 1))
 
+Random.rand(rng::AbstractRNG, x::Gaussian{<:SVector}) = randn(rng, typeof(x.m))
+
 function Random.rand(rng::AbstractRNG, x::Gaussian, S::Int)
     return x.m .+ cholesky(Symmetric(x.P)).U' * randn(rng, length(x.m), S)
 end
