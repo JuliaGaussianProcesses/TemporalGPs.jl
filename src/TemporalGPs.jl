@@ -10,6 +10,7 @@ module TemporalGPs
     using Random
     using StaticArrays
     using Stheno
+    using StructArrays
     using Zygote
     using ZygoteRules
 
@@ -36,6 +37,16 @@ module TemporalGPs
         posterior,
         logpdf_and_rand
 
+    show_grad_type(x) = x
+
+    function Zygote._pullback(::Zygote.AContext, ::typeof(show_grad_type), x)
+        function show_grad_type_pullback(Δ)
+            @show typeof(Δ)
+            return (nothing, Δ)
+        end
+        return show_grad_type(x), show_grad_type_pullback
+    end
+
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "harmonise.jl"))
     include(joinpath("util", "scan.jl"))
@@ -48,11 +59,13 @@ module TemporalGPs
     # Linear-Gaussian State Space Models.
     include(joinpath("models", "linear_gaussian_conditionals.jl"))
     include(joinpath("models", "gauss_markov_model.jl"))
-    include(joinpath("models", "abstract_lgssm.jl"))
     include(joinpath("models", "lgssm.jl"))
-    include(joinpath("models", "posterior.jl"))
-    include(joinpath("models", "scalar_lgssm.jl"))
     # include(joinpath("models", "missings.jl"))
+
+    # include(joinpath("models", "abstract_lgssm.jl"))
+    # include(joinpath("models", "posterior.jl"))
+    # include(joinpath("models", "scalar_lgssm.jl"))
+
 
     # Converting GPs to Linear-Gaussian SSMs.
     include(joinpath("gp", "to_gauss_markov.jl"))

@@ -93,11 +93,38 @@ end
 _getindex(x, idx::Int) = getindex(x, idx)
 _getindex(x::Base.Iterators.Zip, idx::Int) = map(x -> _getindex(x, idx), x.is)
 
+
+
+# Vector
+
 function get_adjoint_storage(x::Vector{T}, Δx::T) where {T<:Real}
     x̄ = Vector{T}(undef, length(x))
     x̄[end] = Δx
     return x̄
 end
+
+function get_adjoint_storage(x::Vector, init::T) where {T<:AbstractVecOrMat{<:Real}}
+    Δx = Vector{T}(undef, length(x))
+    Δx[end] = init
+    return Δx
+end
+
+# Diagonal type constraint for the compiler's benefit.
+@inline function _accum_at(Δxs::Vector{T}, n::Int, Δx::T) where {T}
+    Δxs[n] = Δx
+    return Δxs
+end
+
+
+
+# If there's nothing, there's nothing to do.
+
+_accum_at(Δxs::Nothing, n::Int, Δx::Nothing) = nothing
+
+
+
+
+# Zip
 
 function get_adjoint_storage(x::Base.Iterators.Zip, Δx::Tuple)
     return (is=map(get_adjoint_storage, x.is, Δx),)
@@ -107,23 +134,26 @@ function _accum_at(Δxs::NamedTuple{(:is,)}, n::Int, Δx::Tuple)
     return (is=map((Δxs_, Δx_) -> _accum_at(Δxs_, n, Δx_), Δxs.is, Δx), )
 end
 
-# Diagonal type constraint for the compiler's benefit.
-@inline function _accum_at(Δxs::Vector{T}, n::Int, Δx::T) where {T}
-    Δxs[n] = Δx
-    return Δxs
+
+
+# Fill
+
+get_adjoint_storage(x::Fill, init) = (value=init, axes=nothing)
+
+@inline function _accum_at(
+    Δxs::NamedTuple{(:value, :axes), Tuple{T, Nothing}}, n::Int, Δx::T,
+) where {T}
+    return (value=accum(Δxs.value, Δx), axes=nothing)
 end
 
-# Diagonal type constraint for the compiler's benefit.
-@inline function _accum_at(Δxs::NamedTuple{(:value,), Tuple{T}}, n::Int, Δx::T) where {T}
-    return (value=accum(Δxs.value, Δx),)
+
+
+# StructArray
+
+function get_adjoint_storage(x::StructArray, init::NamedTuple)
+    return (fieldarrays = map(get_adjoint_storage, getfield(x, :fieldarrays), init), )
 end
 
-_accum_at(Δxs::Nothing, n::Int, Δx::Nothing) = nothing
-
-function get_adjoint_storage(x::Vector, init::T) where {T<:AbstractVecOrMat{<:Real}}
-    Δx = Vector{T}(undef, length(x))
-    Δx[end] = init
-    return Δx
+function _accum_at(Δxs::NamedTuple{(:fieldarrays,)}, n::Int, Δx::NamedTuple)
+    return (fieldarrays = map((Δy, y) -> _accum_at(Δy, n, y), Δxs.fieldarrays, Δx), )
 end
-
-get_adjoint_storage(x::Fill, init) = (value=init,)

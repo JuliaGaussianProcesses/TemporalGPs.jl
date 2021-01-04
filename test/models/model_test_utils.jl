@@ -1,9 +1,7 @@
 using TemporalGPs:
     GaussMarkovModel,
-    dim_latent,
-    dim_obs,
+    dim,
     LGSSM,
-    ScalarLGSSM,
     Gaussian,
     StorageType,
     ScalarStorage,
@@ -13,9 +11,9 @@ using TemporalGPs:
     ScalarOutputLGC,
     LargeOutputLGC
 
-#
+
+
 # Generation of positive semi-definite matrices.
-#
 
 function random_vector(rng::AbstractRNG, N::Int, ::ArrayStorage{T}) where {T<:Real}
     return randn(rng, T, N)
@@ -76,9 +74,7 @@ end
 
 
 
-#
 # Generation of SmallOutputLGC.
-#
 
 function random_small_output_lgc(rng::AbstractRNG, Dlat::Int, Dobs::Int, s::StorageType)
     return SmallOutputLGC(
@@ -112,13 +108,9 @@ end
 
 
 
-#
 # Generation of GaussMarkovModels.
-#
 
-function random_tv_gmm(
-    rng::AbstractRNG, ordering, Dlat::Int, Dobs::Int, N::Int, s::StorageType,
-)
+function random_tv_gmm(rng::AbstractRNG, ordering, Dlat::Int, N::Int, s::StorageType)
 
     As = map(_ -> -random_nice_psd_matrix(rng, Dlat, s), 1:N)
     as = map(_ -> random_vector(rng, Dlat, s), 1:N)
@@ -132,9 +124,7 @@ function random_tv_gmm(
     return GaussMarkovModel(ordering, As, as, Qs, x0)
 end
 
-function random_ti_gmm(
-    rng::AbstractRNG, ordering, Dlat::Int, Dobs::Int, N::Int, s::StorageType,
-)
+function random_ti_gmm(rng::AbstractRNG, ordering, Dlat::Int, N::Int, s::StorageType)
 
     As = Fill(-random_nice_psd_matrix(rng, Dlat, s), N)
     as = Fill(random_vector(rng, Dlat, s), N)
@@ -152,116 +142,202 @@ function FiniteDifferences.rand_tangent(rng::AbstractRNG, gmm::T) where {T<:Gaus
         ordering = nothing,
         As = rand_tangent(rng, gmm.As),
         as = rand_tangent(rng, gmm.as),
-        Qs = map(Q -> random_nice_psd_matrix(rng, size(Q, 1), storage_type(gmm)), gmm.Qs),
+        Qs = gmm_Qs_tangent(rng, gmm.Qs, storage_type(gmm)),
         x0 = rand_tangent(rng, gmm.x0),
     )
 end
 
+function gmm_Qs_tangent(
+    rng::AbstractRNG, Qs::T, storage_type::StorageType,
+) where {T<:Vector{<:AbstractMatrix}}
+    return map(Q -> random_nice_psd_matrix(rng, size(Q, 1), storage_type), Qs)
+end
 
-#
+function gmm_Qs_tangent(
+    rng::AbstractRNG, Qs::T, storage_type::StorageType,
+) where {T<:Fill{<:AbstractMatrix}}
+    Δ = random_nice_psd_matrix(rng, size(first(Qs), 1), storage_type)
+    return Composite{T}(value=Δ)
+end
+
+function gmm_Qs_tangent(
+    rng::AbstractRNG, Qs::T, storage_type::StorageType,
+) where {T<:Vector{<:Real}}
+    return map(Q -> convert(eltype(storage_type), rand(rng) + 0.1), Qs)
+end
+
+function gmm_Qs_tangent(
+    rng::AbstractRNG, Qs::T, storage_type::StorageType,
+) where {T<:Fill{<:Real}}
+    return Composite{T}(value=convert(eltype(storage_type), rand(rng) + 0.1))
+end
+
+
+
 # Generation of LGSSMs.
-#
 
-function random_tv_lgssm(rng::AbstractRNG, ordering, Dlat::Int, Dobs::Int, N::Int, storage)
-    gmm = random_tv_gmm(rng, ordering, Dlat, Dobs, N, storage)
+function random_lgssm(
+    rng::AbstractRNG,
+    ordering::Union{Forward, Reverse},
+    ::Val{:time_varying},
+    emission_type::Type{<:Union{SmallOutputLGC, LargeOutputLGC}},
+    Dlat::Int,
+    Dobs::Int,
+    N::Int,
+    storage::StorageType,
+)
+    transitions = random_tv_gmm(rng, ordering, Dlat, N, storage)
     Hs = map(_ -> random_matrix(rng, Dobs, Dlat, storage), 1:N)
     hs = map(_ -> random_vector(rng, Dobs, storage), 1:N)
     Σs = map(_ -> random_nice_psd_matrix(rng, Dobs, storage), 1:N)
-    return LGSSM(gmm, Hs, hs, Σs)
+    T = emission_type{eltype(Hs), eltype(hs), eltype(Σs)}
+    emissions = StructArray{T}((Hs, hs, Σs))
+    return LGSSM(transitions, emissions)
 end
 
-function random_ti_lgssm(rng::AbstractRNG, ordering, Dlat::Int, Dobs::Int, N::Int, storage)
-    gmm = random_ti_gmm(rng, ordering, Dlat, Dobs, N, storage)
+function random_lgssm(
+    rng::AbstractRNG,
+    ordering::Union{Forward, Reverse},
+    ::Val{:time_invariant},
+    emission_type::Type{<:Union{SmallOutputLGC, LargeOutputLGC}},
+    Dlat::Int,
+    Dobs::Int,
+    N::Int,
+    storage::StorageType,
+)
+    transitions = random_ti_gmm(rng, ordering, Dlat, N, storage)
     Hs = Fill(random_matrix(rng, Dobs, Dlat, storage), N)
     hs = Fill(random_vector(rng, Dobs, storage), N)
     Σs = Fill(random_nice_psd_matrix(rng, Dobs, storage), N)
-    return LGSSM(gmm, Hs, hs, Σs)
+    T = emission_type{eltype(Hs), eltype(hs), eltype(Σs)}
+    emissions = StructArray{T}((Hs, hs, Σs))
+    return LGSSM(transitions, emissions)
+end
+
+function random_lgssm(
+    rng::AbstractRNG,
+    ordering::Union{Forward, Reverse},
+    ::Val{:time_varying},
+    ::Type{ScalarOutputLGC},
+    Dlat::Int,
+    Dobs::Int,
+    N::Int,
+    storage::StorageType,
+)
+    transitions = random_tv_gmm(rng, ordering, Dlat, N, storage)
+    Hs = map(_ -> random_vector(rng, Dlat, storage)', 1:N)
+    hs = map(_ -> randn(rng, eltype(storage)), 1:N)
+    Σs = map(_ -> convert(eltype(storage), rand(rng) + 0.1), 1:N)
+    T = ScalarOutputLGC{eltype(Hs), eltype(hs), eltype(Σs)}
+    emissions = StructArray{T}((Hs, hs, Σs))
+    return LGSSM(transitions, emissions)
+end
+
+function random_lgssm(
+    rng::AbstractRNG,
+    ordering::Union{Forward, Reverse},
+    ::Val{:time_invariant},
+    ::Type{ScalarOutputLGC},
+    Dlat::Int,
+    Dobs::Int,
+    N::Int,
+    storage::StorageType,
+)
+    transitions = random_ti_gmm(rng, ordering, Dlat, N, storage)
+    Hs = Fill(random_vector(rng, Dlat, storage)', N)
+    hs = Fill(randn(rng, eltype(storage)), N)
+    Σs = Fill(convert(eltype(storage), rand(rng) + 0.1), N)
+    T = ScalarOutputLGC{eltype(Hs), eltype(hs), eltype(Σs)}
+    emissions = StructArray{T}((Hs, hs, Σs))
+    return LGSSM(transitions, emissions)
 end
 
 function FiniteDifferences.rand_tangent(rng::AbstractRNG, ssm::T) where {T<:LGSSM}
+    Hs = ssm.emissions.A
+    hs = ssm.emissions.a
+    Σs = ssm.emissions.Q
     return Composite{T}(
-        gmm = rand_tangent(rng, ssm.gmm),
-        Hs = rand_tangent(rng, ssm.Hs),
-        hs = rand_tangent(rng, ssm.hs),
-        Σs = map(
-            _ -> random_nice_psd_matrix(rng, dim_obs(ssm), storage_type(ssm)),
-            ssm.Σs,
-        ),
+        transitions = rand_tangent(rng, ssm.transitions),
+        emissions = Composite{typeof(ssm.emissions)}(fieldarrays=(
+            A=rand_tangent(rng, Hs),
+            a=rand_tangent(rng, hs),
+            Q=gmm_Qs_tangent(rng, Σs, storage_type(ssm)),
+        )),
     )
 end
 
-function random_tv_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
-    return ScalarLGSSM(random_tv_lgssm(rng, Dlat, 1, N, storage))
-end
+# function random_tv_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
+#     return ScalarLGSSM(random_tv_lgssm(rng, Dlat, 1, N, storage))
+# end
 
-function random_ti_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
-    return ScalarLGSSM(random_ti_lgssm(rng, Dlat, 1, N, storage))
-end
+# function random_ti_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
+#     return ScalarLGSSM(random_ti_lgssm(rng, Dlat, 1, N, storage))
+# end
 
-function random_tv_posterior_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
-    lgssm = random_tv_lgssm(rng, Dlat, Dobs, N, storage)
-    y = rand(rng, lgssm)
-    Σs = map(_ -> random_nice_psd_matrix(rng, Dobs, storage), eachindex(y))
-    return posterior(lgssm, y, Σs)
-end
+# function random_tv_posterior_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
+#     lgssm = random_tv_lgssm(rng, Dlat, Dobs, N, storage)
+#     y = rand(rng, lgssm)
+#     Σs = map(_ -> random_nice_psd_matrix(rng, Dobs, storage), eachindex(y))
+#     return posterior(lgssm, y, Σs)
+# end
 
-function random_ti_posterior_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
-    lgssm = random_ti_lgssm(rng, Dlat, Dobs, N, storage)
-    y = rand(rng, lgssm)
-    Σs = Fill(random_nice_psd_matrix(rng, Dobs, storage), length(lgssm))
-    return posterior(lgssm, y, Σs)
-end
+# function random_ti_posterior_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
+#     lgssm = random_ti_lgssm(rng, Dlat, Dobs, N, storage)
+#     y = rand(rng, lgssm)
+#     Σs = Fill(random_nice_psd_matrix(rng, Dobs, storage), length(lgssm))
+#     return posterior(lgssm, y, Σs)
+# end
 
 
-#
-# Validation of internal consistency.
-#
+# #
+# # Validation of internal consistency.
+# #
 
-function validate_dims(gmm::GaussMarkovModel)
+# function validate_dims(gmm::GaussMarkovModel)
 
-    # Check all vectors are the correct length.
-    @test length(gmm.A) == length(gmm)
-    @test length(gmm.a) == length(gmm)
-    @test length(gmm.Q) == length(gmm)
-    @test length(gmm.H) == length(gmm)
-    @test length(gmm.h) == length(gmm)
+#     # Check all vectors are the correct length.
+#     @test length(gmm.A) == length(gmm)
+#     @test length(gmm.a) == length(gmm)
+#     @test length(gmm.Q) == length(gmm)
+#     @test length(gmm.H) == length(gmm)
+#     @test length(gmm.h) == length(gmm)
 
-    # Check sizes of each element of the struct are correct.
-    N = length(gmm)
-    Dlat = dim_latent(gmm)
-    Dobs = dim_obs(gmm)
-    @test all(map(n -> size(gmm.A[n]) == (Dlat, Dlat), 1:N))
-    @test all(map(n -> size(gmm.a[n]) == (Dlat,), 1:N))
-    @test all(map(n -> size(gmm.Q[n]) == (Dlat, Dlat), 1:N))
-    @test all(map(n -> size(gmm.H[n]) == (Dobs, Dlat), 1:N))
-    @test all(map(n -> size(gmm.h[n]) == (Dobs,), 1:N))
-    @test size(gmm.x0.m) == (Dlat,)
-    @test size(gmm.x0.P) == (Dlat, Dlat)
-    return nothing
-end
+#     # Check sizes of each element of the struct are correct.
+#     N = length(gmm)
+#     Dlat = dim_latent(gmm)
+#     Dobs = dim_obs(gmm)
+#     @test all(map(n -> size(gmm.A[n]) == (Dlat, Dlat), 1:N))
+#     @test all(map(n -> size(gmm.a[n]) == (Dlat,), 1:N))
+#     @test all(map(n -> size(gmm.Q[n]) == (Dlat, Dlat), 1:N))
+#     @test all(map(n -> size(gmm.H[n]) == (Dobs, Dlat), 1:N))
+#     @test all(map(n -> size(gmm.h[n]) == (Dobs,), 1:N))
+#     @test size(gmm.x0.m) == (Dlat,)
+#     @test size(gmm.x0.P) == (Dlat, Dlat)
+#     return nothing
+# end
 
-function validate_dims(model::LGSSM)
-    validate_dims(model.gmm)
+# function validate_dims(model::LGSSM)
+#     validate_dims(model.gmm)
 
-    N = length(model)
-    Dobs = dim_obs(model.gmm)
-    @test all(map(n -> size(model.Σ[n]) == (Dobs, Dobs), 1:N))
-    return nothing
-end
+#     N = length(model)
+#     Dobs = dim_obs(model.gmm)
+#     @test all(map(n -> size(model.Σ[n]) == (Dobs, Dobs), 1:N))
+#     return nothing
+# end
 
-function validate_dims(model::ScalarLGSSM)
-    validate_dims(model.model)
-    return nothing
-end
+# # function validate_dims(model::ScalarLGSSM)
+# #     validate_dims(model.model)
+# #     return nothing
+# # end
 
-function __verify_model_properties(model, Dlat, Dobs, N, storage_type)
-    @test is_of_storage_type(model, storage_type)
-    @test length(model) == N
-    @test dim_obs(model) == Dobs
-    @test dim_latent(model) == Dlat
-    validate_dims(model)
-end
+# function __verify_model_properties(model, Dlat, Dobs, N, storage_type)
+#     @test is_of_storage_type(model, storage_type)
+#     @test length(model) == N
+#     @test dim_obs(model) == Dobs
+#     @test dim_latent(model) == Dlat
+#     validate_dims(model)
+# end
 
-function __verify_model_properties(model, Dlat, N, storage_type)
-    return __verify_model_properties(model, Dlat, 1, N, storage_type)
-end
+# function __verify_model_properties(model, Dlat, N, storage_type)
+#     return __verify_model_properties(model, Dlat, 1, N, storage_type)
+# end

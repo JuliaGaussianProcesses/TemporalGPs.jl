@@ -16,9 +16,15 @@ Zygote.@nograd eltype
 
 @inline Zygote.accum(as::Tuple...) = map(accum, as...)
 
+@inline Zygote.accum(as::NamedTuple) = map(accum, as...)
+
 @inline Zygote.accum(as::AbstractArray...) = map(accum, as...)
 
 @inline Zygote.accum(a::Tuple, b::Tuple, c::Nothing) = map(accum, a, b)
+
+# @inline function Zygote.accum(a, b::Nothing, c, d) where {T}
+#     return accum(a, c, d)
+# end
 
 @adjoint function SVector{D}(x::AbstractVector) where {D}
     return SVector{D}(x), Δ::AbstractVector -> (convert(typeof(x), Δ),)
@@ -197,6 +203,19 @@ end
 
 Zygote.accum(x::Adjoint...) = Adjoint(Zygote.accum(map(parent, x)...))
 
+function Zygote.accum(A::UpperTriangular{<:Any, <:SMatrix{P}}, B::SMatrix{P, P}) where {P}
+    return Zygote.accum(SMatrix{P, P}(A), B)
+end
+
+function Zygote.accum(B::SMatrix{P, P}, A::UpperTriangular{<:Any, <:SMatrix{P}}) where {P}
+    return Zygote.accum(B, SMatrix{P, P}(A))
+end
+
+function Zygote.accum(a::Composite{T}, b::NamedTuple) where {T}
+    return Zygote.accum(a, Composite{T}(; b...))
+end
+
+Base.:(+)(::Composite, ::Nothing) = Zero()
 
 # function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}) where i
 #   y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))

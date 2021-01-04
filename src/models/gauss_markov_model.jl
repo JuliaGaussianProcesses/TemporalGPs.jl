@@ -2,6 +2,11 @@ struct Forward end
 
 struct Reverse end
 
+# For some reason, this is necessary for printing. I don't really understand it.
+Base.length(::Union{Forward, Reverse}) = 0
+
+
+
 """
     GaussMarkovModel
 
@@ -25,11 +30,12 @@ struct GaussMarkovModel{
     x0::Tx0
 end
 
-function Zygote._pullback(::AContext, ::Type{<:GaussMarkovModel}, As, as, Qs, x0)
+# Helps Zygote out with some type-stability issues. Why this helps is unclear.
+function Zygote._pullback(::AContext, ::Type{<:GaussMarkovModel}, ordering, As, as, Qs, x0)
     function GaussMarkovModel_pullback(Δ)
-        return (nothing, Δ.As, Δ.as, Δ.Qs, Δ.x0)
+        return (nothing, nothing, Δ.As, Δ.as, Δ.Qs, Δ.x0)
     end
-    return GaussMarkovModel(As, as, Qs, x0), GaussMarkovModel_pullback
+    return GaussMarkovModel(ordering, As, as, Qs, x0), GaussMarkovModel_pullback
 end
 
 ordering(model::GaussMarkovModel) = model.ordering
@@ -43,7 +49,7 @@ Base.eachindex(model::GaussMarkovModel{Reverse}) = reverse(1:length(model))
 Base.length(model::GaussMarkovModel) = length(model.As)
 
 function Base.getindex(model::GaussMarkovModel, n::Int)
-    return LinearGaussianDynamics(model.As[n], model.as[n], model.Qs[n])
+    return SmallOutputLGC(model.As[n], model.as[n], model.Qs[n])
 end
 
 function Base.:(==)(x::GaussMarkovModel, y::GaussMarkovModel)

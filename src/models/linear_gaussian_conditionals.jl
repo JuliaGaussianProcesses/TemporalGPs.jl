@@ -1,20 +1,36 @@
 using Stheno: Xt_invA_X
 
-abstract type AbstractLinearGaussianConditional end
+"""
+    abstract type AbstractLGC end
 
-const AbstractLGC = AbstractLinearGaussianConditional
+
+"""
+abstract type AbstractLGC end
 
 Base.:(==)(x::AbstractLGC, y::AbstractLGC) = (x.A == y.A) && (x.a == y.a) && (x.Q == y.Q)
 
+Base.eltype(f::AbstractLGC) = eltype(f.A)
+
+"""
+    predict(x::Gaussian, f::AbstractLGC)
+
+Compute the distribution "predicted" by this conditional given a `Gaussian` input `x`:
+```julia
+    Gaussian(f.A * x.m + f.a, f.A * x.P * f.A' + f.Q)
+```
+"""
 predict(x::Gaussian, f::AbstractLGC) = Gaussian(f.A * x.m + f.a, f.A * x.P * f.A' + f.Q)
 
-function conditional_rand(rng::AbstractRNG, f::AbstractLGC, x)
-    return (f.A * x + f.a) + cholesky(Symmetric(f.Q)).U' * ε_randn(rng, f.a)
+function conditional_rand(rng::AbstractRNG, f::AbstractLGC, x::AbstractVector)
+    return conditional_rand(ε_randn(rng, f), f, x)
+end
+
+function conditional_rand(ε::AbstractVector, f::AbstractLGC, x::AbstractVector)
+    return (f.A * x + f.a) + cholesky(Symmetric(f.Q)).U' * ε
 end
 
 ε_randn(rng::AbstractRNG, f::AbstractLGC) = ε_randn(rng, f.a)
 ε_randn(rng::AbstractRNG, a::Vector{T}) where {T<:Real} = randn(rng, T, length(a))
-ε_randn(rng::AbstractRNG, a::T) where {T<:Real} = randn(rng, T)
 ε_randn(rng::AbstractRNG, a::T) where {T<:SVector{<:Any, <:Real}} = randn(rng, T)
 
 # @nograd is specialised to `Context`, rather than the more general `AContext` :(
@@ -32,25 +48,27 @@ dim_out(f::AbstractLGC) = size(f.A, 1)
 
 dim_in(f::AbstractLGC) = size(f.A, 2)
 
-"""
-    LinearGaussianConditional <: AbstractLGC
 
-a.k.a. LGC.
+
 """
-struct LinearGaussianConditional{TA, Ta, TQ} <: AbstractLGC
+    SmallOutputLGC{
+        TA<:AbstractMatrix, Ta<:AbstractVector, TQ<:AbstractMatrix,
+    } <: AbstractLGC
+
+a.k.a. LGC. An `AbstractLGC` designed for problems in which `A` is a matrix, and
+`size(A, 1) < size(A, 2)`. It should still work (roughly) for problems in which
+`size(A, 1) > size(A, 2)`, but one should expect worse accuracy and performance than a
+`LargeOutputLGC` in such circumstances.
+"""
+struct SmallOutputLGC{
+    TA<:AbstractMatrix, Ta<:AbstractVector, TQ<:AbstractMatrix,
+} <: AbstractLGC
     A::TA
     a::Ta
     Q::TQ
 end
 
-"""
-    LGC = LinearGaussianConditional
-
-An alias for LinearGaussianConditional.
-"""
-const LGC = LinearGaussianConditional
-
-function posterior_and_lml(x::Gaussian, f::LinearGaussianConditional, y)
+function posterior_and_lml(x::Gaussian, f::SmallOutputLGC, y)
     A = f.A
     V = A * x.P
     S = cholesky(Symmetric(V * A' + f.Q))
@@ -61,27 +79,28 @@ function posterior_and_lml(x::Gaussian, f::LinearGaussianConditional, y)
     return Gaussian(x.m + B'α, x.P - B'B), lml
 end
 
-"""
-    ScalarOutputLGC
+# Required for type-stability.
+function Zygote._pullback(::NoContext, ::Type{<:SmallOutputLGC}, A, a, Q)
+    SmallOutputLGC_pullback(::Nothing) = nothing
+    SmallOutputLGC_pullback(Δ) = nothing, Δ.A, Δ.a, Δ.Q
+    return SmallOutputLGC(A, a, Q), SmallOutputLGC_pullback
+end
 
-Alias for a LinearGaussianConditional (LGC) which maps from a vector-value to the reals.
 
-In this type, `a` and `Q` should be `Real`s, rather a vector and matrix, and `A` is an
-`Adjoint` of an `AbstractVector`.
-"""
-const ScalarOutputLGC = LinearGaussianConditional{
-    <:Adjoint{<:Any, <:AbstractVector}, <:Real, <:Real,
-}
 
 """
-    LargeOutputLGC{TA, Ta, TQ} <: AbstractLGC
+    LargeOutputLGC{
+        TA<:AbstractMatrix, Ta<:AbstractVector, TQ<:AbstractMatrix,
+    } <: AbstractLGC
 
-A LinearGaussianConditional (LGC) specialised for models in which the dimension of the
+A SmallOutputLGC (LGC) specialised for models in which the dimension of the
 outputs are greater than that of the inputs. These specialisations both improve numerical
 stability and performance (time and memory), so it's worth using if your model lives in
 this regime.
 """
-struct LargeOutputLGC{TA, Ta, TQ} <: AbstractLGC
+struct LargeOutputLGC{
+    TA<:AbstractMatrix, Ta<:AbstractVector, TQ<:AbstractMatrix,
+} <: AbstractLGC
     A::TA
     a::Ta
     Q::TQ
@@ -108,4 +127,39 @@ function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y)
     lml = -(δ'δ - Xt_invA_X(F, β) + c + logdet(F) + logdet(Q)) / 2
 
     return Gaussian(m_post, P_post), lml
+end
+
+
+
+"""
+    ScalarOutputLGC
+
+Alias for a SmallOutputLGC (LGC) which maps from a vector-value to the reals.
+
+In this type, `a` and `Q` should be `Real`s, rather a vector and matrix, and `A` is an
+`Adjoint` of an `AbstractVector`.
+"""
+struct ScalarOutputLGC{
+    TA<:Adjoint{<:Any, <:AbstractVector}, Ta<:Real, TQ<:Real,
+} <: AbstractLGC
+    A::TA
+    a::Ta
+    Q::TQ
+end
+
+function conditional_rand(ε::Real, f::ScalarOutputLGC, x::AbstractVector)
+    return (f.A * x + f.a) + sqrt(f.Q) * ε
+end
+
+ε_randn(rng::AbstractRNG, f::ScalarOutputLGC) = randn(rng, eltype(f))
+
+function posterior_and_lml(x::Gaussian, f::ScalarOutputLGC, y::T) where {T<:Real}
+    A = f.A
+    V = A * x.P
+    sqrtS = sqrt(V * A' + f.Q)
+    B = sqrtS \ V
+    α = sqrtS \ (y - (A * x.m + f.a))
+
+    lml = -(convert(T, log(2π)) + 2 * log(sqrtS) + α^2) / 2
+    return Gaussian(x.m + B'α, x.P - B'B), lml
 end

@@ -1,8 +1,6 @@
 using ChainRulesCore: backing
 using TemporalGPs:
     Gaussian,
-    correlate,
-    decorrelate,
     harmonise,
     Forward,
     Reverse,
@@ -66,6 +64,15 @@ end
 function to_vec(x::Tuple{})
     empty_tuple_from_vec(v) = x
     return Bool[], empty_tuple_from_vec
+end
+
+function to_vec(x::StructArray{T}) where {T}
+    x_vec, x_fields_from_vec = to_vec(getfield(x, :fieldarrays))
+    function StructArray_from_vec(x_vec)
+        x_field_vecs = x_fields_from_vec(x_vec)
+        return StructArray{T}(Tuple(x_field_vecs))
+    end
+    return x_vec, StructArray_from_vec
 end
 
 # Fallback method for `to_vec`. Won't always do what you wanted, but should be fine a decent
@@ -169,29 +176,31 @@ to_vec(::Nothing) = Bool[], _ -> nothing
         @test gmm_vec isa Vector{<:Real}
         @test gmm_from_vec(gmm_vec) == gmm
     end
-    # @testset "to_vec(::LGSSM)" begin
-    #     N = 11
+    @testset "StructArray" begin
+        x = StructArray([Gaussian(randn(2), randn(2, 2)) for _ in 1:10])
+        x_vec, x_from_vec = to_vec(x)
+        @test x_vec isa Vector{<:Real}
+        @test x_from_vec(x_vec) == x
+    end
+    @testset "to_vec(::LGSSM)" begin
+        N = 11
 
-    #     A = [randn(2, 2) for _ in 1:N]
-    #     a = [randn(2) for _ in 1:N]
-    #     Q = [randn(2, 2) for _ in 1:N]
-    #     H = [randn(3, 2) for _ in 1:N]
-    #     h = [randn(3) for _ in 1:N]
-    #     x0 = Gaussian(randn(2), randn(2, 2))
-    #     gmm = GaussMarkovModel(Forward(), A, a, Q, x0)
+        # Build GaussMarkovModel.
+        A = [randn(2, 2) for _ in 1:N]
+        a = [randn(2) for _ in 1:N]
+        Q = [randn(2, 2) for _ in 1:N]
+        x0 = Gaussian(randn(2), randn(2, 2))
+        gmm = GaussMarkovModel(Forward(), A, a, Q, x0)
 
-    #     Σ = [randn(3, 3) for _ in 1:N]
+        # Build LGSSM.
+        H = [randn(3, 2) for _ in 1:N]
+        h = [randn(3) for _ in 1:N]
+        Σ = [randn(3, 3) for _ in 1:N]
+        model = TemporalGPs.LGSSM(gmm, StructArray(map(SmallOutputLGC, H, h, Σ)))
 
-    #     model = TemporalGPs.LGSSM(gmm, H, h, Σ)
-
-    #     model_vec, model_from_vec = to_vec(model)
-    #     @test model_from_vec(model_vec) == model
-
-    #     @testset "ScalarLGSSM" begin
-    #         model_vec, model_from_vec = to_vec(TemporalGPs.ScalarLGSSM(model))
-    #         @test model_from_vec(model_vec) isa TemporalGPs.ScalarLGSSM
-    #     end
-    # end
+        model_vec, model_from_vec = to_vec(model)
+        @test model_from_vec(model_vec) == model
+    end
     @testset "to_vec(::BlockDiagonal)" begin
         Ns = [3, 5, 1]
         Xs = map(N -> randn(N, N), Ns)
@@ -276,18 +285,17 @@ function adjoint_test(
     end
 
     x̄ = pb(ȳ)[2:end]
+
     # @show x̄
-    # @show harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)
     inner_ad = dot(harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)...)
 
     # Approximate <ȳ, J ẋ> = <ȳ, ẏ> using FiniteDifferences.
+    # @show j′vp(fdm, f, ȳ, x...)
+    # @show typeof(j′vp(fdm, f, ȳ, x...))
     ẏ = jvp(fdm, f, zip(x, ẋ)...)
     inner_fd = dot(harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)...)
 
-    # @show FiniteDifferences.j′vp(fdm, f, ȳ, x...)
-    # @show harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)
-
-    # @show inner_fd - inner_ad
+    @show inner_fd - inner_ad
 
     # Check that Zygote didn't modify the forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)
@@ -339,11 +347,15 @@ function check_adjoint_allocations(
     max_backward_allocs=0,
     kwargs...,
 )
+    # @code_warntype f(input...)
+    # @code_warntype _pullback(context, f, input...)
+    # @code_warntype pb(Δoutput)
     @test allocs(@benchmark($f($input...); samples=1, evals=1)) <= max_primal_allocs
     _, pb = _pullback(context, f, input...)
     @test allocs(
         @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
     ) <= max_forward_allocs
+
     @test allocs(@benchmark $pb($Δoutput) samples=1 evals=1) <= max_backward_allocs
 end
 
@@ -396,10 +408,7 @@ function test_interface(
             )
         end
         if check_allocs
-            check_adjoint_allocations(
-                conditional_rand, (rng, args...);
-                kwargs...,
-            )
+            check_adjoint_allocations(conditional_rand, (rng, args...); kwargs...)
         end
     end
 
@@ -421,16 +430,13 @@ end
 
 """
     test_interface(
-        rng::AbstractRNG, build_ssm, θ...;
-        check_infers=true, check_rmad=false, rtol=1e-9, atol=1e-9,
+        rng::AbstractRNG, ssm::AbstractLGSSM;
+        check_infers=true, check_adjoints=true, check_allocs=true, kwargs...
     )
 
-Basic consistency tests that any ssm should be able to satisfy. The purpose of these tests
+Basic consistency tests that any LGSSM should be able to satisfy. The purpose of these tests
 is not to ensure correctness of any given implementation, only to ensure that it is self-
 consistent and implements the required interface.
-
-`build_ssm` should be a unary function that, when called on `θ`, should return an
-`AbstractLGSSM`.
 """
 function test_interface(
     rng::AbstractRNG, ssm::AbstractLGSSM;
@@ -453,11 +459,7 @@ function test_interface(
 
     @testset "basics" begin
         @inferred storage_type(ssm)
-        @inferred dim_latent(ssm)
-        (@inferred dim_obs(ssm)) == length(first(y_no_missing))
         @test length(ssm) == length(y_no_missing)
-        @test eltype(ssm) == eltype(first(y_no_missing))
-        @test is_of_storage_type(ssm, storage_type(ssm))
     end
 
     @testset "marginals" begin
@@ -497,13 +499,6 @@ function test_interface(
             @test is_of_storage_type(lml, storage_type(ssm))
             _check_infers && @inferred logpdf(ssm, y)
         end
-        @testset "decorrelate" begin
-            α = decorrelate(ssm, y)
-            @test is_of_storage_type(α[1], storage_type(ssm))
-            @test α isa AbstractVector
-            @test length(α) == length(ssm)
-            _check_infers && @inferred decorrelate(ssm, y)
-        end
         @testset "_filter" begin
             xs = _filter(ssm, y)
             @test is_of_storage_type(xs, storage_type(ssm))
@@ -511,42 +506,26 @@ function test_interface(
             @test length(xs) == length(ssm)
             _check_infers && @inferred _filter(ssm, y)
         end
-        @testset "correlate" begin
-            α = correlate(ssm, y)
-            @test is_of_storage_type(α[1], storage_type(ssm))
-            @test α isa AbstractVector
-            @test length(α) == length(ssm)
-            _check_infers && @inferred correlate(ssm, y)
+        @testset "posterior" begin
+            posterior_ssm = posterior(ssm, y)
+            @test length(posterior_ssm) == length(ssm)
+            @test ordering(posterior_ssm) != ordering(ssm)
+            _check_infers && @inferred posterior(ssm, y)
         end
 
         # Hack to only run the AD tests if requested.
         @testset "adjoints" for _ in (check_adjoints ? [1] : [])
             adjoint_test(logpdf, (ssm, y); check_infers=_check_infers, kwargs...)
-            adjoint_test(decorrelate, (ssm, y); check_infers=_check_infers, kwargs...)
             adjoint_test(_filter, (ssm, y); check_infers=_check_infers, kwargs...)
-            adjoint_test(correlate, (ssm, y); check_infers=_check_infers, kwargs...)
+            adjoint_test(posterior, (ssm, y); check_infers=_check_infers, kwargs...)
 
             if check_allocs
                 check_adjoint_allocations(logpdf, (ssm, y); kwargs...)
-                check_adjoint_allocations(decorrelate, (ssm, y); kwargs...)
                 check_adjoint_allocations(_filter, (ssm, y); kwargs...)
-                check_adjoint_allocations(correlate, (ssm, y); kwargs...)
+                check_adjoint_allocations(posterior, (ssm, y); kwargs...)
             end
         end
     end
-
-    # @testset "statistics" begin
-    #     ds = marginals(ssm)
-    #     @test vcat(mean.(ds)...) ≈ mean(ssm)
-    #     if ds isa AbstractVector{<:Gaussian}
-    #         @test vcat(_diag.(cov.(ds))...) ≈ _diag(cov(ssm))
-    #     else
-    #         @test vcat(var.(ds)) ≈ _diag(cov(ssm))
-    #     end
-
-    #     y = y_no_missing
-    #     @test isapprox(logpdf(Gaussian(mean(ssm), cov(ssm)), vcat(y...)), logpdf(ssm, y))
-    # end
 end
 
 _diag(x) = diag(x)
