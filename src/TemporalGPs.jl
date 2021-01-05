@@ -70,8 +70,6 @@ module TemporalGPs
     # Converting GPs to Linear-Gaussian SSMs.
     include(joinpath("gp", "to_gauss_markov.jl"))
     include(joinpath("gp", "lti_sde.jl"))
-
-    include(joinpath("gp", "finite_lti_sde.jl"))
     include(joinpath("gp", "posterior_lti_sde.jl"))
 
     # Converting space-time GPs to Linear-Gaussian SSMs.

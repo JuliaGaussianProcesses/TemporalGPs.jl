@@ -14,13 +14,42 @@ Zygote.accum_param(::NoContext, x, Δ) = Δ
 
 Zygote.@nograd eltype
 
-@inline Zygote.accum(as::Tuple...) = map(accum, as...)
+# @inline Zygote.accum(as::Vararg{Tuple, N}) where {N} = map(accum, as...)
 
-@inline Zygote.accum(as::NamedTuple) = map(accum, as...)
+# Zygote.accum(as::Vararg{NamedTuple, N}) where {N} = map(accum, as...)
 
-@inline Zygote.accum(as::AbstractArray...) = map(accum, as...)
+# For some completely unclear compiler-related reason, I need this method to ensure
+# type-stability.
+function Zygote.accum(
+    a::Array{<:SVector{N, T}}, b::Array{<:SVector{N, T}},
+) where {N, T<:Real}
+    return a + b
+end
 
-@inline Zygote.accum(a::Tuple, b::Tuple, c::Nothing) = map(accum, a, b)
+# @inline Zygote.accum(::Nothing, a::NamedTuple, b::NamedTuple) = accum(a, b)
+
+# @inline Zygote.accum(a::NamedTuple, ::Nothing, b::NamedTuple) = accum(a, b)
+
+# @inline Zygote.accum(::Vararg{Nothing, N}) where {N} = nothing
+
+# # Just filter out the `nothing`s to make the compiler's life a little more straightforward.
+# @generated function Zygote.accum(as::Vararg{Union{NamedTuple, Nothing}, N}) where {N}
+#     non_nothing_positions = filter(n -> as[n] != Nothing, eachindex(as))
+#     non_nothing_args = [Expr(:call, :getindex, :as, n) for n in non_nothing_positions]
+#     new_call = Expr(:call, :(Zygote.accum), non_nothing_args...)
+#     return new_call
+# end
+
+# @generated function Zygote.accum(as::Vararg{Union{Tuple, Nothing}, N}) where {N}
+#     non_nothing_positions = filter(n -> as[n] != Nothing, eachindex(as))
+#     non_nothing_args = [Expr(:call, :getindex, :as, n) for n in non_nothing_positions]
+#     new_call = Expr(:call, :(Zygote.accum), non_nothing_args...)
+#     return new_call
+# end
+
+# @inline Zygote.accum(as::Vararg{AbstractArray, N}) where {N} = map(accum, as...)
+
+# @inline Zygote.accum(a::Tuple, b::Tuple, c::Nothing) = map(accum, a, b)
 
 # @inline function Zygote.accum(a, b::Nothing, c, d) where {T}
 #     return accum(a, c, d)
@@ -108,7 +137,7 @@ end
     function getindex_FillArray_pullback(Δ)
         return ((value = Δ, axes = nothing), nothing)
     end
-    return x[n], getindex_FillArray
+    return x[n], getindex_FillArray_pullback
 end
 
 @adjoint function Base.getindex(x::SVector{1}, n::Int)
@@ -150,7 +179,7 @@ function cholesky_rrule(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
         U, ΔU = C.U, Δ.factors
         ΔS = U \ (U \ SMatrix{N, N}(Symmetric(ΔU * U')))'
         ΔS = ΔS - Diagonal(ΔS ./ 2)
-        return ((data=UpperTriangular(ΔS), ),)
+        return ((data=SMatrix{N, N}(UpperTriangular(ΔS)), ),)
     end
     return C, cholesky_pullback
 end

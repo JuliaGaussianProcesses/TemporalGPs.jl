@@ -1,4 +1,4 @@
-using TemporalGPs:
+# using TemporalGPs:
     predict,
     step_marginals,
     step_logpdf,
@@ -27,38 +27,32 @@ println("lgssm:")
         large_output=(name="large output", val=LargeOutputLGC),
         scalar_output=(name="scalar output", val=ScalarOutputLGC),
     )
-    # Ns = [49]
-    # Dlats = [1, 3]
-    # Dobss = [1, 2]
-    # tvs = [true, false]
-    # Ns = [50]
-    # Dlats = [3]
-    # Dobss = [2]
-    # tvs = [true]
-
     settings = [
         (tv=:time_varying, N=1, Dlat=3, Dobs=2, storage=storages.dense),
         (tv=:time_varying, N=49, Dlat=3, Dobs=2, storage=storages.dense),
         (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.dense),
         (tv=:time_varying, N=49, Dlat=1, Dobs=1, storage=storages.dense),
-        (tv=:time_varying, N=49, Dlat=3, Dobs=2, storage=storages.static),
+        (tv=:time_varying, N=1, Dlat=3, Dobs=2, storage=storages.static),
         (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.static),
     ]
+    orderings = (
+        Forward(),
+        # Reverse(),
+    )
 
-    @testset "($tv, $N, $Dlat, $Dobs, $(storage.name), $(emission.name))" for
+    @testset "($tv, $N, $Dlat, $Dobs, $(storage.name), $(emission.name), $order)" for
         (tv, N, Dlat, Dobs, storage) in settings,
-        emission in emission_types
+        emission in emission_types,
+        order in orderings
 
         # Print current iteration to prevent CI timing out.
         println(
             "(time_varying=$tv, N=$N, Dlat=$Dlat, Dobs=$Dobs, " *
-            "storage=$(storage.name), emissions=$(emission.val))",
+            "storage=$(storage.name), emissions=$(emission.val), ordering=$order)",
         )
 
         # Build LGSSM.
-        model = random_lgssm(
-            rng, Forward(), Val(tv), emission.val, Dlat, Dobs, N, storage.val,
-        )
+        model = random_lgssm(rng, order, Val(tv), emission.val, Dlat, Dobs, N, storage.val)
 
         # Verify the correct output types has been obtained.
         @test eltype(model.emissions) <: emission.val
@@ -80,7 +74,7 @@ println("lgssm:")
             end
         end
         @testset "step_logpdf" begin
-            args = (x, (model[1], y))
+            args = (ordering(model[1]), x, (model[1], y))
             @inferred step_logpdf(args...)
             adjoint_test(step_logpdf, args)
             if storage.val isa SArrayStorage
@@ -88,7 +82,7 @@ println("lgssm:")
             end
         end
         @testset "step_filter" begin
-            args = (x, (model[1], y))
+            args = (ordering(model[1]), x, (model[1], y))
             @inferred step_filter(args...)
             adjoint_test(step_filter, args)
             if storage.val isa SArrayStorage

@@ -63,7 +63,7 @@
         end
 
         # Run standard battery of LGSSM tests.
-        ssm_interface_tests(
+        test_interface(
             rng, model;
             rtol=1e-5,
             atol=1e-5,

@@ -59,3 +59,6 @@ function Zygote._pullback(::AContext, ::Type{<:Gaussian}, m, P)
 end
 
 Base.length(x::Gaussian) = 0
+
+# Zero-adjoint initialisation for the benefit of `scan`.
+_get_zero_adjoint(x::Gaussian) = (m=_get_zero_adjoint(x.m), P=_get_zero_adjoint(x.P))

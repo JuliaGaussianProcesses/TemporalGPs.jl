@@ -124,11 +124,13 @@ function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y)
 
     # Compute log marginal likelihood.
     c = convert(scalar_type(y), length(y) * log(2π))
-    lml = -(δ'δ - Xt_invA_X(F, β) + c + logdet(F) + logdet(Q)) / 2
+    lml = _compute_lml(δ, F, β, c, Q)
 
     return Gaussian(m_post, P_post), lml
 end
 
+# For some compiler-y reason, chopping this up helps.
+_compute_lml(δ, F, β, c, Q) = -(δ'δ - Xt_invA_X(F, β) + c + logdet(F) + logdet(Q)) / 2
 
 
 """

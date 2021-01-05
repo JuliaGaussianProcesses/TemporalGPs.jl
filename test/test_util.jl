@@ -61,6 +61,12 @@ function to_vec(x::T) where {T<:StaticArray}
     return x_vec, StaticArray_to_vec
 end
 
+function to_vec(x::Adjoint{<:Any, T}) where {T<:StaticVector}
+    x_vec, back = to_vec(Matrix(x))
+    Adjoint_from_vec(x_vec) = Adjoint(T(conj!(vec(back(x_vec)))))
+    return x_vec, Adjoint_from_vec
+end
+
 function to_vec(x::Tuple{})
     empty_tuple_from_vec(v) = x
     return Bool[], empty_tuple_from_vec
@@ -295,7 +301,7 @@ function adjoint_test(
     ẏ = jvp(fdm, f, zip(x, ẋ)...)
     inner_fd = dot(harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)...)
 
-    @show inner_fd - inner_ad
+    # @show inner_fd - inner_ad
 
     # Check that Zygote didn't modify the forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)
@@ -347,15 +353,14 @@ function check_adjoint_allocations(
     max_backward_allocs=0,
     kwargs...,
 )
+    _, pb = _pullback(context, f, input...)
     # @code_warntype f(input...)
     # @code_warntype _pullback(context, f, input...)
     # @code_warntype pb(Δoutput)
     @test allocs(@benchmark($f($input...); samples=1, evals=1)) <= max_primal_allocs
-    _, pb = _pullback(context, f, input...)
     @test allocs(
         @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
     ) <= max_forward_allocs
-
     @test allocs(@benchmark $pb($Δoutput) samples=1 evals=1) <= max_backward_allocs
 end
 
@@ -423,8 +428,21 @@ function test_interface(
         args = (x, conditional, y)
         @test posterior_and_lml(args...) isa Tuple{Gaussian, Real}
         check_infers && @inferred posterior_and_lml(args...)
-        check_adjoints && adjoint_test(posterior_and_lml, args; kwargs...)
-        check_allocs && check_adjoint_allocations(posterior_and_lml, args; kwargs...)
+        if check_adjoints
+            (Δx, Δlml) = rand_zygote_tangent(posterior_and_lml(args...))
+            ∂args = map(rand_tangent, args)
+            adjoint_test(posterior_and_lml, (Δx, Δlml), args, ∂args)
+            adjoint_test(posterior_and_lml, (Δx, nothing), args, ∂args)
+            adjoint_test(posterior_and_lml, (nothing, Δlml), args, ∂args)
+            adjoint_test(posterior_and_lml, (nothing, nothing), args, ∂args)
+        end
+        if check_allocs
+            (Δx, Δlml) = rand_zygote_tangent(posterior_and_lml(args...))
+            check_adjoint_allocations(posterior_and_lml, (Δx, Δlml), args; kwargs...)
+            check_adjoint_allocations(posterior_and_lml, (nothing, Δlml), args; kwargs...)
+            check_adjoint_allocations(posterior_and_lml, (Δx, nothing), args; kwargs...)
+            check_adjoint_allocations(posterior_and_lml, (nothing, nothing), args; kwargs...)
+        end
     end
 end
 

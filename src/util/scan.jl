@@ -47,12 +47,16 @@ function Zygote._pullback(::AContext, ::typeof(scan_emit), f, xs, init_state, id
         Δys = Δ[1]
         Δstate = Δ[2]
 
+        # This is a hack to handle the case that Δstate=nothing, and the "look at the
+        # type of the first thing" heuristic breaks down.
+        Δstate = Δ[2] === nothing ? _get_zero_adjoint(states[idx[end]]) : Δ[2]
+
         T = length(idx)
         if T > 1
             _, Δstate, Δx = step_pb(
                 f, states[idx[T-1]], _getindex(xs, idx[T]), Δys[idx[T]], Δstate,
             )
-            Δxs = get_adjoint_storage(xs, Δx)
+            Δxs = get_adjoint_storage(xs, idx[T], Δx)
 
             for t in reverse(2:(T - 1))
                 a = _getindex(xs, idx[t])
@@ -74,7 +78,7 @@ function Zygote._pullback(::AContext, ::typeof(scan_emit), f, xs, init_state, id
             _, Δstate, Δx = step_pb(
                 f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
             )
-            Δxs = get_adjoint_storage(xs, Δx)
+            Δxs = get_adjoint_storage(xs, idx[1], Δx)
 
             return (nothing, nothing, Δxs, Δstate, nothing)
         end
@@ -93,19 +97,22 @@ end
 _getindex(x, idx::Int) = getindex(x, idx)
 _getindex(x::Base.Iterators.Zip, idx::Int) = map(x -> _getindex(x, idx), x.is)
 
+_get_zero_adjoint(::Any) = nothing
+_get_zero_adjoint(x::AbstractArray) = zero(x)
+
 
 
 # Vector
 
-function get_adjoint_storage(x::Vector{T}, Δx::T) where {T<:Real}
+function get_adjoint_storage(x::Vector{T}, n::Int, Δx::T) where {T<:Real}
     x̄ = Vector{T}(undef, length(x))
-    x̄[end] = Δx
+    x̄[n] = Δx
     return x̄
 end
 
-function get_adjoint_storage(x::Vector, init::T) where {T<:AbstractVecOrMat{<:Real}}
+function get_adjoint_storage(x::Vector, n::Int, init::T) where {T<:AbstractVecOrMat{<:Real}}
     Δx = Vector{T}(undef, length(x))
-    Δx[end] = init
+    Δx[n] = init
     return Δx
 end
 
@@ -123,11 +130,10 @@ _accum_at(Δxs::Nothing, n::Int, Δx::Nothing) = nothing
 
 
 
-
 # Zip
 
-function get_adjoint_storage(x::Base.Iterators.Zip, Δx::Tuple)
-    return (is=map(get_adjoint_storage, x.is, Δx),)
+function get_adjoint_storage(x::Base.Iterators.Zip, n::Int, Δx::Tuple)
+    return (is=map((x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), x.is, Δx),)
 end
 
 function _accum_at(Δxs::NamedTuple{(:is,)}, n::Int, Δx::Tuple)
@@ -138,10 +144,10 @@ end
 
 # Fill
 
-get_adjoint_storage(x::Fill, init) = (value=init, axes=nothing)
+get_adjoint_storage(x::Fill, ::Int, init) = (value=init, axes=nothing)
 
 @inline function _accum_at(
-    Δxs::NamedTuple{(:value, :axes), Tuple{T, Nothing}}, n::Int, Δx::T,
+    Δxs::NamedTuple{(:value, :axes), Tuple{T, Nothing}}, ::Int, Δx::T,
 ) where {T}
     return (value=accum(Δxs.value, Δx), axes=nothing)
 end
@@ -150,8 +156,11 @@ end
 
 # StructArray
 
-function get_adjoint_storage(x::StructArray, init::NamedTuple)
-    return (fieldarrays = map(get_adjoint_storage, getfield(x, :fieldarrays), init), )
+function get_adjoint_storage(x::StructArray, n::Int, Δx::NamedTuple)
+    init_arrays = map(
+        (x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), getfield(x, :fieldarrays), Δx,
+    )
+    return (fieldarrays = init_arrays, )
 end
 
 function _accum_at(Δxs::NamedTuple{(:fieldarrays,)}, n::Int, Δx::NamedTuple)

@@ -20,7 +20,7 @@ using TemporalGPs:
     y = rand(model)
     _, α = TemporalGPs.decorrelate(model, y)
 
-    ssm_interface_tests(rng, model_checkpointed; check_infers=false, context=NoContext())
+    test_interface(rng, model_checkpointed; check_infers=false, context=NoContext())
 
 
     # @testset "$(name)" for (name, foo) in [

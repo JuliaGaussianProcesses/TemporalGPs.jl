@@ -5,7 +5,8 @@ struct Reverse end
 # For some reason, this is necessary for printing. I don't really understand it.
 Base.length(::Union{Forward, Reverse}) = 0
 
-
+Base.reverse(::Forward) = Reverse()
+Base.reverse(::Reverse) = Forward()
 
 """
     GaussMarkovModel
@@ -66,12 +67,12 @@ end
 
 x0(model::GaussMarkovModel) = model.x0
 
-function get_adjoint_storage(x::GaussMarkovModel, Δx::NamedTuple{(:A, :a, :Q)})
+function get_adjoint_storage(x::GaussMarkovModel, n::Int, Δx::NamedTuple{(:A, :a, :Q)})
     return (
         ordering = nothing,
-        As = get_adjoint_storage(x.As, Δx.A),
-        as = get_adjoint_storage(x.as, Δx.a),
-        Qs = get_adjoint_storage(x.Qs, Δx.Q),
+        As = get_adjoint_storage(x.As, n, Δx.A),
+        as = get_adjoint_storage(x.as, n, Δx.a),
+        Qs = get_adjoint_storage(x.Qs, n, Δx.Q),
         x0 = nothing,
     )
 end

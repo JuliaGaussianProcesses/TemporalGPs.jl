@@ -3,8 +3,8 @@ using TemporalGPs: posterior_and_lml
 @testset "linear_gaussian_conditionals" begin
     Dlats = [1, 3]
     Dobss = [1, 2]
-    # Dlats = [3]
-    # Dobss = [2]
+    Dlats = [3]
+    Dobss = [2]
     storages = [
         (name="dense storage Float64", val=ArrayStorage(Float64)),
         (name="static storage Float64", val=SArrayStorage(Float64)),

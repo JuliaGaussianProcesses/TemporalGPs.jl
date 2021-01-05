@@ -1,12 +1,7 @@
 using TemporalGPs:
     NoContext,
-    predict,
-    update_decorrelate,
-    update_correlate,
-    step_decorrelate,
-    step_correlate,
-    decorrelate,
-    correlate
+    predict
+
 using Zygote: _pullback
 
 println("immutable inference:")

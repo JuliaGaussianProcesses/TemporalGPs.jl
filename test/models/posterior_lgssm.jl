@@ -41,7 +41,7 @@ using TemporalGPs: transition_dynamics, emission_dynamics, invert_dynamics
         #         random_tv_posterior_lgssm(rng, Dlat, Dobs, N, storage.val) :
         #         random_ti_posterior_lgssm(rng, Dlat, Dobs, N, storage.val)
 
-        #     ssm_interface_tests(
+        #     test_interface(
         #         rng, model;
         #         rtol=1e-6, atol=1e-6, context=NoContext(),
         #     )

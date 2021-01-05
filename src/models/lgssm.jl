@@ -11,7 +11,12 @@ struct LGSSM{Ttransitions<:GaussMarkovModel, Temissions<:StructArray} <: Abstrac
     emissions::Temissions
 end
 
-ordering(model::LGSSM) = ordering(model.transitions)
+@inline ordering(model::LGSSM) = ordering(model.transitions)
+
+function Zygote._pullback(::AContext, ::typeof(ordering), model)
+    ordering_pullback(Δ) = nothing
+    return ordering(model), ordering_pullback
+end
 
 function Base.:(==)(x::LGSSM, y::LGSSM)
     return (x.transitions == y.transitions) && (x.emissions == y.emissions)
@@ -42,13 +47,13 @@ struct ElementOfLGSSM{Tordering, Ttransition, Temission}
     emission::Temission
 end
 
-ordering(x::ElementOfLGSSM) = x.ordering
+@inline ordering(x::ElementOfLGSSM) = x.ordering
 
-transition_dynamics(x::ElementOfLGSSM) = x.transition
+@inline transition_dynamics(x::ElementOfLGSSM) = x.transition
 
-emission_dynamics(x::ElementOfLGSSM) = x.emission
+@inline emission_dynamics(x::ElementOfLGSSM) = x.emission
 
-function Base.getindex(model::LGSSM, n::Int)
+@inline function Base.getindex(model::LGSSM, n::Int)
     return ElementOfLGSSM(ordering(model), model.transitions[n], model.emissions[n])
 end
 
@@ -145,7 +150,7 @@ function step_filter(::Forward, x::Gaussian, (model, y))
 end
 
 function step_filter(::Reverse, x::Gaussian, (model, y))
-    xf, lml, α = decorrelate(x, emission_dynamics(model), y)
+    xf, lml = posterior_and_lml(x, emission_dynamics(model), y)
     xp = predict(xf, transition_dynamics(model))
     return xf, xp
 end
@@ -155,13 +160,16 @@ end
 # Construct the posterior model.
 
 function posterior(prior::LGSSM, y::AbstractVector)
-    new_trans, xf = scan_emit(step_posterior, zip(prior, y), x0(prior), eachindex(prior))
+    new_trans, xf = _a_bit_of_posterior(prior, y)
     A = map(x -> x.A, new_trans)
     a = map(x -> x.a, new_trans)
     Q = map(x -> x.Q, new_trans)
-    return LGSSM(GaussMarkovModel(Reverse(), A, a, Q, xf), prior.emissions)
+    return LGSSM(GaussMarkovModel(reverse(ordering(prior)), A, a, Q, xf), prior.emissions)
 end
 
+function _a_bit_of_posterior(prior, y)
+    return scan_emit(step_posterior, zip(prior, y), x0(prior), eachindex(prior))
+end
 step_posterior(xf::Gaussian, (prior, y)) = step_posterior(ordering(prior), xf, (prior, y))
 
 function step_posterior(::Forward, xf::Gaussian, (prior, y))
@@ -169,6 +177,13 @@ function step_posterior(::Forward, xf::Gaussian, (prior, y))
     xp = predict(xf, t)
     xf, _ = posterior_and_lml(xp, emission_dynamics(prior), y)
     return invert_dynamics(xf, xp, t), xf
+end
+
+function step_posterior(::Reverse, x::Gaussian, (prior, y))
+    xf, _ = posterior_and_lml(x, emission_dynamics(prior), y)
+    t = transition_dynamics(prior)
+    xp = predict(xf, t)
+    return invert_dynamics(xp, xf, t), xp
 end
 
 # inlining for the benefit of type inference. Needed in at least julia-1.5.3.
@@ -198,10 +213,12 @@ small_noise_cov(::Type{Matrix{T}}, D::Int) where {T} = Matrix{T}(1e-12 * I, D, D
 
 # AD stuff. No need to understand this unless you're really plumbing the depths...
 
-function get_adjoint_storage(x::LGSSM, Δx::NamedTuple{(:ordering, :transition, :emission)})
+function get_adjoint_storage(
+    x::LGSSM, n::Int, Δx::NamedTuple{(:ordering, :transition, :emission)},
+)
     return (
-        transitions = get_adjoint_storage(x.transitions, Δx.transition),
-        emissions = get_adjoint_storage(x.emissions, Δx.emission)
+        transitions = get_adjoint_storage(x.transitions, n, Δx.transition),
+        emissions = get_adjoint_storage(x.emissions, n, Δx.emission)
     )
 end
 

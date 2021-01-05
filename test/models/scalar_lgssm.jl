@@ -48,7 +48,7 @@ println("scalar_lgssm:")
             adjoint_test(step_correlate, (model.gmm.x0, (scalar_model[1], y[1])))
         end
 
-        ssm_interface_tests(
+        test_interface(
             rng, scalar_model;
             # check_allocs=false,
             check_allocs=storage.val isa SArrayStorage,
