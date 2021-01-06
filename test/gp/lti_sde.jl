@@ -1,161 +1,145 @@
-using TemporalGPs: build_Σs
+using TemporalGPs: build_lgssm
 
 _logistic(x) = 1 / (1 + exp(-x))
 
-# Some hacks to ensure element types make sense.
-_to_T(T) = ()
-_to_T(T, x::Real) = (T(x),)
-_to_T(T, x::AbstractVector{<:Real}) = (T.(x),)
-_to_T(T, X::Diagonal{<:Real}) = (T.(X),)
+# Everything is tested once the LGSSM is constructed, so it is sufficient just to ensure
+# that Zygote can handle construction.
+function _construction_tester(f_naive::GP, storage::StorageType, σ², t::AbstractVector)
+    f = to_sde(f_naive, storage)
+    fx = f(t, σ²...)
+    return build_lgssm(fx)
+end
 
 println("lti_sde:")
 @testset "lti_sde" begin
-    @testset "build_Σs" begin
-        rng = MersenneTwister(123456)
-        N = 11
-        @testset "heteroscedastic" begin
-            σ²_ns = exp.(randn(rng, N)) .+ 1e-3
-            @test all(first.(build_Σs(σ²_ns)) == first.(σ²_ns))
 
-            ΔΣs = SMatrix{1, 1}.(randn(rng, N))
-            adjoint_test(build_Σs, (σ²_ns, ))
-        end
-        @testset "homoscedastic" begin
-            σ²_n = exp(randn(rng)) + 1e-3
-            σ²_ns = Fill(σ²_n, N)
-            @test all(first.(build_Σs(σ²_ns)) == first.(σ²_ns))
+    @testset "blk_diag" begin
+        adjoint_test(TemporalGPs.blk_diag, (randn(2, 2), randn(3, 3)))
+    end
 
-            ΔΣs = (value=SMatrix{1, 1}(randn(rng)),)
-            adjoint_test(σ²_n->build_Σs(Fill(σ²_n, N)), (σ²_n, ))
+    @testset "BaseKernel parameter types" begin
+
+        storages = (
+            (name="dense storage Float64", val=ArrayStorage(Float64)),
+            (name="static storage Float64", val=SArrayStorage(Float64)),
+            # (name="dense storage Float32", val=ArrayStorage(Float32)),
+            # (name="static storage Float32", val=SArrayStorage(Float32)),
+        )
+
+        kernels = [Matern12(), Matern32(), Matern52()]
+
+        @testset "$kernel, $(storage.name)" for kernel in kernels, storage in storages
+            F, q, H = TemporalGPs.to_sde(kernel, storage.val)
+            @test is_of_storage_type(F, storage.val)
+            @test is_of_storage_type(q, storage.val)
+            @test is_of_storage_type(H, storage.val)
+
+            x = TemporalGPs.stationary_distribution(kernel, storage.val)
+            @test is_of_storage_type(x, storage.val)
         end
     end
 
-    @testset "GP correctness" begin
-
+    @testset "compute_lgssm_components" begin
         rng = MersenneTwister(123456)
-        k = Matern32()
-        N = 7
+        N = 13
 
-        # construct a Gauss-Markov model with either dense storage or static storage.
+        kernels = vcat(
+
+            # Base kernels.
+            (name="base-Matern12", val=Matern12()),
+            map([Matern32, Matern52]) do k
+                (name="base-$k", val=k())
+            end,
+
+            # Scaled kernels.
+            map([1e-1, 1.0, 10.0, 100.0]) do σ²
+                (name="scaled-σ²=$σ²", val=σ² * Matern32())
+            end,
+
+            # Stretched kernels.
+            map([1e-2, 0.1, 1.0, 10.0, 100.0]) do λ
+                (name="stretched-λ=$λ", val=stretch(Matern32(), λ))
+            end,
+
+            # Summed kernels.
+            (
+                name="sum-Matern12-Matern32",
+                val=1.5 * stretch(Matern12(), 0.1) + 0.3 * stretch(Matern32(), 1.1),
+            ),
+        )
+
+        # Construct a Gauss-Markov model with either dense storage or static storage.
         storages = (
-            (name="dense storage Float64", val=ArrayStorage(Float64), tol=1e-7),
-            (name="static storage Float64", val=SArrayStorage(Float64), tol=1e-7),
-            (name="dense storage Float32", val=ArrayStorage(Float32), tol=1e-4),
-            (name="static storage Float32", val=SArrayStorage(Float32), tol=1e-4),
+            (name="dense storage Float64", val=ArrayStorage(Float64)),
+            (name="static storage Float64", val=SArrayStorage(Float64)),
+            # (name="dense storage Float32", val=ArrayStorage(Float32)),
+            # (name="static storage Float32", val=SArrayStorage(Float32)),
         )
 
         # Either regular spacing or irregular spacing in time.
         ts = (
-            (name="irregular spacing", val=sort(rand(rng, N))),
+            (name="irregular spacing", val=collect(RegularSpacing(0.0, 0.3, N))),
             (name="regular spacing", val=RegularSpacing(0.0, 0.3, N)),
         )
 
         σ²s = (
-            (name="homoscedastic noise", val=(0.1,)),
-            (name="heteroscedastic noise", val=(_logistic.(randn(rng, N)) .+ 1e-1,)),
-            (name="none", val=(),),
-            (name="Diagonal", val=(Diagonal(_logistic.(randn(rng, N)) .+ 1e-1),)),
+            (name="homoscedastic noise", val=(0.1, ),),
+            (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1, )),
+            (name="none", val=()),
+            # (name="Diagonal", val=(Diagonal(_logistic.(randn(rng, N)) .+ 1e-1),)),
         )
 
-        @testset "t=$(t.name), storage=$(storage.name), σ²=$(σ².name)" for
-            t in ts,
+        @testset "$(kernel.name), $(storage.name), $(t.name), $(σ².name)" for
+            kernel in kernels,
             storage in storages,
+            t in ts,
             σ² in σ²s
 
-            s = _to_T(eltype(storage.val), σ².val...)
+            println("$(kernel.name), $(storage.name), $(t.name), $(σ².name)")
 
-            f = GP(k, GPC())
-            ft = f(t.val, s...)
+            # Construct Gauss-Markov model.
+            f_naive = GP(kernel.val, GPC())
+            fx_naive = f_naive(collect(t.val), σ².val...)
 
-            f_sde = to_sde(f, storage.val)
-            ft_sde = f_sde(t.val, s...)
-            lgssm = TemporalGPs.build_lgssm(ft_sde)
+            f = to_sde(f_naive, storage.val)
+            fx = f(t.val, σ².val...)
+            model = build_lgssm(fx)
 
-            hetero_noise = σ².val isa Tuple{Union{Vector, Diagonal}}
+            # is_of_storage_type(fx, storage.val)
+            validate_dims(model)
 
-            validate_dims(lgssm)
-
-            # These things are slow. Only helpful for verifying correctness.
-            @test mean(ft) ≈ mean(ft_sde)
-            @test cov(ft) ≈ cov(ft_sde)
-
-            y = rand(MersenneTwister(123456), ft)
-            y_sde = rand(MersenneTwister(123456), ft_sde)
-            @test y ≈ y_sde
-
-            @test logpdf(ft, y) ≈ logpdf(ft_sde, y_sde)
-
-            tol = storage.tol
+            # Check that the covariances agree, only for high-ish precision.
             if eltype(storage.val) == Float64
-                if t.val isa Vector
-                    adjoint_test(
-                        (t, y) -> begin
-                            _f = to_sde(GP(k, GPC()))
-                            _ft = f(t, s...)
-                            return logpdf(_ft, y)
-                        end,
-                        (t.val, y);
-                        check_infers=false, atol=tol, rtol=tol,
-                    )
-                else
-                    adjoint_test(
-                        (Δt, y) -> begin
-                            _t = RegularSpacing(t.val.t0, Δt, length(t.val))
-                            _f = to_sde(GP(k, GPC()))
-                            _ft = _f(_t, s...)
-                            return logpdf(_ft, y)
-                        end,
-                        (t.val.Δt, y);
-                        check_infers=false, atol=tol, rtol=tol,
-                    )
+                y = rand(rng, fx)
+
+                @testset "prior" begin
+                    @test mean(fx) ≈ mean(fx_naive)
+                    @test cov(fx) ≈ cov(fx_naive)
+                    @test mean.(marginals(fx)) ≈ mean.(marginals(fx_naive))
+                    @test cov.(marginals(fx)) ≈ var.(marginals(fx_naive))
+                    @test logpdf(fx, y) ≈ logpdf(fx_naive, y)
                 end
+
+                @testset "check args to_vec properly" begin
+                    k_vec, k_from_vec = to_vec(kernel.val)
+                    @test typeof(k_from_vec(k_vec)) == typeof(kernel.val)
+
+                    storage_vec, storage_from_vec = to_vec(storage.val)
+                    @test typeof(storage_from_vec(storage_vec)) == typeof(storage.val)
+
+                    σ²_vec, σ²_from_vec = to_vec(σ².val)
+                    @test typeof(σ²_from_vec(σ²_vec)) == typeof(σ².val)
+
+                    t_vec, t_from_vec = to_vec(t.val)
+                    @test typeof(t_from_vec(t_vec)) == typeof(t.val)
+                end
+
+                # Just need to ensure we can differentiate through construction properly.
+                adjoint_test(
+                    _construction_tester, (f_naive, storage.val, σ².val, t.val);
+                    check_infers=false, rtol=1e-6,
+                )
             end
-
-            y_smooth = marginals(posterior(lgssm, y_sde))
-
-            # Check posterior marginals
-            m_ssm = [first(y.m) for y in y_smooth]
-            σ²_ssm = [first(y.P) for y in y_smooth]
-
-            f′ = f | (ft ← y)
-            f′_marginals = marginals(f′(t.val, 1e-12))
-            m_exact = mean.(f′_marginals)
-            σ²_exact = std.(f′_marginals).^2
-
-            @test isapprox(m_ssm, m_exact; atol=tol, rtol=tol)
-            @test isapprox(σ²_ssm, σ²_exact; atol=tol, rtol=tol)
-        end
-    end
-
-    @testset "StaticArrays performance integration" begin
-        rng = MersenneTwister(123456)
-        f = to_sde(GP(Matern32(), GPC()), SArrayStorage(Float64))
-        σ²_n = 0.54
-
-        t = range(0.1; step=0.11, length=1_000)
-        ft = f(t, σ²_n)
-        y = collect(rand(rng, ft))
-
-        @testset "logpdf performance" begin
-            Δlml = randn(rng)
-
-            # Ensure that allocs is roughly independent of length(t).
-            primal, fwd, rvs = benchmark_adjoint(logpdf, Δlml, ft, y; disp=false)
-            @test allocs(primal) < 200
-            @test allocs(fwd) < 200
-            @test allocs(rvs) < 200
-        end
-        @testset "rand" begin
-            Δy = randn(rng, length(t))
-
-            # Ensure that allocs is roughly independent of length(t).
-            primal, fwd, rvs = benchmark_adjoint(
-                ft->rand(MersenneTwister(123456), ft), Δy, ft;
-                disp=false,
-            )
-            @test allocs(primal) < 200
-            @test allocs(fwd) < 200
-            @test allocs(rvs) < 200
         end
     end
 end

@@ -289,46 +289,52 @@ end
 # end
 
 
-# #
-# # Validation of internal consistency.
-# #
+#
+# Validation of internal consistency.
+#
 
-# function validate_dims(gmm::GaussMarkovModel)
+function validate_dims(model::Union{SmallOutputLGC, LargeOutputLGC})
+    @test size(model.A) == (dim_out(model), dim_in(model))
+    @test size(model.a) == (dim_out(model), )
+    @test size(model.Q) == (dim_out(model), dim_out(model))
+    return nothing
+end
 
-#     # Check all vectors are the correct length.
-#     @test length(gmm.A) == length(gmm)
-#     @test length(gmm.a) == length(gmm)
-#     @test length(gmm.Q) == length(gmm)
-#     @test length(gmm.H) == length(gmm)
-#     @test length(gmm.h) == length(gmm)
+function validate_dims(model::Union{ScalarOutputLGC})
+    @test size(model.A) == (1, dim_in(model))
+    @test size(model.a) == ()
+    @test size(model.Q) == ()
+    return nothing
+end
 
-#     # Check sizes of each element of the struct are correct.
-#     N = length(gmm)
-#     Dlat = dim_latent(gmm)
-#     Dobs = dim_obs(gmm)
-#     @test all(map(n -> size(gmm.A[n]) == (Dlat, Dlat), 1:N))
-#     @test all(map(n -> size(gmm.a[n]) == (Dlat,), 1:N))
-#     @test all(map(n -> size(gmm.Q[n]) == (Dlat, Dlat), 1:N))
-#     @test all(map(n -> size(gmm.H[n]) == (Dobs, Dlat), 1:N))
-#     @test all(map(n -> size(gmm.h[n]) == (Dobs,), 1:N))
-#     @test size(gmm.x0.m) == (Dlat,)
-#     @test size(gmm.x0.P) == (Dlat, Dlat)
-#     return nothing
-# end
+function validate_dims(gmm::GaussMarkovModel)
 
-# function validate_dims(model::LGSSM)
-#     validate_dims(model.gmm)
+    # Check all vectors are the correct length.
+    @test length(gmm.As) == length(gmm)
+    @test length(gmm.as) == length(gmm)
+    @test length(gmm.Qs) == length(gmm)
 
-#     N = length(model)
-#     Dobs = dim_obs(model.gmm)
-#     @test all(map(n -> size(model.Σ[n]) == (Dobs, Dobs), 1:N))
-#     return nothing
-# end
+    # Check sizes of each element of the struct are correct.
+    @test all(map(n -> dim_out(gmm[n]) == dim(gmm), eachindex(gmm)))
+    @test all(map(n -> dim_in(gmm[n]) == dim(gmm), eachindex(gmm)))
 
-# # function validate_dims(model::ScalarLGSSM)
-# #     validate_dims(model.model)
-# #     return nothing
-# # end
+    @test size(gmm.x0.m) == (dim(gmm),)
+    @test size(gmm.x0.P) == (dim(gmm), dim(gmm))
+    return nothing
+end
+
+function validate_dims(model::LGSSM)
+    validate_dims(model.transitions)
+
+    @test length(model) == length(model.transitions)
+    @test length(model) == length(model.emissions)
+
+    validate_dims(model.transitions)
+
+    @test all(n -> dim(model.transitions) == dim_in(model.emissions[n]), eachindex(model))
+
+    return nothing
+end
 
 # function __verify_model_properties(model, Dlat, Dobs, N, storage_type)
 #     @test is_of_storage_type(model, storage_type)
@@ -336,6 +342,7 @@ end
 #     @test dim_obs(model) == Dobs
 #     @test dim_latent(model) == Dlat
 #     validate_dims(model)
+#     return nothing
 # end
 
 # function __verify_model_properties(model, Dlat, N, storage_type)

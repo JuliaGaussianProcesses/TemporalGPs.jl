@@ -99,6 +99,20 @@ function to_vec(x::T) where {T}
     return v, structtype_from_vec
 end
 
+function to_vec(gpc::GPC)
+    GPC_from_vec(v) = gpc
+    return Bool[], GPC_from_vec
+end
+
+function to_vec(f::GP)
+    gp_vec, t_from_vec = to_vec((f.m, f.k, f.gpc))
+    function GP_from_vec(v)
+        (m, k, gpc) = t_from_vec(v)
+        return GP(m, k, gpc)
+    end
+    return gp_vec, GP_from_vec
+end
+
 function to_vec(X::BlockDiagonal)
     Xs = blocks(X)
     Xs_vec, Xs_from_vec = to_vec(Xs)
@@ -125,6 +139,16 @@ function to_vec(X::KroneckerProduct)
     end
 
     return X_vec, KroneckerProduct_from_vec
+end
+
+function to_vec(::typeof(identity))
+    Identity_from_vec(v) = identity
+    return Bool[], Identity_from_vec
+end
+
+function to_vec(x::RegularSpacing)
+    RegularSpacing_from_vec(v) = RegularSpacing(v[1], v[2], x.N)
+    return [x.t0, x.Δt], RegularSpacing_from_vec
 end
 
 to_vec(::Nothing) = Bool[], _ -> nothing
@@ -259,6 +283,12 @@ function fd_isapprox(x::Gaussian, y::Gaussian, rtol, atol)
 end
 function fd_isapprox(x::Real, y::Zero, rtol, atol)
     return fd_isapprox(x, zero(x), rtol, atol)
+end
+fd_isapprox(x::Zero, y::Real, rtol, atol) = fd_isapprox(y, x, rtol, atol)
+
+function fd_isapprox(x_ad::T, x_fd::T, rtol, atol) where {T<:NamedTuple}
+    f = (x_ad, x_fd)->fd_isapprox(x_ad, x_fd, rtol, atol)
+    return all([f(getfield(x_ad, key), getfield(x_fd, key)) for key in keys(x_ad)])
 end
 
 function fd_isapprox(x::T, y::T, rtol, atol) where {T}
@@ -566,5 +596,9 @@ end
 
 function LinearAlgebra.dot(A::Composite, B::Composite)
     mutual_names = intersect(propertynames(A), propertynames(B))
-    return sum(n -> dot(getproperty(A, n), getproperty(B, n)), mutual_names)
+    if length(mutual_names) == 0
+        return 0
+    else
+        return sum(n -> dot(getproperty(A, n), getproperty(B, n)), mutual_names)
+    end
 end

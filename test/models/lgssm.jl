@@ -35,10 +35,10 @@ println("lgssm:")
         (tv=:time_varying, N=1, Dlat=3, Dobs=2, storage=storages.static),
         (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.static),
     ]
-    orderings = (
+    orderings = [
         Forward(),
-        # Reverse(),
-    )
+        Reverse(),
+    ]
 
     @testset "($tv, $N, $Dlat, $Dobs, $(storage.name), $(emission.name), $order)" for
         (tv, N, Dlat, Dobs, storage) in settings,

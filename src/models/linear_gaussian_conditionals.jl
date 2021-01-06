@@ -30,7 +30,7 @@ function conditional_rand(ε::AbstractVector, f::AbstractLGC, x::AbstractVector)
 end
 
 ε_randn(rng::AbstractRNG, f::AbstractLGC) = ε_randn(rng, f.a)
-ε_randn(rng::AbstractRNG, a::Vector{T}) where {T<:Real} = randn(rng, T, length(a))
+ε_randn(rng::AbstractRNG, a::AbstractVector{T}) where {T<:Real} = randn(rng, T, length(a))
 ε_randn(rng::AbstractRNG, a::T) where {T<:SVector{<:Any, <:Real}} = randn(rng, T)
 
 # @nograd is specialised to `Context`, rather than the more general `AContext` :(
