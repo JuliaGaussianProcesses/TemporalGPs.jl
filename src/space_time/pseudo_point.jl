@@ -59,30 +59,44 @@ Compute the ELBO (Evidence Lower BOund) in state-space form [insert reference].
 """
 function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)
     fx_dtc = dtcify(z_r, fx)
-    return logpdf(fx_dtc, y) + trace_term(fx_dtc)
-end
-
-# THIS NEEDS TO BE EXPANDED TO HANDLE THE MORE GENERAL CASE IN WHICH WE HAVE SCALED AND
-# SUMMED KERNELS!
-function trace_term(fx::FiniteLTISDE)
 
     # Compute diagonals over prior marginals.
-    lgssm = build_lgssm(fx)
+    lgssm = build_lgssm(fx_dtc)
     Σs = lgssm.emissions.Q
     marg_diag = marginals_diag(lgssm)
 
-    k = fx.f.f.k.k
-    space_kernel = k.l
-    Cr_rpred_diag = Stheno.elementwise(space_kernel, get_space(fx.x))
-
-    time_kernel = k.r
-    time_vars = Stheno.ew(time_kernel, get_time(fx.x))
-    Cf_diags = map(s_t -> Diagonal(Cr_rpred_diag * s_t), time_vars)
+    k = fx_dtc.f.f.k
+    Cf_diags = kernel_diagonals(k, fx_dtc.x)
 
     tmp = map(eachindex(marg_diag)) do n
         sum(diag(Σs[n] \ (Cf_diags[n] - marg_diag[n].P + Σs[n])))
     end
-    return -sum(tmp) / 2
+    return logpdf(lgssm, restructure(y, lgssm.emissions)) - sum(tmp) / 2
+end
+
+function kernel_diagonals(k::DTCSeparable, x::RectilinearGrid)
+    space_kernel = k.k.l
+    time_kernel = k.k.r
+    Cr_rpred_diag = Stheno.elementwise(space_kernel, get_space(x))
+    time_vars = Stheno.elementwise(time_kernel, get_time(x))
+    return map(s_t -> Diagonal(Cr_rpred_diag * s_t), time_vars)
+end
+
+function kernel_diagonals(k::DTCSeparable, x::RegularInTime)
+    space_kernel = k.k.l
+    time_kernel = k.k.r
+    time_vars = Stheno.elementwise(time_kernel, get_time(x))
+    return map(zip(time_vars, x.vs)) do (s_t, x_r)
+        Diagonal(Stheno.elementwise(space_kernel, x_r) * s_t)
+    end
+end
+
+function kernel_diagonals(k::Scaled, x::AbstractVector)
+    return k.σ²[1] .* kernel_diagonals(k.k, x)
+end
+
+function kernel_diagonals(k::Sum, x::AbstractVector)
+    return kernel_diagonals(k.kl, x) .+ kernel_diagonals(k.kr, x)
 end
 
 function lgssm_components(k_dtc::DTCSeparable, x::SpaceTimeGrid, storage::StorageType)

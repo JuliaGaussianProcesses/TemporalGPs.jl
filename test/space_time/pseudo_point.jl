@@ -29,11 +29,11 @@ using TemporalGPs:
         (name="separable-1", val=separable_1),
         (name="separable-2", val=separable_2),
 
-        # (name="scaled-separable", val=0.5 * Separable(Matern52(), Matern32())),
+        (name="scaled-separable", val=0.5 * Separable(Matern52(), Matern32())),
         (name="stretched-separable", val=Separable(stretch(EQ(), 1.1), Matern12())),
 
-        # (name="sum-separable-1", val=separable_1 + separable_2),
-        # (name="sum-separable-2", val=1.3 * separable_1 + separable_2 * 0.95),
+        (name="sum-separable-1", val=separable_1 + separable_2),
+        (name="sum-separable-2", val=1.3 * separable_1 + separable_2 * 0.95),
     ]
 
     # Input locations.
@@ -42,13 +42,13 @@ using TemporalGPs:
             name="rectilinear",
             val=RectilinearGrid(randn(25), RegularSpacing(0.0, 0.3, 10)),
         ),
-        # (
-        #     name="regular-in-time",
-        #     val=RegularInTime(
-        #         RegularSpacing(0.0, 0.1, 11),
-        #         [randn(3) for _ in 1:11],
-        #     ),
-        # ),
+        (
+            name="regular-in-time",
+            val=RegularInTime(
+                RegularSpacing(0.0, 0.1, 11),
+                [randn(3) for _ in 1:11],
+            ),
+        ),
     ]
 
     # Spatial-locations of pseudo-inputs.
@@ -74,11 +74,11 @@ using TemporalGPs:
         # The two approaches to DTC computation should be equivalent up to roundoff error.
         dtc_naive = dtc(fx_naive, y, f_naive(z_naive))
         dtc_sde = dtc(fx, y, z_r)
-        @test dtc_naive ≈ dtc_sde rtol=1e-6
+        @test dtc_naive ≈ dtc_sde rtol=1e-7
 
         elbo_naive = elbo(fx_naive, y, f_naive(z_naive))
         elbo_sde = elbo(fx, y, z_r)
-        @test elbo_naive ≈ elbo_sde
+        @test elbo_naive ≈ elbo_sde rtol=1e-7
 
         # Compute approximate posterior marginals naively.
         f_approx_post_naive = f_naive | Stheno.PseudoObs(fx_naive ← y, f_naive(z_naive))
