@@ -27,6 +27,8 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
         σ² in σ²s,
         t in ts
 
+        println("k = $(k.name), σ²=$(σ².val), t=$(t.name)")
+
         r = randn(rng, Nr)
         x = RectilinearGrid(r, t.val)
 

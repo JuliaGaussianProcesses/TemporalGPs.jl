@@ -13,10 +13,7 @@ end
 
 @inline ordering(model::LGSSM) = ordering(model.transitions)
 
-function Zygote._pullback(::AContext, ::typeof(ordering), model)
-    ordering_pullback(Δ) = nothing
-    return ordering(model), ordering_pullback
-end
+Zygote._pullback(::AContext, ::typeof(ordering), model) = ordering(model), nograd_pullback
 
 function Base.:(==)(x::LGSSM, y::LGSSM)
     return (x.transitions == y.transitions) && (x.emissions == y.emissions)
@@ -230,10 +227,7 @@ _compute_Pf(Pp::AbstractMatrix, B::AbstractMatrix) = Pp - B'B
 
 ident_eps(xf) = UniformScaling(convert(eltype(xf), 1e-12))
 
-function Zygote._pullback(::NoContext, ::typeof(ident_eps), xf)
-    ident_eps_pullback(Δ) = nothing
-    return ident_eps(xf), ident_eps_pullback
-end
+Zygote._pullback(::NoContext, ::typeof(ident_eps), xf) = ident_eps(xf), nograd_pullback
 
 _collect(U::Adjoint{<:Any, <:Matrix}) = collect(U)
 _collect(U::SMatrix) = U

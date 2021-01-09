@@ -85,7 +85,6 @@ println("lti_sde:")
         σ²s = (
             (name="homoscedastic noise", val=(0.1, ),),
             (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1, )),
-            (name="none", val=()),
         )
 
         @testset "$(kernel.name), $(storage.name), $(t.name), $(σ².name)" for

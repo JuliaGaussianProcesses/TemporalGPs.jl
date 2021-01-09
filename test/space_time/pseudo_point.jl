@@ -88,7 +88,7 @@ using TemporalGPs:
         # This is a horrible interface, but it's the best that I can do on short notice.
         approx_post_marginals = approx_posterior_marginals(dtc, fx, y, z_r, x_pr_r)
 
-        @test mean.(naive_approx_post_marginals) ≈ mean.(approx_post_marginals)
-        @test std.(naive_approx_post_marginals) ≈ std.(approx_post_marginals)
+        @test mean.(naive_approx_post_marginals) ≈ mean.(approx_post_marginals) rtol=1e-7
+        @test std.(naive_approx_post_marginals) ≈ std.(approx_post_marginals) rtol=1e-7
     end
 end

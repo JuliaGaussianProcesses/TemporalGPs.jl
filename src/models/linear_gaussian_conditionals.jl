@@ -40,16 +40,12 @@ end
 ε_randn(rng::AbstractRNG, a::AbstractVector{T}) where {T<:Real} = randn(rng, T, length(a))
 ε_randn(rng::AbstractRNG, a::T) where {T<:SVector{<:Any, <:Real}} = randn(rng, T)
 
-# @nograd is specialised to `Context`, rather than the more general `AContext` :(
-function Zygote._pullback(::AContext, ::typeof(ε_randn), args...)
-    ε_randn_pullback(Δ) = nothing
-    return ε_randn(args...), ε_randn_pullback
-end
+Zygote._pullback(::AContext, ::typeof(ε_randn), args...) = ε_randn(args...), nograd_pullback
 
 scalar_type(x::AbstractVector{T}) where {T} = T
 scalar_type(x::T) where {T<:Real} = T
 
-Zygote.@nograd scalar_type
+Zygote._pullback(::AContext, ::typeof(scalar_type), x) = scalar_type(x), nograd_pullback
 
 dim_out(f::AbstractLGC) = size(f.A, 1)
 

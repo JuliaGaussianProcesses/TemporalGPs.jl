@@ -19,8 +19,6 @@ println("lgssm:")
     storages = (
         dense=(name="dense storage Float64", val=ArrayStorage(Float64)),
         static=(name="static storage Float64", val=SArrayStorage(Float64)),
-        # (name="dense storage Float32", val=ArrayStorage(Float32)),
-        # (name="static storage Float32", val=SArrayStorage(Float32)),
     )
     emission_types = (
         small_output=(name="small output", val=SmallOutputLGC),

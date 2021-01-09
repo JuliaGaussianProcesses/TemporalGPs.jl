@@ -34,7 +34,7 @@ dtcify(z::AbstractVector, fx::LTISDE) = LTISDE(dtcify(z, fx.f), fx.storage)
 dtcify(z::AbstractVector, f::GP) = GP(f.m, dtcify(z, f.k), GPC())
 
 """
-    Stheno.dtc(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)
+    dtc(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)
 
 Compute the DTC (Deterministic Training Conditional) in state-space form [insert reference].
 

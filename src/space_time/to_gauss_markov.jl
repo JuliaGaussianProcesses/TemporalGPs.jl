@@ -2,12 +2,7 @@ using Kronecker: KroneckerProduct
 
 my_I(T, N) = Matrix{T}(I, N, N)
 
-function Zygote._pullback(::AContext, ::typeof(my_I), args...)
-    my_I_pullback(Δ) = nothing
-    return my_I(args...), my_I_pullback
-end
-
-Zygote.@nograd my_I
+Zygote._pullback(::AContext, ::typeof(my_I), args...) = my_I(args...), nograd_pullback
 
 function lgssm_components(k::Separable, x::SpaceTimeGrid, storage)
 

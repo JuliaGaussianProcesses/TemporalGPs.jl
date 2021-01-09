@@ -12,51 +12,17 @@ Base.haskey(cx::NoContext, x) = false
 
 Zygote.accum_param(::NoContext, x, Δ) = Δ
 
-Zygote.@nograd eltype
+nograd_pullback(Δ) = nothing
 
-# @inline Zygote.accum(as::Vararg{Tuple, N}) where {N} = map(accum, as...)
+Zygote._pullback(::AContext, ::typeof(eltype), x) = eltype(x), nograd_pullback
 
-# Zygote.accum(as::Vararg{NamedTuple, N}) where {N} = map(accum, as...)
-
-# For some completely unclear compiler-related reason, I need this method to ensure
-# type-stability.
-function Zygote.accum(
-    a::Array{<:SVector{N, T}}, b::Array{<:SVector{N, T}},
-) where {N, T<:Real}
-    return a + b
-end
-
-# @inline Zygote.accum(::Nothing, a::NamedTuple, b::NamedTuple) = accum(a, b)
-
-# @inline Zygote.accum(a::NamedTuple, ::Nothing, b::NamedTuple) = accum(a, b)
-
-# @inline Zygote.accum(::Vararg{Nothing, N}) where {N} = nothing
-
-# # Just filter out the `nothing`s to make the compiler's life a little more straightforward.
-# @generated function Zygote.accum(as::Vararg{Union{NamedTuple, Nothing}, N}) where {N}
-#     non_nothing_positions = filter(n -> as[n] != Nothing, eachindex(as))
-#     non_nothing_args = [Expr(:call, :getindex, :as, n) for n in non_nothing_positions]
-#     new_call = Expr(:call, :(Zygote.accum), non_nothing_args...)
-#     return new_call
-# end
-
-# @generated function Zygote.accum(as::Vararg{Union{Tuple, Nothing}, N}) where {N}
-#     non_nothing_positions = filter(n -> as[n] != Nothing, eachindex(as))
-#     non_nothing_args = [Expr(:call, :getindex, :as, n) for n in non_nothing_positions]
-#     new_call = Expr(:call, :(Zygote.accum), non_nothing_args...)
-#     return new_call
-# end
-
-# @inline Zygote.accum(as::Vararg{AbstractArray, N}) where {N} = map(accum, as...)
-
-# @inline Zygote.accum(a::Tuple, b::Tuple, c::Nothing) = map(accum, a, b)
-
-# @inline function Zygote.accum(a, b::Nothing, c, d) where {T}
-#     return accum(a, c, d)
-# end
+# Hacks to help the compiler out in very specific situations.
+Zygote.accum(a::Array{T}, b::Array{T}) where {T<:Real} = a + b
+Zygote.accum(a::SArray{size, T}, b::SArray{size, T}) where {size, T<:Real} = a + b
 
 @adjoint function SVector{D}(x::AbstractVector) where {D}
-    return SVector{D}(x), Δ::AbstractVector -> (convert(typeof(x), Δ),)
+    SVector_pullback(Δ) = (convert(typeof(x), Δ),)
+    return SVector{D}(x), SVector_pullback
 end
 
 function Zygote._pullback(::AContext, ::Type{<:SVector{1}}, x::Real)
@@ -65,11 +31,13 @@ function Zygote._pullback(::AContext, ::Type{<:SVector{1}}, x::Real)
 end
 
 @adjoint function SMatrix{D1, D2}(X::AbstractMatrix) where {D1, D2}
-    return SMatrix{D1, D2}(X), Δ::AbstractMatrix -> (convert(typeof(X), Δ),)
+    SMatrix_pullback(Δ::AbstractMatrix) = (convert(typeof(X), Δ), )
+    return SMatrix{D1, D2}(X), SMatrix_pullback
 end
 
 @adjoint function SMatrix{1, 1}(a)
-    return SMatrix{1, 1}(a), Δ::AbstractMatrix -> (first(Δ),)
+    SMatrix_pullback(Δ::AbstractMatrix) = (first(Δ), )
+    return SMatrix{1, 1}(a), SMatrix_pullback
 end
 
 # Implementation of the matrix exponential that assumes one doesn't require access to the

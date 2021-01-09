@@ -330,16 +330,16 @@ function adjoint_test(
     x̄ = pb(ȳ)[2:end]
 
     # @show x̄
-    @show harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)[1]
+    # @show harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)[1]
     inner_ad = dot(harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)...)
 
     # Approximate <ȳ, J ẋ> = <ȳ, ẏ> using FiniteDifferences.
-    @show harmonise(j′vp(fdm, f, ȳ, x...), ẋ)[1]
+    # @show harmonise(j′vp(fdm, f, ȳ, x...), ẋ)[1]
     # @show typeof(j′vp(fdm, f, ȳ, x...))
     ẏ = jvp(fdm, f, zip(x, ẋ)...)
     inner_fd = dot(harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)...)
 
-    @show inner_fd - inner_ad
+    # @show inner_fd - inner_ad
 
     # Check that Zygote didn't modify the forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)

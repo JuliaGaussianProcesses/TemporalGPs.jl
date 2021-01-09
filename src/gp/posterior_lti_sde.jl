@@ -21,7 +21,7 @@ function Stheno.marginals(fx::FinitePosteriorLTISDE)
     model = build_lgssm(fx.f.prior(x, σ²s))
     σ²s_pr_full = build_prediction_obs_vars(pr_indices, x, fx.Σy.diag)
     model_post = replace_observation_noise_cov(posterior(model, y), σ²s_pr_full)
-    return map(to_normal, marginals(model_post)[pr_indices])
+    return map(marginals, marginals(model_post)[pr_indices])
 end
 
 function Stheno.rand(rng::AbstractRNG, fx::FinitePosteriorLTISDE)
