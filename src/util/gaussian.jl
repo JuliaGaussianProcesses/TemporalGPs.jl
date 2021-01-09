@@ -46,6 +46,12 @@ Stheno.mean(x::Gaussian) = x.m
 
 Stheno.cov(x::Gaussian) = x.P
 
+Stheno.marginals(x::Gaussian{<:Real, <:Real}) = Normal(x.m, sqrt(x.P))
+
+function Stheno.marginals(x::Gaussian{<:AbstractVector, <:AbstractMatrix})
+    return Normal.(x.m, sqrt.(diag(x.P)))
+end
+
 storage_type(x::Gaussian{<:SVector{D, T}}) where {D, T<:Real} = SArrayStorage(T)
 
 storage_type(gmm::Gaussian{<:Vector{T}}) where {T<:Real} = ArrayStorage(T)

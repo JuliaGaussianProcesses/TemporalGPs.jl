@@ -37,6 +37,8 @@ end
 # Get the (Gaussian) distribution over the latent process at time t=0.
 x0(model::LGSSM) = x0(model.transitions)
 
+emission_type(model::LGSSM) = eltype(model.emissions)
+
 
 
 # Functionality for indexing into an LGSSM.
@@ -91,8 +93,12 @@ end
 
 
 
-# Compute the time-marginals of the output of the model.
+"""
+    marginals(model::LGSSM)
 
+Compute the complete marginals at each point in time. These are returned as a `Vector` of
+length `length(model)`, each element of which is a dense `Gaussian`.
+"""
 function Stheno.marginals(model::LGSSM)
     return scan_emit(step_marginals, model, x0(model), eachindex(model))[1]
 end
@@ -107,6 +113,32 @@ end
 
 function step_marginals(::Reverse, x::Gaussian, model)
     y = predict(x, emission_dynamics(model))
+    xp = predict(x, transition_dynamics(model))
+    return y, xp
+end
+
+
+
+"""
+    marginals_diag(model::LGSSM)
+
+Compute the diagonal of the marginals at each point in time. These are returned as a
+`Vector` of length `length(model)`, each element of which is a diagonal `Gaussian`.
+"""
+function marginals_diag(model::LGSSM)
+    return scan_emit(step_marginals_diag, model, x0(model), eachindex(model))[1]
+end
+
+step_marginals_diag(x::Gaussian, model) = step_marginals_diag(ordering(model), x, model)
+
+function step_marginals_diag(::Forward, x::Gaussian, model)
+    xp = predict(x, transition_dynamics(model))
+    y = predict_marginals(xp, emission_dynamics(model))
+    return y, xp
+end
+
+function step_marginals_diag(::Reverse, x::Gaussian, model)
+    y = predict_marginals(x, emission_dynamics(model))
     xp = predict(x, transition_dynamics(model))
     return y, xp
 end
@@ -175,8 +207,9 @@ step_posterior(xf::Gaussian, (prior, y)) = step_posterior(ordering(prior), xf, (
 function step_posterior(::Forward, xf::Gaussian, (prior, y))
     t = transition_dynamics(prior)
     xp = predict(xf, t)
+    new_dynamics = invert_dynamics(xf, xp, t)
     xf, _ = posterior_and_lml(xp, emission_dynamics(prior), y)
-    return invert_dynamics(xf, xp, t), xf
+    return new_dynamics, xf
 end
 
 function step_posterior(::Reverse, x::Gaussian, (prior, y))

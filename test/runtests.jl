@@ -18,9 +18,7 @@ using Stheno: var
 using TemporalGPs: AbstractLGSSM, _filter, NoContext
 using Zygote: Context, _pullback
 
-if !isdefined(Main, :tests_are_loaded)
-    include("test_util.jl")
-end
+include("test_util.jl")
 
 @testset "TemporalGPs.jl" begin
 
@@ -41,19 +39,21 @@ end
     #     include(joinpath("models", "linear_gaussian_conditionals.jl"))
     #     include(joinpath("models", "gauss_markov_model.jl"))
     #     include(joinpath("models", "lgssm.jl"))
-    #     # include(joinpath("models", "missings.jl"))
+    #     include(joinpath("models", "missings.jl"))
     # end
 
     println("gp:")
     @testset "gp" begin
-        include(joinpath("gp", "lti_sde.jl"))
+        # include(joinpath("gp", "lti_sde.jl"))
         # include(joinpath("gp", "posterior_lti_sde.jl"))
     end
 
     println("space_time:")
-    # @testset "space_time" begin
-    #     include(joinpath("space_time", "rectilinear_grid.jl"))
-    #     include(joinpath("space_time", "separable_kernel.jl"))
-    #     include(joinpath("space_time", "to_gauss_markov.jl"))
-    # end
+    @testset "space_time" begin
+        # include(joinpath("space_time", "rectilinear_grid.jl"))
+        # include(joinpath("space_time", "regular_in_time.jl"))
+        # include(joinpath("space_time", "separable_kernel.jl"))
+        # include(joinpath("space_time", "to_gauss_markov.jl"))
+        include(joinpath("space_time", "pseudo_point.jl"))
+    end
 end

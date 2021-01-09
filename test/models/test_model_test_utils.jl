@@ -40,29 +40,29 @@
                 @test dim(x) == 2
             end
         end
-        @testset "LGSSM" begin
-            @testset "SmallOutput -- time-varying" begin
-                x = random_tv_lgssm(rng, Forward(), 3, 2, 11, storage.val)
-                @test length(x) == 11
+        # @testset "LGSSM" begin
+        #     @testset "SmallOutput -- time-varying" begin
+        #         x = random_tv_lgssm(rng, Forward(), 3, 2, 11, storage.val)
+        #         @test length(x) == 11
 
-                # Just run `rand_tangent` without checking correctness.
-                rand_tangent(rng, x)
-            end
-            @testset "SmallOutput -- time-invariant" begin
-                x = random_ti_lgssm(rng, Forward(), 3, 2, 11, storage.val)
-                @test length(x) == 11
-                @test x.transitions.As isa Fill
-                @test x.transitions.as isa Fill
-                @test x.transitions.Qs isa Fill
-                @test x.emissions.A isa Fill
-                @test x.emissions.a isa Fill
-                @test x.emissions.Q isa Fill
+        #         # Just run `rand_tangent` without checking correctness.
+        #         rand_tangent(rng, x)
+        #     end
+        #     @testset "SmallOutput -- time-invariant" begin
+        #         x = random_ti_lgssm(rng, Forward(), 3, 2, 11, storage.val)
+        #         @test length(x) == 11
+        #         @test x.transitions.As isa Fill
+        #         @test x.transitions.as isa Fill
+        #         @test x.transitions.Qs isa Fill
+        #         @test x.emissions.A isa Fill
+        #         @test x.emissions.a isa Fill
+        #         @test x.emissions.Q isa Fill
 
-                # Just run `rand_tangent` without checking correctness.
-                rand_tangent(rng, x)
-            end
-            @testset "LargeOutput -- time-varying" begin
-            end
-        end
+        #         # Just run `rand_tangent` without checking correctness.
+        #         rand_tangent(rng, x)
+        #     end
+        #     @testset "LargeOutput -- time-varying" begin
+        #     end
+        # end
     end
 end

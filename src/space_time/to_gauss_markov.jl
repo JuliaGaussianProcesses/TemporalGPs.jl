@@ -1,39 +1,58 @@
 using Kronecker: KroneckerProduct
 
 my_I(T, N) = Matrix{T}(I, N, N)
+
+function Zygote._pullback(::AContext, ::typeof(my_I), args...)
+    my_I_pullback(Δ) = nothing
+    return my_I(args...), my_I_pullback
+end
+
 Zygote.@nograd my_I
 
-function GaussMarkovModel(k::Separable, x::SpaceTimeGrid, storage)
+function lgssm_components(k::Separable, x::SpaceTimeGrid, storage)
 
     # Compute spatial covariance, and temporal GaussMarkovModel.
     r, t = x.xl, x.xr
     kr, kt = k.l, k.r
     Kr = pw(kr, r)
-    gmm_time = GaussMarkovModel(kt, t, storage)
+    As_t, as_t, Qs_t, Hs_t, hs_t, x0_t = lgssm_components(kt, t, storage)
 
-    # Produce a new GaussMarkovModel over the spatial locations specified.
+    # Compute components of complete LGSSM.
     Nr = length(r)
     ident = my_I(eltype(storage), Nr)
-    A = map(A -> kron(ident, A), gmm_time.A)
-    a = map(a -> repeat(a, Nr), gmm_time.a)
-    Q = map(Q -> kron(Kr, Q), gmm_time.Q)
-    H = map(H -> kron(ident, H), gmm_time.H)
-    h = map(h -> repeat(h, Nr), gmm_time.h)
-    x = Gaussian(
-        repeat(gmm_time.x0.m, Nr),
-        kron(Kr, gmm_time.x0.P),
-    )
-    return GaussMarkovModel(A, a, Q, H, h, x)
+    As = map(A -> kron(ident, A), As_t)
+    as = map(a -> repeat(a, Nr), as_t)
+    Qs = map(Q -> kron(Kr, Q), Qs_t)
+    Hs = map(H -> kron(ident, H), Hs_t)
+    hs = map(h -> fill(h, Nr), hs_t)
+    x0 = Gaussian(repeat(x0_t.m, Nr), kron(Kr, x0_t.P))
+    return As, as, Qs, Hs, hs, x0
 end
 
-function (f::LTISDE)(x::SpaceTimeGrid, Σs::AV{<:AM{<:Real}})
-    return LGSSM(GaussMarkovModel(f.f.k, x, f.storage), Σs)
+function build_Σs(x::RectilinearGrid, Σ::Diagonal{<:Real})
+    return Diagonal.(collect.(eachcol(reshape(Σ.diag, :, length(x.xr)))))
 end
 
-function (f::LTISDE)(x::SpaceTimeGrid, σ²::Real)
-    Σ = Diagonal(Fill(σ², length(x.xl)))
-    Σs = Fill(collect(Σ), length(x.xr))
-    return f(x, Σs)
+function Zygote._pullback(
+    ::AContext, ::typeof(build_Σs), x::RectilinearGrid, Σ::Diagonal{<:Real},
+)
+    function build_Σs_pullback(Δ)
+        return nothing, nothing, (diag=vcat(getfield.(Δ, :diag)...), )
+    end
+    return build_Σs(x, Σ), build_Σs_pullback
 end
 
-(f::LTISDE)(x::SpaceTimeGrid) = f(x, 0.0)
+function build_Σs(x::RegularInTime, Σ::Diagonal{<:Real})
+    vs = restructure(Σ.diag, length.(x.vs))
+    return Diagonal.(collect.(vs))
+end
+
+function restructure(y::AbstractVector{<:Real}, emissions::StructArray)
+    return restructure(y, map(dim_out, emissions))
+end
+
+function restructure(y::AbstractVector{<:Real}, lengths::AbstractVector{<:Integer})
+    idxs_start = cumsum(vcat(0, lengths)) .+ 1
+    idxs_end = idxs_start[1:end-1] .+ lengths .- 1
+    return map(n -> y[idxs_start[n]:idxs_end[n]], eachindex(lengths))
+end

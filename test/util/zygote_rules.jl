@@ -124,11 +124,14 @@ using TemporalGPs: time_exp, logdet_pullback
         a = randn(5)
         b = rand(5)
         adjoint_test(StructArray, ((a, b), ))
-        adjoint_test(StructArray, ((a=a, b=b), ))
+        # adjoint_test(StructArray, ((a=a, b=b), ))
 
-        xs = [Gaussian(randn(5), randn(5, 5)) for _ in 1:10]
+        xs = [Gaussian(randn(1), randn(1, 1)) for _ in 1:2]
         ms = getfield.(xs, :m)
         Ps = getfield.(xs, :P)
         adjoint_test(StructArray{eltype(xs)}, ((ms, Ps), ))
+
+        xs_sa = StructArray{eltype(xs)}((ms, Ps))
+        adjoint_test(xs -> xs.m, (xs_sa, ))
     end
 end

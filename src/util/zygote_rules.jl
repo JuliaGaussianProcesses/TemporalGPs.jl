@@ -90,6 +90,11 @@ end
     return Fill(x, sz), back
 end
 
+function Zygote._pullback(::Zygote.AContext, ::typeof(vcat), x::Zeros, y::Zeros)
+    vcat_pullback(Δ) = (nothing, nothing, nothing)
+    return vcat(x, y), vcat_pullback
+end
+
 @adjoint function collect(x::Fill)
     function collect_Fill_back(Δ)
         return ((value=reduce(accum, Δ), axes=nothing),)
@@ -114,6 +119,7 @@ end
         Δf, Δx_el = back(Δ.value)
         return Δf, (value = Δx_el, axes=nothing)
     end
+    map_Fill_pullback(Δ::Composite) = map_Fill_pullback((value=Δ.value, axes=Δ.axes))
     return Fill(y_el, size(x)), map_Fill_pullback
 end
 
@@ -232,6 +238,8 @@ end
 
 Zygote.accum(x::Adjoint...) = Adjoint(Zygote.accum(map(parent, x)...))
 
+Zygote.accum(x::NamedTuple{(:parent,)}, y::Adjoint) = (parent=accum(x.parent, y.parent),)
+
 function Zygote.accum(A::UpperTriangular{<:Any, <:SMatrix{P}}, B::SMatrix{P, P}) where {P}
     return Zygote.accum(SMatrix{P, P}(A), B)
 end
@@ -271,3 +279,37 @@ Base.:(+)(::Composite, ::Nothing) = Zero()
 
 # Zygote._pullback(cx::AContext, ::typeof(literal_getproperty), x::Tuple, ::Val{f}) where f =
 #   Zygote._pullback(cx, Zygote.literal_getindex, x, Val(f))
+
+
+# function Zygote._pullback(
+#     ::AContext,
+#     T::Type{<:StructArray{T, N, C} where {T, N, C<:NamedTuple}},
+#     x::Union{Tuple, NamedTuple},
+# )
+#     function StructArray_pullback(Δ::NamedTuple{(:fieldarrays, )})
+#         @show typeof(x), typeof(Δ.fieldarrays)
+#         return (nothing, Δ.fieldarrays)
+#     end
+#     return T(x), StructArray_pullback
+# end
+
+function Zygote._pullback(::AContext, T::Type{<:StructArray}, x::Tuple)
+    function StructArray_pullback(Δ::NamedTuple{(:fieldarrays, )})
+        return (nothing, values(Δ.fieldarrays))
+    end
+    return T(x), StructArray_pullback
+end
+
+# `getproperty` accesses the `fieldarrays` field of a `StructArray`. This rule makes that
+# explicit. 
+function Zygote._pullback(
+    ctx::AContext, ::typeof(Zygote.literal_getproperty), x::StructArray, ::Val{p},
+) where {p}
+    value, pb = Zygote._pullback(
+        ctx, Zygote.literal_getproperty, getfield(x, :fieldarrays), Val(p),
+    )
+    function literal_getproperty_pullback(Δ)
+        return nothing, (fieldarrays=pb(Δ)[2], ), nothing
+    end
+    return value, literal_getproperty_pullback
+end

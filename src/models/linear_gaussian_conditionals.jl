@@ -21,6 +21,13 @@ Compute the distribution "predicted" by this conditional given a `Gaussian` inpu
 """
 predict(x::Gaussian, f::AbstractLGC) = Gaussian(f.A * x.m + f.a, f.A * x.P * f.A' + f.Q)
 
+function predict_marginals(x::Gaussian, f::AbstractLGC)
+    return Gaussian(
+        f.A * x.m + f.a,
+        Diagonal(Stheno.diag_At_B(f.A', x.P * f.A') + diag(f.Q)),
+    )
+end
+
 function conditional_rand(rng::AbstractRNG, f::AbstractLGC, x::AbstractVector)
     return conditional_rand(ε_randn(rng, f), f, x)
 end
@@ -84,6 +91,15 @@ function Zygote._pullback(::NoContext, ::Type{<:SmallOutputLGC}, A, a, Q)
     SmallOutputLGC_pullback(::Nothing) = nothing
     SmallOutputLGC_pullback(Δ) = nothing, Δ.A, Δ.a, Δ.Q
     return SmallOutputLGC(A, a, Q), SmallOutputLGC_pullback
+end
+
+# This is good progress. Has the potential to improve performance of spatio-temporal things
+function Zygote._pullback(::NoContext, ::typeof(+), A::Matrix{<:Real}, D::Diagonal{<:Real})
+    function plus_pullback(Δ)
+        println("In this one")
+        return nothing, Δ, (diag=diag(Δ),)
+    end
+    return A + D, plus_pullback
 end
 
 

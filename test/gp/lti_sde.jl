@@ -39,7 +39,7 @@ println("lti_sde:")
         end
     end
 
-    @testset "compute_lgssm_components" begin
+    @testset "lgssm_components" begin
         rng = MersenneTwister(123456)
         N = 13
 
@@ -86,7 +86,6 @@ println("lti_sde:")
             (name="homoscedastic noise", val=(0.1, ),),
             (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1, )),
             (name="none", val=()),
-            # (name="Diagonal", val=(Diagonal(_logistic.(randn(rng, N)) .+ 1e-1),)),
         )
 
         @testset "$(kernel.name), $(storage.name), $(t.name), $(σ².name)" for
@@ -108,38 +107,35 @@ println("lti_sde:")
             # is_of_storage_type(fx, storage.val)
             validate_dims(model)
 
-            # Check that the covariances agree, only for high-ish precision.
-            if eltype(storage.val) == Float64
-                y = rand(rng, fx)
+            y = rand(rng, fx)
 
-                @testset "prior" begin
-                    @test mean(fx) ≈ mean(fx_naive)
-                    @test cov(fx) ≈ cov(fx_naive)
-                    @test mean.(marginals(fx)) ≈ mean.(marginals(fx_naive))
-                    @test cov.(marginals(fx)) ≈ var.(marginals(fx_naive))
-                    @test logpdf(fx, y) ≈ logpdf(fx_naive, y)
-                end
-
-                @testset "check args to_vec properly" begin
-                    k_vec, k_from_vec = to_vec(kernel.val)
-                    @test typeof(k_from_vec(k_vec)) == typeof(kernel.val)
-
-                    storage_vec, storage_from_vec = to_vec(storage.val)
-                    @test typeof(storage_from_vec(storage_vec)) == typeof(storage.val)
-
-                    σ²_vec, σ²_from_vec = to_vec(σ².val)
-                    @test typeof(σ²_from_vec(σ²_vec)) == typeof(σ².val)
-
-                    t_vec, t_from_vec = to_vec(t.val)
-                    @test typeof(t_from_vec(t_vec)) == typeof(t.val)
-                end
-
-                # Just need to ensure we can differentiate through construction properly.
-                adjoint_test(
-                    _construction_tester, (f_naive, storage.val, σ².val, t.val);
-                    check_infers=false, rtol=1e-6,
-                )
+            @testset "prior" begin
+                @test mean(fx) ≈ mean(fx_naive)
+                @test cov(fx) ≈ cov(fx_naive)
+                @test mean.(marginals(fx)) ≈ mean.(marginals(fx_naive))
+                @test std.(marginals(fx)) ≈ std.(marginals(fx_naive))
+                @test logpdf(fx, y) ≈ logpdf(fx_naive, y)
             end
+
+            @testset "check args to_vec properly" begin
+                k_vec, k_from_vec = to_vec(kernel.val)
+                @test typeof(k_from_vec(k_vec)) == typeof(kernel.val)
+
+                storage_vec, storage_from_vec = to_vec(storage.val)
+                @test typeof(storage_from_vec(storage_vec)) == typeof(storage.val)
+
+                σ²_vec, σ²_from_vec = to_vec(σ².val)
+                @test typeof(σ²_from_vec(σ²_vec)) == typeof(σ².val)
+
+                t_vec, t_from_vec = to_vec(t.val)
+                @test typeof(t_from_vec(t_vec)) == typeof(t.val)
+            end
+
+            # Just need to ensure we can differentiate through construction properly.
+            adjoint_test(
+                _construction_tester, (f_naive, storage.val, σ².val, t.val);
+                check_infers=false, rtol=1e-6, atol=1e-6,
+            )
         end
     end
 end

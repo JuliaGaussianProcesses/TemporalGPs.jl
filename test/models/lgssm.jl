@@ -1,4 +1,4 @@
-# using TemporalGPs:
+using TemporalGPs:
     predict,
     step_marginals,
     step_logpdf,

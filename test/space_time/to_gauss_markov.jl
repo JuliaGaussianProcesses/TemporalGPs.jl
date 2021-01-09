@@ -30,36 +30,70 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
         r = randn(rng, Nr)
         x = RectilinearGrid(r, t.val)
 
+        @testset "build_Σs" begin
+            adjoint_test(
+                d -> TemporalGPs.build_Σs(x, Diagonal(d)),
+                (rand(length(x)) .+ 0.1, );
+                check_infers=false,
+            )
+        end
+
         f = GP(k.val, GPC())
         ft = f(collect(x), σ².val...)
-        y = rand(rng, ft)
 
         f_sde = to_sde(f)
         ft_sde = f_sde(x, σ².val...)
 
-        should_be_time_invariant = (t.val isa Vector) ? false : true
-        @test is_of_storage_type(ft_sde, ArrayStorage(Float64))
+        @test length(ft_sde) == length(x)
 
-        validate_dims(ft_sde)
-        @test length(ft_sde) == length(x.xr)
+        y = vcat(rand(MersenneTwister(123456), ft_sde)...)
 
-        y_naive = rand(MersenneTwister(123456), ft)
-        y_sde = rand(MersenneTwister(123456), ft_sde)
-        @test y_naive ≈ vcat(y_sde...)
-
-        @test logpdf(ft, y_naive) ≈ logpdf(ft_sde, y_sde)
-
-        if t.val isa RegularSpacing
-            adjoint_test(
-                (r, Δt, y) -> begin
-                    x = RectilinearGrid(r, RegularSpacing(t.val.t0, Δt, Nt))
-                    _f = to_sde(GP(k.val, GPC()))
-                    _ft = _f(x, σ².val...)
-                    return logpdf(_ft, y)
-                end,
-                (r, t.val.Δt, y_sde);
-                check_infers=false,
+        model = build_lgssm(ft_sde)
+        @test all(
+            isequal.(
+                length.(TemporalGPs.restructure(y, model.emissions)),
+                dim_out.(model.emissions),
             )
+        )
+
+        @test mean.(marginals(ft)) ≈ mean.(marginals(ft_sde))
+        @test std.(marginals(ft)) ≈ std.(marginals(ft_sde))
+        @test logpdf(ft, y) ≈ logpdf(ft_sde, y)
+
+        # Test that the SDE posterior is close to the naive posterior.
+        f_post_naive = f | (ft ← y)
+        fx_post_naive = f_post_naive(collect(x), 0.1)
+
+        f_post_sde = posterior(f_sde(x, σ².val...), y)
+        fx_post_sde = f_post_sde(x, 0.1)
+
+        @show marginals(fx_post_naive)
+        @show marginals(fx_post_sde)
+
+        @test mean.(marginals(fx_post_naive)) ≈ mean.(marginals(fx_post_sde))
+        @test std.(marginals(fx_post_naive)) ≈ std.(marginals(fx_post_sde))
+
+        # I'm not checking correctness here, just that it runs. No custom adjoints have been
+        # written that are involved in this that aren't tested, so there should be no need
+        # to check correctness.
+        @testset "logpdf AD" begin
+            out, pb = Zygote._pullback(NoContext(), logpdf, ft_sde, y)
+            pb(rand_zygote_tangent(out))
         end
+        # adjoint_test(logpdf, (ft_sde, y); fdm=central_fdm(2, 1), check_infers=false)
+
+
+        # if t.val isa RegularSpacing
+        #     adjoint_test(
+        #         (r, Δt, y) -> begin
+        #             x = RectilinearGrid(r, RegularSpacing(t.val.t0, Δt, Nt))
+        #             _f = to_sde(GP(k.val, GPC()))
+        #             _ft = _f(x, σ².val...)
+        #             return logpdf(_ft, y)
+        #         end,
+        #         (r, t.val.Δt, y_sde);
+        #         check_infers=false,
+        #     )
+        # end
     end
 end

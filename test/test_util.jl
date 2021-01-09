@@ -39,6 +39,13 @@ function to_vec(::Missing)
     return Bool[], Missing_from_vec
 end
 
+# I'M OVERRIDING FINITEDIFFERENCES DEFINITION HERE. THIS IS BAD.
+function to_vec(x::Diagonal)
+    v, diag_from_vec = to_vec(x.diag)
+    Diagonal_from_vec(v) = Diagonal(diag_from_vec(v))
+    return v, Diagonal_from_vec
+end
+
 function to_vec(x::T) where {T<:NamedTuple}
     isempty(fieldnames(T)) && throw(error("Expected some fields. None found."))
     vecs_and_backs = map(name->to_vec(getfield(x, name)), fieldnames(T))
@@ -323,15 +330,16 @@ function adjoint_test(
     x̄ = pb(ȳ)[2:end]
 
     # @show x̄
+    @show harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)[1]
     inner_ad = dot(harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)...)
 
     # Approximate <ȳ, J ẋ> = <ȳ, ẏ> using FiniteDifferences.
-    # @show j′vp(fdm, f, ȳ, x...)
+    @show harmonise(j′vp(fdm, f, ȳ, x...), ẋ)[1]
     # @show typeof(j′vp(fdm, f, ȳ, x...))
     ẏ = jvp(fdm, f, zip(x, ẋ)...)
     inner_fd = dot(harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)...)
 
-    # @show inner_fd - inner_ad
+    @show inner_fd - inner_ad
 
     # Check that Zygote didn't modify the forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)

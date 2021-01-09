@@ -37,16 +37,6 @@ module TemporalGPs
         posterior,
         logpdf_and_rand
 
-    show_grad_type(x) = x
-
-    function Zygote._pullback(::Zygote.AContext, ::typeof(show_grad_type), x)
-        function show_grad_type_pullback(Δ)
-            @show typeof(Δ)
-            return (nothing, Δ)
-        end
-        return show_grad_type(x), show_grad_type_pullback
-    end
-
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "harmonise.jl"))
     include(joinpath("util", "scan.jl"))
@@ -60,11 +50,7 @@ module TemporalGPs
     include(joinpath("models", "linear_gaussian_conditionals.jl"))
     include(joinpath("models", "gauss_markov_model.jl"))
     include(joinpath("models", "lgssm.jl"))
-    # include(joinpath("models", "missings.jl"))
-
-    # include(joinpath("models", "abstract_lgssm.jl"))
-    # include(joinpath("models", "posterior.jl"))
-    # include(joinpath("models", "scalar_lgssm.jl"))
+    include(joinpath("models", "missings.jl"))
 
     # Converting GPs to Linear-Gaussian SSMs.
     include(joinpath("gp", "lti_sde.jl"))
@@ -72,6 +58,9 @@ module TemporalGPs
 
     # Converting space-time GPs to Linear-Gaussian SSMs.
     include(joinpath("space_time", "rectilinear_grid.jl"))
+    include(joinpath("space_time", "regular_in_time.jl"))
     include(joinpath("space_time", "separable_kernel.jl"))
     include(joinpath("space_time", "to_gauss_markov.jl"))
+    include(joinpath("space_time", "pseudo_point.jl"))
+
 end # module

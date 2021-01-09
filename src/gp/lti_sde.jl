@@ -2,8 +2,7 @@
     LTISDE
 
 A lightweight wrapper around a `GP` `f` that tells this package to handle inference in `f`.
-Can be constructed via the `to_sde` function. Indexing into this object produces a
-`ScalarLGSSM`.
+Can be constructed via the `to_sde` function.
 """
 struct LTISDE{Tf<:GP{<:Stheno.ZeroMean}, Tstorage<:StorageType} <: AbstractGP
     f::Tf
@@ -18,7 +17,6 @@ storage_type(f::LTISDE) = f.storage
 
 
 
-
 """
     const FiniteLTISDE = FiniteGP{<:LTISDE}
 
@@ -28,7 +26,9 @@ opposed to any other `AbstractGP`.
 const FiniteLTISDE = FiniteGP{<:LTISDE}
 
 # Deal with a bug in Stheno.
-FiniteGP(f::LTISDE, x::AV{<:Real}) = FiniteGP(f, x, convert(eltype(storage_type(f)), 1e-18))
+function FiniteGP(f::LTISDE, x::AbstractVector{<:Real})
+    return FiniteGP(f, x, convert(eltype(storage_type(f)), 1e-12))
+end
 
 # Implement Stheno's version of the FiniteGP API. This will eventually become AbstractGPs
 # API, but Stheno is still on a slightly different API because I've yet to update it.
@@ -37,7 +37,7 @@ Stheno.mean(ft::FiniteLTISDE) = mean.(marginals(build_lgssm(ft)))
 
 Stheno.cov(ft::FiniteLTISDE) = cov(FiniteGP(ft.f.f, ft.x, ft.Σy))
 
-Stheno.marginals(ft::FiniteLTISDE) = marginals(build_lgssm(ft))
+Stheno.marginals(ft::FiniteLTISDE) = vcat(map(marginals, marginals(build_lgssm(ft)))...)
 
 Stheno.rand(rng::AbstractRNG, ft::FiniteLTISDE) = rand(rng, build_lgssm(ft))
 Stheno.rand(ft::FiniteLTISDE) = rand(Random.GLOBAL_RNG, ft)
@@ -46,50 +46,48 @@ function Stheno.rand(rng::AbstractRNG, ft::FiniteLTISDE, N::Int)
 end
 Stheno.rand(ft::FiniteLTISDE, N::Int) = rand(Random.GLOBAL_RNG, ft, N)
 
-Stheno.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Real}) = logpdf(build_lgssm(ft), y)
+function Stheno.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Real})
+    model = build_lgssm(ft)
+    return logpdf(model, restructure(y, model.emissions))
+end
 
-#
-# This is all a bit ugly, and would ideally go. IIRC there's some issue with the
-# interactions between `FillArrays` and `Zygote` here that is problematic.
-#
-
-# build_Σs(σ²_ns::AbstractVector{<:Real}) = SMatrix{1, 1}.(σ²_ns)
-
-# @adjoint function build_Σs(σ²_ns::Vector{<:Real})
-#     function build_Σs_Vector_back(Δ)
-#         return (first.(Δ),)
-#     end
-#     return build_Σs(σ²_ns), build_Σs_Vector_back
-# end
-
-# @adjoint function build_Σs(σ²_ns::Fill{<:Real})
-#     function build_Σs_Fill_back(Δ::NamedTuple)
-#         return ((value=first(Δ.value), axes=nothing),)
-#     end
-#     return build_Σs(σ²_ns), build_Σs_Fill_back
-# end
+restructure(y::AbstractVector{<:Real}, ::StructArray{<:ScalarOutputLGC}) = y
 
 
 
 # Converting GPs into LGSSMs.
 
-using Stheno: MeanFunction, ConstMean, ZeroMean, BaseKernel
+using Stheno: MeanFunction, ConstMean, ZeroMean, BaseKernel, Sum, Stretched, Scaled
 
 function build_lgssm(ft::FiniteLTISDE)
-    As, as, Qs, Hs, hs, x0 = compute_lgssm_components(ft.f.f.k, ft.x, ft.f.storage)
-    Hs_prime = map(H -> H', Hs)
-    Σs = ft.Σy.diag
+    As, as, Qs, Hs, hs, x0 = lgssm_components(ft.f.f.k, ft.x, ft.f.storage)
     return LGSSM(
         GaussMarkovModel(Forward(), As, as, Qs, x0),
-        StructArray{get_type(Hs_prime, hs, Σs)}((Hs_prime, hs, Σs)),
+        build_emissions(map(adjoint, Hs), hs, build_Σs(ft)),
     )
 end
 
-function get_type(Hs_prime, hs, Σs)
+build_Σs(ft::FiniteLTISDE) = build_Σs(ft.x, ft.Σy)
+
+build_Σs(::AbstractVector{<:Real}, Σ::Diagonal{<:Real}) = Σ.diag
+
+function build_emissions(Hs::AbstractVector, hs::AbstractVector, Σs::AbstractVector)
+    return StructArray{get_type(Hs, hs, Σs)}((Hs, hs, Σs))
+end
+
+function get_type(Hs_prime, hs::AbstractVector{<:Real}, Σs)
     THs = eltype(Hs_prime)
     Ths = eltype(hs)
     TΣs = eltype(Σs)
     T = ScalarOutputLGC{THs, Ths, TΣs}
+    return T
+end
+
+function get_type(Hs_prime, hs::AbstractVector{<:AbstractVector}, Σs)
+    THs = eltype(Hs_prime)
+    Ths = eltype(hs)
+    TΣs = eltype(Σs)
+    T = SmallOutputLGC{THs, Ths, TΣs}
     return T
 end
 
@@ -101,14 +99,14 @@ end
 
 # Generic constructors for base kernels.
 
-function compute_lgssm_components(
-    k::BaseKernel, t::AbstractVector{<:Real}, storage_type::StorageType{T},
+function lgssm_components(
+    k::BaseKernel, t::AbstractVector, storage::StorageType{T},
 ) where {T<:Real}
 
     # Compute stationary distribution and sde.
-    x0 = stationary_distribution(k, storage_type)
+    x0 = stationary_distribution(k, storage)
     P = x0.P
-    F, q, H = to_sde(k, storage_type)
+    F, q, H = to_sde(k, storage)
 
     # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
     t = vcat([first(t) - 1], t)
@@ -121,7 +119,7 @@ function compute_lgssm_components(
     return As, as, Qs, Hs, hs, x0
 end
 
-function compute_lgssm_components(
+function lgssm_components(
     k::BaseKernel, t::Union{StepRangeLen, RegularSpacing}, storage_type::StorageType{T},
 ) where {T<:Real}
 
@@ -237,10 +235,8 @@ end
 
 # Scaled
 
-function compute_lgssm_components(
-    k::Stheno.Scaled, ts::AbstractVector{<:Real}, storage_type::StorageType,
-)
-    As, as, Qs, Hs, hs, x0 = compute_lgssm_components(k.k, ts, storage_type)
+function lgssm_components(k::Scaled, ts::AbstractVector, storage_type::StorageType)
+    As, as, Qs, Hs, hs, x0 = lgssm_components(k.k, ts, storage_type)
     σ = sqrt(convert(eltype(storage_type), only(k.σ²)))
     Hs = map(H->σ * H, Hs)
     hs = map(h->σ * h, hs)
@@ -251,15 +247,13 @@ end
 
 # Stretched
 
-function compute_lgssm_components(k::Stheno.Stretched, ts::AV, storage_type::StorageType)
-    return compute_lgssm_components(k.k, apply_stretch(only(k.a), ts), storage_type)
+function lgssm_components(k::Stretched, ts::AbstractVector, storage_type::StorageType)
+    return lgssm_components(k.k, apply_stretch(only(k.a), ts), storage_type)
 end
 
-apply_stretch(a, ts::AV{<:Real}) = a * ts
+apply_stretch(a, ts::AbstractVector{<:Real}) = a * ts
 
-function apply_stretch(a, ts::StepRangeLen)
-    return a * ts
-end
+apply_stretch(a, ts::StepRangeLen) = a * ts
 
 apply_stretch(a, ts::RegularSpacing) = RegularSpacing(a * ts.t0, a * ts.Δt, ts.N)
 
@@ -267,13 +261,9 @@ apply_stretch(a, ts::RegularSpacing) = RegularSpacing(a * ts.t0, a * ts.Δt, ts.
 
 # Sum
 
-function compute_lgssm_components(
-    k::Stheno.Sum,
-    ts::AbstractVector{<:Real},
-    storage_type::StorageType,
-)
-    As_l, as_l, Qs_l, Hs_l, hs_l, x0_l = compute_lgssm_components(k.kl, ts, storage_type)
-    As_r, as_r, Qs_r, Hs_r, hs_r, x0_r = compute_lgssm_components(k.kr, ts, storage_type)
+function lgssm_components(k::Sum,ts::AbstractVector, storage_type::StorageType)
+    As_l, as_l, Qs_l, Hs_l, hs_l, x0_l = lgssm_components(k.kl, ts, storage_type)
+    As_r, as_r, Qs_r, Hs_r, hs_r, x0_r = lgssm_components(k.kr, ts, storage_type)
 
     As = map(blk_diag, As_l, As_r)
     as = map(vcat, as_l, as_r)

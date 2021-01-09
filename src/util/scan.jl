@@ -102,7 +102,7 @@ _get_zero_adjoint(x::AbstractArray) = zero(x)
 
 
 
-# Vector
+# Vector. In all probability, only one of these methods is necessary.
 
 function get_adjoint_storage(x::Vector{T}, n::Int, Δx::T) where {T<:Real}
     x̄ = Vector{T}(undef, length(x))
@@ -115,6 +115,14 @@ function get_adjoint_storage(x::Vector, n::Int, init::T) where {T<:AbstractVecOr
     Δx[n] = init
     return Δx
 end
+
+function get_adjoint_storage(x::Vector, n::Int, init::T) where {T<:NamedTuple{(:diag,)}}
+    Δx = Vector{T}(undef, length(x))
+    Δx[n] = init
+    return Δx
+end
+
+
 
 # Diagonal type constraint for the compiler's benefit.
 @inline function _accum_at(Δxs::Vector{T}, n::Int, Δx::T) where {T}
