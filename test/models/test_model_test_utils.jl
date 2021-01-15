@@ -65,4 +65,10 @@
         #     end
         # end
     end
+    @testset "BottleneckLGC" begin
+        x = random_bottleneck_lgc(rng, 5, 2, 4, ArrayStorage(Float64))
+        @test size(x.H) == (2, 5)
+        @test size(x.h) == (2,)
+        @test eltype(x) == Float64
+    end
 end

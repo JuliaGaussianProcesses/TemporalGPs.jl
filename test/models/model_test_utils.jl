@@ -9,7 +9,8 @@ using TemporalGPs:
     storage_type,
     SmallOutputLGC,
     ScalarOutputLGC,
-    LargeOutputLGC
+    LargeOutputLGC,
+    BottleneckLGC
 
 
 
@@ -106,6 +107,23 @@ function random_large_output_lgc(rng::AbstractRNG, Dlat::Int, Dobs::Int, s::Stor
     )
 end
 
+function random_bottleneck_lgc(
+    rng::AbstractRNG, Dlat::Int, Dmid::Int, Dobs::Int, s::StorageType,
+)
+    return BottleneckLGC(
+        random_matrix(rng, Dmid, Dlat, s),
+        random_vector(rng, Dmid, s),
+        random_large_output_lgc(rng, Dmid, Dobs, s),
+    )
+end
+
+function small_output_lgc_from_bottleneck(model::BottleneckLGC)
+    return SmallOutputLGC(
+        model.fan_out.A * model.H,
+        model.fan_out.a + model.fan_out.A * model.h,
+        model.fan_out.Q,
+    )
+end
 
 
 # Generation of GaussMarkovModels.

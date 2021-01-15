@@ -3,7 +3,25 @@ using Stheno: Xt_invA_X
 """
     abstract type AbstractLGC end
 
+Represents a Gaussian conditional distribution:
+```julia
+y | x ∼ Gaussian(A * x + a, Q)
+```
 
+Subtypes have discretion over how to implement the interface for this type. In particular
+`A`, `a`, and `Q` may not be represented explicitly so that structure can be exploited to
+accelerate computations.
+
+# Interface:
+- `==`
+- `eltype`
+- `dim_out`
+- `dim_in`
+- `predict`
+- `predict_marginals`
+- `conditional_rand`
+- `ε_randn`
+- `posterior_and_lml`
 """
 abstract type AbstractLGC end
 
@@ -14,13 +32,25 @@ Base.eltype(f::AbstractLGC) = eltype(f.A)
 """
     predict(x::Gaussian, f::AbstractLGC)
 
-Compute the distribution "predicted" by this conditional given a `Gaussian` input `x`:
+Compute the distribution "predicted" by this conditional given a `Gaussian` input `x`. Will
+be equivalent to
 ```julia
     Gaussian(f.A * x.m + f.a, f.A * x.P * f.A' + f.Q)
 ```
 """
-predict(x::Gaussian, f::AbstractLGC) = Gaussian(f.A * x.m + f.a, f.A * x.P * f.A' + f.Q)
+function predict(x::Gaussian, f::AbstractLGC)
+    return Gaussian(f.A * x.m + f.a, f.A * x.P * f.A' + f.Q)
+end
 
+"""
+    predict_marginals(x::Gaussian, f::AbstractLGC)
+
+Equivalent to
+```julia
+    y = predict(x, f)
+    Gaussian(mean(y), Diagonal(cov(y)))
+```
+"""
 function predict_marginals(x::Gaussian, f::AbstractLGC)
     return Gaussian(
         f.A * x.m + f.a,
@@ -28,14 +58,29 @@ function predict_marginals(x::Gaussian, f::AbstractLGC)
     )
 end
 
+"""
+    conditional_rand(rng::AbstractRNG, f::AbstractLGC, x::AbstractVector)
+    conditional_rand(ε::AbstractVector, f::AbstractLGC, x::AbstractVector)
+
+Sample from the conditional distribution `y | x`. `ε` is the randomness needed to generate
+this sample. If `rng` is provided, it will be used to construct `ε` via `ε_randn`.
+
+If implementing a new `AbstractLGC`, implement the `ε` method as it avoids randomness, which
+means that it plays nicely with `scan_emit`'s checkpointed pullback.
+"""
 function conditional_rand(rng::AbstractRNG, f::AbstractLGC, x::AbstractVector)
     return conditional_rand(ε_randn(rng, f), f, x)
 end
 
 function conditional_rand(ε::AbstractVector, f::AbstractLGC, x::AbstractVector)
-    return (f.A * x + f.a) + cholesky(Symmetric(f.Q)).U' * ε
+    return (f.A * x + f.a) + cholesky(Symmetric(f.Q + UniformScaling(1e-9))).U' * ε
 end
 
+"""
+    ε_randn(rng::AbstractRNG, f::AbstractLGC)
+
+Generate the vector of random numbers needed inside `conditional_rand`.
+"""
 ε_randn(rng::AbstractRNG, f::AbstractLGC) = ε_randn(rng, f.a)
 ε_randn(rng::AbstractRNG, a::AbstractVector{T}) where {T<:Real} = randn(rng, T, length(a))
 ε_randn(rng::AbstractRNG, a::T) where {T<:SVector{<:Any, <:Real}} = randn(rng, T)
@@ -46,10 +91,6 @@ scalar_type(x::AbstractVector{T}) where {T} = T
 scalar_type(x::T) where {T<:Real} = T
 
 Zygote._pullback(::AContext, ::typeof(scalar_type), x) = scalar_type(x), nograd_pullback
-
-dim_out(f::AbstractLGC) = size(f.A, 1)
-
-dim_in(f::AbstractLGC) = size(f.A, 2)
 
 
 
@@ -71,9 +112,14 @@ struct SmallOutputLGC{
     Q::TQ
 end
 
+dim_out(f::SmallOutputLGC) = size(f.A, 1)
+
+dim_in(f::SmallOutputLGC) = size(f.A, 2)
+
 function posterior_and_lml(x::Gaussian, f::SmallOutputLGC, y)
     A = f.A
     V = A * x.P
+
     S = cholesky(Symmetric(V * A' + f.Q))
     B = S.U' \ V
     α = S.U' \ (y - (A * x.m + f.a))
@@ -82,14 +128,14 @@ function posterior_and_lml(x::Gaussian, f::SmallOutputLGC, y)
     return Gaussian(x.m + B'α, x.P - B'B), lml
 end
 
-# Required for type-stability.
+# Required for type-stability. This is a technical detail.
 function Zygote._pullback(::NoContext, ::Type{<:SmallOutputLGC}, A, a, Q)
     SmallOutputLGC_pullback(::Nothing) = nothing
     SmallOutputLGC_pullback(Δ) = nothing, Δ.A, Δ.a, Δ.Q
     return SmallOutputLGC(A, a, Q), SmallOutputLGC_pullback
 end
 
-# This is good progress. Has the potential to improve performance of spatio-temporal things
+# Required for type-stability. This is a technical detail.
 function Zygote._pullback(::NoContext, ::typeof(+), A::Matrix{<:Real}, D::Diagonal{<:Real})
     function plus_pullback(Δ)
         println("In this one")
@@ -118,6 +164,10 @@ struct LargeOutputLGC{
     Q::TQ
 end
 
+dim_out(f::LargeOutputLGC) = size(f.A, 1)
+
+dim_in(f::LargeOutputLGC) = size(f.A, 2)
+
 function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y)
     A = f.A
     Q = cholesky(Symmetric(f.Q))
@@ -125,14 +175,14 @@ function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y)
 
     # Compute posterior covariance matrix.
     B = P.U * A' / Q.U
-    F = cholesky(Symmetric(B * B' + UniformScaling(true)))
+    F = cholesky(Symmetric(B * B' + UniformScaling(1.0)))
     G = F.U' \ P.U
     P_post = G'G
 
     # Compute posterior mean.
     δ = Q.U' \ (y - (A * x.m + f.a))
-    β = B * δ
-    m_post = x.m + G' * (F.U' \ β)
+    β = F.U' \ (B * δ)
+    m_post = x.m + G' * β
 
     # Compute log marginal likelihood.
     c = convert(scalar_type(y), length(y) * log(2π))
@@ -142,16 +192,15 @@ function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y)
 end
 
 # For some compiler-y reason, chopping this up helps.
-_compute_lml(δ, F, β, c, Q) = -(δ'δ - Xt_invA_X(F, β) + c + logdet(F) + logdet(Q)) / 2
+_compute_lml(δ, F, β, c, Q) = -(δ'δ - β'β + c + logdet(F) + logdet(Q)) / 2
 
 
 """
     ScalarOutputLGC
 
-Alias for a SmallOutputLGC (LGC) which maps from a vector-value to the reals.
-
-In this type, `a` and `Q` should be `Real`s, rather a vector and matrix, and `A` is an
-`Adjoint` of an `AbstractVector`.
+An LGC that operates on a vector-valued input space and a scalar-valued output space.
+Similar to `SmallOutputLGC` when its `dim_out` is 1 but, for example, `conditional_rand`
+returns a `Real` rather than an `AbstractVector` of length 1.
 """
 struct ScalarOutputLGC{
     TA<:Adjoint{<:Any, <:AbstractVector}, Ta<:Real, TQ<:Real,
@@ -160,6 +209,10 @@ struct ScalarOutputLGC{
     a::Ta
     Q::TQ
 end
+
+dim_out(f::ScalarOutputLGC) = 1
+
+dim_in(f::ScalarOutputLGC) = size(f.A, 2)
 
 function conditional_rand(ε::Real, f::ScalarOutputLGC, x::AbstractVector)
     return (f.A * x + f.a) + sqrt(f.Q) * ε
@@ -176,4 +229,70 @@ function posterior_and_lml(x::Gaussian, f::ScalarOutputLGC, y::T) where {T<:Real
 
     lml = -(convert(T, log(2π)) + 2 * log(sqrtS) + α^2) / 2
     return Gaussian(x.m + B'α, x.P - B'B), lml
+end
+
+
+
+"""
+    BottleneckLGC
+
+A composition of an affine map that projects onto a low-dimensional subspace and a
+`LargeOutputLGC`. This structure is exploited by only ever computing `Cholesky`
+factorisations in the space the affine map maps to, rather than the input or output space.
+
+Letting, `H` and `h` parametrise the affine map, and `f` the "fan-out" `LargeOutputLGC`, the
+conditional distribution that this model parametrises is
+```julia
+y | x ~ Gaussian(f.A * (H * x + h) + f.a, f.Q)
+```
+
+Note that this type does not enforce that `size(H, 1) < size(H, 2)`, nor that
+`dim_out(f) > dim_in(f)`, it's just not a particularly good idea to use this type unless
+your model satisfies these properties.
+"""
+struct BottleneckLGC{
+    TH<:AbstractMatrix{<:Real}, Th<:AbstractVector{<:Real}, Tout<:LargeOutputLGC,
+} <: AbstractLGC
+    H::TH
+    h::Th
+    fan_out::Tout
+end
+
+function Base.:(==)(x::BottleneckLGC, y::BottleneckLGC)
+    return (x.H == y.H) && (x.h == y.h) && (x.fan_out == y.fan_out)
+end
+
+Base.eltype(f::BottleneckLGC) = eltype(f.fan_out)
+
+dim_out(f::BottleneckLGC) = dim_out(f.fan_out)
+
+dim_in(f::BottleneckLGC) = size(f.H, 2)
+
+function conditional_rand(ε::AbstractVector{<:Real}, f::BottleneckLGC, x::AbstractVector)
+    return conditional_rand(ε, f.fan_out, f.H * x + f.h)
+end
+
+ε_randn(rng::AbstractRNG, f::BottleneckLGC) = ε_randn(rng, f.fan_out)
+
+# Construct the low-dimensional projection given by f.H and f.h of `x`.
+function _project(x::Gaussian, f::BottleneckLGC)
+    return Gaussian(f.H * x.m + f.h, f.H * x.P * f.H' + ident_eps(x))
+end
+
+predict(x::Gaussian, f::BottleneckLGC) = predict(_project(x, f), f.fan_out)
+
+function predict_marginals(x::Gaussian, f::BottleneckLGC)
+    return predict_marginals(_project(x, f), f.fan_out)
+end
+
+function posterior_and_lml(x::Gaussian, f::BottleneckLGC, y::AbstractVector{<:Real})
+
+    # Get the posterior over the intermediate variable `z`.
+    z = _project(x, f)
+    z_post, lml = posterior_and_lml(z, f.fan_out, y)
+
+    # Compute the posterior `x | y` by integrating `x | z` against `z | y`.
+    U = cholesky(Symmetric(z.P + ident_eps(z))).U
+    Gt = U \ (U' \ (f.H * x.P))
+    return Gaussian(x.m + Gt' * (z_post.m - z.m), x.P + Gt' * (z_post.P - z.P) * Gt), lml
 end

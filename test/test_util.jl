@@ -462,6 +462,15 @@ function test_interface(
         check_allocs && check_adjoint_allocations(predict, (x, conditional); kwargs...)
     end
 
+    conditional isa ScalarOutputLGC || @testset "predict_marginals" begin
+        @test predict_marginals(x, conditional) isa Gaussian
+        pred = predict(x, conditional)
+        pred_marg = predict_marginals(x, conditional)
+        @test mean(pred_marg) ≈ mean(pred)
+        @test diag(cov(pred_marg)) ≈ diag(cov(pred))
+        @test cov(pred_marg) isa Diagonal
+    end
+
     @testset "posterior_and_lml" begin
         args = (x, conditional, y)
         @test posterior_and_lml(args...) isa Tuple{Gaussian, Real}
