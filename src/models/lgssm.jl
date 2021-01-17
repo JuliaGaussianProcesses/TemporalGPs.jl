@@ -225,16 +225,16 @@ end
 
 _compute_Pf(Pp::AbstractMatrix, B::AbstractMatrix) = Pp - B'B
 
-ident_eps(xf) = UniformScaling(convert(eltype(xf), 1e-12))
+ident_eps(xf) = ident_eps(xf, 1e-12)
 
-Zygote._pullback(::NoContext, ::typeof(ident_eps), xf) = ident_eps(xf), nograd_pullback
+ident_eps(xf, ε) = UniformScaling(convert(eltype(xf), ε))
+
+function Zygote._pullback(::NoContext, ::typeof(ident_eps), args...)
+    return ident_eps(args...), nograd_pullback
+end
 
 _collect(U::Adjoint{<:Any, <:Matrix}) = collect(U)
 _collect(U::SMatrix) = U
-
-small_noise_cov(::Type{<:SMatrix{D, D, T}}, ::Int) where {D, T} = SMatrix{D, D, T}(1e-12I)
-
-small_noise_cov(::Type{Matrix{T}}, D::Int) where {T} = Matrix{T}(1e-12 * I, D, D)
 
 
 

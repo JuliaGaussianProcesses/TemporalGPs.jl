@@ -137,10 +137,7 @@ end
 
 # Required for type-stability. This is a technical detail.
 function Zygote._pullback(::NoContext, ::typeof(+), A::Matrix{<:Real}, D::Diagonal{<:Real})
-    function plus_pullback(Δ)
-        println("In this one")
-        return nothing, Δ, (diag=diag(Δ),)
-    end
+    plus_pullback(Δ) = (nothing, Δ, (diag=diag(Δ),))
     return A + D, plus_pullback
 end
 

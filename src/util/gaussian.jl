@@ -25,7 +25,8 @@ Random.rand(rng::AbstractRNG, x::Gaussian) = vec(rand(rng, x, 1))
 Random.rand(rng::AbstractRNG, x::Gaussian{<:SVector}) = randn(rng, typeof(x.m))
 
 function Random.rand(rng::AbstractRNG, x::Gaussian, S::Int)
-    return x.m .+ cholesky(Symmetric(x.P)).U' * randn(rng, length(x.m), S)
+    P = x.P + UniformScaling(1e-12)
+    return x.m .+ cholesky(Symmetric(P)).U' * randn(rng, length(x.m), S)
 end
 
 Stheno.logpdf(x::Gaussian, y::AbstractVector{<:Real}) = first(logpdf(x, reshape(y, :, 1)))

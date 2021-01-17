@@ -30,7 +30,7 @@ using TemporalGPs:
         (name="separable-2", val=separable_2),
 
         (name="scaled-separable", val=0.5 * Separable(Matern52(), Matern32())),
-        (name="stretched-separable", val=Separable(stretch(EQ(), 1.1), Matern12())),
+        (name="stretched-separable", val=Separable(EQ(), stretch(Matern12(), 1.3))),
 
         (name="sum-separable-1", val=separable_1 + separable_2),
         (name="sum-separable-2", val=1.3 * separable_1 + separable_2 * 0.95),
@@ -62,14 +62,21 @@ using TemporalGPs:
         z = RectilinearGrid(z_r, t)
         z_naive = collect(z)
 
-        # Compute the DTC using the naive approach.
+        # Construct naive GP.
         f_naive = GP(k.val, GPC())
         fx_naive = f_naive(collect(x.val), 0.1)
         y = rand(fx_naive)
 
-        # Compute the DTC efficiently via the state-space approach.
+        # Construct state-space GP.
         f = to_sde(f_naive)
         fx = f(x.val, 0.1)
+
+        # Verify dimensions of the LGSSM constructed to compute the DTC. This catches a
+        # surprisingly large number of bugs during development.
+        fx_dtc = TemporalGPs.dtcify(z_r, fx)
+        lgssm = TemporalGPs.build_lgssm(fx_dtc)
+        @test sum(map(dim_out, lgssm.emissions)) == length(y)
+        validate_dims(lgssm)
 
         # The two approaches to DTC computation should be equivalent up to roundoff error.
         dtc_naive = dtc(fx_naive, y, f_naive(z_naive))

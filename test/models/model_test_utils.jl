@@ -318,11 +318,17 @@ function validate_dims(model::Union{SmallOutputLGC, LargeOutputLGC})
     return nothing
 end
 
-function validate_dims(model::Union{ScalarOutputLGC})
+function validate_dims(model::ScalarOutputLGC)
     @test size(model.A) == (1, dim_in(model))
     @test size(model.a) == ()
     @test size(model.Q) == ()
     return nothing
+end
+
+function validate_dims(model::BottleneckLGC)
+    validate_dims(model.fan_out)
+    @test dim_in(model.fan_out) == size(model.H, 1)
+    @test dim_in(model.fan_out) == length(model.h)
 end
 
 function validate_dims(gmm::GaussMarkovModel)
@@ -347,7 +353,7 @@ function validate_dims(model::LGSSM)
     @test length(model) == length(model.transitions)
     @test length(model) == length(model.emissions)
 
-    validate_dims(model.transitions)
+    map(validate_dims, model.emissions)
 
     @test all(n -> dim(model.transitions) == dim_in(model.emissions[n]), eachindex(model))
 

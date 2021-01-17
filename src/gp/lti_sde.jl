@@ -39,11 +39,16 @@ Stheno.cov(ft::FiniteLTISDE) = cov(FiniteGP(ft.f.f, ft.x, ft.Σy))
 
 Stheno.marginals(ft::FiniteLTISDE) = vcat(map(marginals, marginals(build_lgssm(ft)))...)
 
-Stheno.rand(rng::AbstractRNG, ft::FiniteLTISDE) = rand(rng, build_lgssm(ft))
+function Stheno.rand(rng::AbstractRNG, ft::FiniteLTISDE)
+    return destructure(rand(rng, build_lgssm(ft)))
+end
+
 Stheno.rand(ft::FiniteLTISDE) = rand(Random.GLOBAL_RNG, ft)
+
 function Stheno.rand(rng::AbstractRNG, ft::FiniteLTISDE, N::Int)
     return hcat([rand(rng, ft) for _ in 1:N]...)
 end
+
 Stheno.rand(ft::FiniteLTISDE, N::Int) = rand(Random.GLOBAL_RNG, ft, N)
 
 function Stheno.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Real})
@@ -53,17 +58,17 @@ end
 
 restructure(y::AbstractVector{<:Real}, ::StructArray{<:ScalarOutputLGC}) = y
 
-
+destructure(y::AbstractVector{<:Real}) = y
 
 # Converting GPs into LGSSMs.
 
 using Stheno: MeanFunction, ConstMean, ZeroMean, BaseKernel, Sum, Stretched, Scaled
 
 function build_lgssm(ft::FiniteLTISDE)
-    As, as, Qs, Hs, hs, x0 = lgssm_components(ft.f.f.k, ft.x, ft.f.storage)
+    As, as, Qs, emission_proj, x0 = lgssm_components(ft.f.f.k, ft.x, ft.f.storage)
     return LGSSM(
         GaussMarkovModel(Forward(), As, as, Qs, x0),
-        build_emissions(map(adjoint, Hs), hs, build_Σs(ft)),
+        build_emissions(emission_proj, build_Σs(ft)),
     )
 end
 
@@ -71,8 +76,11 @@ build_Σs(ft::FiniteLTISDE) = build_Σs(ft.x, ft.Σy)
 
 build_Σs(::AbstractVector{<:Real}, Σ::Diagonal{<:Real}) = Σ.diag
 
-function build_emissions(Hs::AbstractVector, hs::AbstractVector, Σs::AbstractVector)
-    return StructArray{get_type(Hs, hs, Σs)}((Hs, hs, Σs))
+function build_emissions(
+    (Hs, hs)::Tuple{AbstractVector, AbstractVector}, Σs::AbstractVector,
+)
+    Hst = map(adjoint, Hs)
+    return StructArray{get_type(Hst, hs, Σs)}((Hst, hs, Σs))
 end
 
 function get_type(Hs_prime, hs::AbstractVector{<:Real}, Σs)
@@ -115,8 +123,9 @@ function lgssm_components(
     Qs = map(A -> P - A * P * A', As)
     Hs = Fill(H, length(As))
     hs = Fill(zero(T), length(As))
+    emission_projections = (Hs, hs)
 
-    return As, as, Qs, Hs, hs, x0
+    return As, as, Qs, emission_projections, x0
 end
 
 function lgssm_components(
@@ -136,8 +145,9 @@ function lgssm_components(
     Qs = Fill(Q, length(t))
     Hs = Fill(H, length(t))
     hs = Fill(zero(T), length(As))
+    emission_projections = (Hs, hs)
 
-    return As, as, Qs, Hs, hs, x0
+    return As, as, Qs, emission_projections, x0
 end
 
 # Fallback definitions for most base kernels.
@@ -236,11 +246,17 @@ end
 # Scaled
 
 function lgssm_components(k::Scaled, ts::AbstractVector, storage_type::StorageType)
-    As, as, Qs, Hs, hs, x0 = lgssm_components(k.k, ts, storage_type)
+    As, as, Qs, emission_proj, x0 = lgssm_components(k.k, ts, storage_type)
     σ = sqrt(convert(eltype(storage_type), only(k.σ²)))
-    Hs = map(H->σ * H, Hs)
-    hs = map(h->σ * h, hs)
-    return As, as, Qs, Hs, hs, x0
+    return As, as, Qs, _scale_emission_projections(emission_proj, σ), x0
+end
+
+function _scale_emission_projections((Hs, hs)::Tuple{AbstractVector, AbstractVector}, σ)
+    return (map(H->σ * H, Hs), map(h->σ * h, hs))
+end
+
+function _scale_emission_projections((Cs, cs, Hs, hs), σ)
+    return (Cs, cs, map(H->σ * H, Hs), map(h->σ * h, hs))
 end
 
 
@@ -261,18 +277,37 @@ apply_stretch(a, ts::RegularSpacing) = RegularSpacing(a * ts.t0, a * ts.Δt, ts.
 
 # Sum
 
-function lgssm_components(k::Sum,ts::AbstractVector, storage_type::StorageType)
-    As_l, as_l, Qs_l, Hs_l, hs_l, x0_l = lgssm_components(k.kl, ts, storage_type)
-    As_r, as_r, Qs_r, Hs_r, hs_r, x0_r = lgssm_components(k.kr, ts, storage_type)
+function lgssm_components(k::Sum, ts::AbstractVector, storage_type::StorageType)
+    As_l, as_l, Qs_l, emission_proj_l, x0_l = lgssm_components(k.kl, ts, storage_type)
+    As_r, as_r, Qs_r, emission_proj_r, x0_r = lgssm_components(k.kr, ts, storage_type)
 
     As = map(blk_diag, As_l, As_r)
     as = map(vcat, as_l, as_r)
     Qs = map(blk_diag, Qs_l, Qs_r)
-    Hs = map(vcat, Hs_l, Hs_r)
-    hs = hs_l + hs_r
+    emission_projections = _sum_emission_projections(emission_proj_l, emission_proj_r)
     x0 = Gaussian(vcat(x0_l.m, x0_r.m), blk_diag(x0_l.P, x0_r.P))
 
-    return As, as, Qs, Hs, hs, x0
+    return As, as, Qs, emission_projections, x0
+end
+
+function _sum_emission_projections(
+    (Hs_l, hs_l)::Tuple{AbstractVector, AbstractVector},
+    (Hs_r, hs_r)::Tuple{AbstractVector, AbstractVector},
+)
+    a = map(vcat, Hs_l, Hs_r)
+    b = hs_l + hs_r
+    return (map(vcat, Hs_l, Hs_r), hs_l + hs_r)
+end
+
+function _sum_emission_projections(
+    (Cs_l, cs_l, Hs_l, hs_l)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
+    (Cs_r, cs_r, Hs_r, hs_r)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
+)
+    Cs = map(vcat, Cs_l, Cs_r)
+    cs = cs_l + cs_r
+    Hs = map(blk_diag, Hs_l, Hs_r)
+    hs = map(vcat, hs_l, hs_r)
+    return (Cs, cs, Hs, hs)
 end
 
 Base.vcat(x::Zeros{T, 1}, y::Zeros{T, 1}) where {T} = Zeros{T}(length(x) + length(y))

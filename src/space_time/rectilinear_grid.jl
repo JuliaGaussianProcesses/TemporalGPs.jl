@@ -24,6 +24,8 @@ function Base.collect(X::RectilinearGrid{Tl, Tr}) where{Tl, Tr}
     )
 end
 
+Base.show(io::IO, x::RectilinearGrid) = Base.show(io::IO, collect(x))
+
 """
     SpaceTimeGrid{Tr, Tt<:Real}
 

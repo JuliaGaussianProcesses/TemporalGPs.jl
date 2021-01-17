@@ -18,24 +18,24 @@ println("lgssm:")
 
     storages = (
         dense=(name="dense storage Float64", val=ArrayStorage(Float64)),
-        static=(name="static storage Float64", val=SArrayStorage(Float64)),
+        # static=(name="static storage Float64", val=SArrayStorage(Float64)),
     )
     emission_types = (
         small_output=(name="small output", val=SmallOutputLGC),
-        large_output=(name="large output", val=LargeOutputLGC),
-        scalar_output=(name="scalar output", val=ScalarOutputLGC),
+        # large_output=(name="large output", val=LargeOutputLGC),
+        # scalar_output=(name="scalar output", val=ScalarOutputLGC),
     )
     settings = [
         (tv=:time_varying, N=1, Dlat=3, Dobs=2, storage=storages.dense),
-        (tv=:time_varying, N=49, Dlat=3, Dobs=2, storage=storages.dense),
-        (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.dense),
-        (tv=:time_varying, N=49, Dlat=1, Dobs=1, storage=storages.dense),
-        (tv=:time_varying, N=1, Dlat=3, Dobs=2, storage=storages.static),
-        (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.static),
+        # (tv=:time_varying, N=49, Dlat=3, Dobs=2, storage=storages.dense),
+        # (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.dense),
+        # (tv=:time_varying, N=49, Dlat=1, Dobs=1, storage=storages.dense),
+        # (tv=:time_varying, N=1, Dlat=3, Dobs=2, storage=storages.static),
+        # (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.static),
     ]
     orderings = [
         Forward(),
-        Reverse(),
+        # Reverse(),
     ]
 
     @testset "($tv, $N, $Dlat, $Dobs, $(storage.name), $(emission.name), $order)" for
@@ -64,45 +64,45 @@ println("lgssm:")
         y = first(rand(model))
         x = TemporalGPs.x0(model)
 
-        @testset "step_marginals" begin
-            @inferred step_marginals(x, model[1])
-            adjoint_test(step_marginals, (x, model[1]))
-            if storage.val isa SArrayStorage
-                check_adjoint_allocations(step_marginals, (x, model[1]))
-            end
-        end
-        @testset "step_logpdf" begin
-            args = (ordering(model[1]), x, (model[1], y))
-            @inferred step_logpdf(args...)
-            adjoint_test(step_logpdf, args)
-            if storage.val isa SArrayStorage
-                check_adjoint_allocations(step_logpdf, args)
-            end
-        end
-        @testset "step_filter" begin
-            args = (ordering(model[1]), x, (model[1], y))
-            @inferred step_filter(args...)
-            adjoint_test(step_filter, args)
-            if storage.val isa SArrayStorage
-                check_adjoint_allocations(step_filter, args)
-            end
-        end
-        @testset "invert_dynamics" begin
-            args = (x, x, model[1].transition)
-            @inferred invert_dynamics(args...)
-            adjoint_test(invert_dynamics, args)
-            if storage.val isa SArrayStorage
-                check_adjoint_allocations(invert_dynamics, args)
-            end
-        end
-        @testset "step_posterior" begin
-            args = (ordering(model[1]), x, (model[1], y))
-            @inferred step_posterior(args...)
-            adjoint_test(step_posterior, args)
-            if storage.val isa SArrayStorage
-                check_adjoint_allocations(step_posterior, args)
-            end
-        end
+        # @testset "step_marginals" begin
+        #     @inferred step_marginals(x, model[1])
+        #     adjoint_test(step_marginals, (x, model[1]))
+        #     if storage.val isa SArrayStorage
+        #         check_adjoint_allocations(step_marginals, (x, model[1]))
+        #     end
+        # end
+        # @testset "step_logpdf" begin
+        #     args = (ordering(model[1]), x, (model[1], y))
+        #     @inferred step_logpdf(args...)
+        #     adjoint_test(step_logpdf, args)
+        #     if storage.val isa SArrayStorage
+        #         check_adjoint_allocations(step_logpdf, args)
+        #     end
+        # end
+        # @testset "step_filter" begin
+        #     args = (ordering(model[1]), x, (model[1], y))
+        #     @inferred step_filter(args...)
+        #     adjoint_test(step_filter, args)
+        #     if storage.val isa SArrayStorage
+        #         check_adjoint_allocations(step_filter, args)
+        #     end
+        # end
+        # @testset "invert_dynamics" begin
+        #     args = (x, x, model[1].transition)
+        #     @inferred invert_dynamics(args...)
+        #     adjoint_test(invert_dynamics, args)
+        #     if storage.val isa SArrayStorage
+        #         check_adjoint_allocations(invert_dynamics, args)
+        #     end
+        # end
+        # @testset "step_posterior" begin
+        #     args = (ordering(model[1]), x, (model[1], y))
+        #     @inferred step_posterior(args...)
+        #     adjoint_test(step_posterior, args)
+        #     if storage.val isa SArrayStorage
+        #         check_adjoint_allocations(step_posterior, args)
+        #     end
+        # end
 
         # Run standard battery of LGSSM tests.
         test_interface(

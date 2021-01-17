@@ -62,7 +62,7 @@ function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractV
 
     # Compute diagonals over prior marginals.
     lgssm = build_lgssm(fx_dtc)
-    Σs = lgssm.emissions.Q
+    Σs = lgssm.emissions.fan_out.Q
     marg_diag = marginals_diag(lgssm)
 
     k = fx_dtc.f.f.k
@@ -105,7 +105,8 @@ function lgssm_components(k_dtc::DTCSeparable, x::SpaceTimeGrid, storage::Storag
     k = k_dtc.k
     ts = get_time(x)
     time_kernel = k.r
-    As_t, as_t, Qs_t, Hs_t, hs_t, x0_t = lgssm_components(time_kernel, ts, storage)
+    As_t, as_t, Qs_t, emission_proj, x0_t = lgssm_components(time_kernel, ts, storage)
+    Hs_t, hs_t = _extract_emission_proj(emission_proj)
 
     # Compute spatial covariance between inducing inputs, and inducing points + obs. points.
     space_kernel = k.l
@@ -128,10 +129,12 @@ function lgssm_components(k_dtc::DTCSeparable, x::SpaceTimeGrid, storage::Storag
     As = map(A -> kron(ident_M, A), As_t)
     as = map(a -> repeat(a, M), as_t)
     Qs = map(Q -> kron(K_space_z, Q), Qs_t)
-    Hs = map(H -> kron(Λu_Cuf, H), Hs_t) # This is currently O(N^2).
-    hs = map(h -> fill(h, N), hs_t) # This should currently be zero.
+    Cs = Fill(Λu_Cuf, length(ts))
+    cs = map(h -> Fill(h, N), hs_t) # This should currently be zero.
+    Hs = map(H -> kron(ident_M, H), Hs_t)
+    hs = Fill(Zeros(M), length(ts))
     x0 = Gaussian(repeat(x0_t.m, M), kron(K_space_z, x0_t.P))
-    return As, as, Qs, Hs, hs, x0
+    return As, as, Qs, (Cs, cs, Hs, hs), x0
 end
 
 function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::StorageType)
@@ -140,7 +143,8 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
     k = k_dtc.k
     ts = get_time(x)
     time_kernel = k.r
-    As_t, as_t, Qs_t, Hs_t, hs_t, x0_t = lgssm_components(time_kernel, ts, storage)
+    As_t, as_t, Qs_t, emission_proj, x0_t = lgssm_components(time_kernel, ts, storage)
+    Hs_t, hs_t = _extract_emission_proj(emission_proj)
 
     # Compute spatial covariance between inducing inputs, and inducing points + obs. points.
     space_kernel = k.l
@@ -156,14 +160,35 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
     As = map(A -> kron(ident_M, A), As_t)
     as = map(a -> repeat(a, M), as_t)
     Qs = map(Q -> kron(K_space_z, Q), Qs_t)
-    Hs = map(
-        (H, v) -> kron(K_space_z_chol \ pw(space_kernel, z_space, v), H),
-        Hs_t, x.vs,
-    )
-    hs = map((h, v) -> fill(h, length(v)), hs_t, x.vs) # This should currently be zero.
+    Cs = map((H, v) -> K_space_z_chol \ pw(space_kernel, z_space, v), Hs_t, x.vs)
+    cs = map((h, v) -> fill(h, length(v)), hs_t, x.vs) # This should currently be zero.
+    Hs = map(H_t -> kron(ident_M, H_t), Hs_t)
+    hs = Fill(Zeros(M), length(ts))
     x0 = Gaussian(repeat(x0_t.m, M), kron(K_space_z, x0_t.P))
-    return As, as, Qs, Hs, hs, x0
+    return As, as, Qs, (Cs, cs, Hs, hs), x0
 end
+
+_extract_emission_proj((Hs, hs)::Tuple{AbstractVector, AbstractVector}) = Hs, hs
+
+function build_emissions(
+    (Cs, cs, Hs, hs)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
+    Σs::AbstractVector,
+)
+    Hst = map(adjoint, Hs)
+    Cst = map(adjoint, Cs)
+    fan_outs = StructArray{LargeOutputLGC{eltype(Cs), eltype(cs), eltype(Σs)}}((Cst, cs, Σs))
+    return StructArray{BottleneckLGC{eltype(Hst), eltype(hs), eltype(fan_outs)}}((Hst, hs, fan_outs))
+end
+
+# function get_type(Cs_prime, cs, Hs_prime, hs::AbstractVector{<:AbstractVector}, Σs)
+#     TCs = eltype(Cs_prime)
+#     THs = eltype(Hs_prime)
+#     Ths = eltype(hs)
+#     TΣs = eltype(Σs)
+#     T = BottleneckLGC{THs, Ths, LargeOutputLGC{}
+#     T = SmallOutputLGC{THs, Ths, TΣs}
+#     return T
+# end
 
 """
     approx_posterior_marginals(
@@ -198,15 +223,15 @@ function approx_posterior_marginals(
     # Compute the new emission distributions + approx posterior model.
     x_pr = RectilinearGrid(x_r, get_time(fx.x))
     k_dtc = dtcify(z_r, fx.f.f.k)
-    Hs, hs, Σs = dtc_post_emissions(k_dtc, x_pr, fx.f.storage)
-    new_fx_post = LGSSM(fx_post.transitions, build_emissions(Hs, hs, Σs))
+    new_proj, Σs = dtc_post_emissions(k_dtc, x_pr, fx.f.storage)
+    new_fx_post = LGSSM(fx_post.transitions, build_emissions(new_proj, Σs))
 
     # Compute marginals under modified posterior.
     return vcat(map(marginals, marginals_diag(new_fx_post))...)
 end
 
 function dtc_post_emissions(k::DTCSeparable, x_new::AbstractVector, storage::StorageType)
-    _, _, _, new_Hs, new_hs, _ = lgssm_components(k, x_new, storage)
+    _, _, _, new_proj, _ = lgssm_components(k, x_new, storage)
 
     # Compute cross-covariance between target points and pseudo-points.
     # We only need to do this once over all times because the kernel is separable and we're
@@ -215,7 +240,7 @@ function dtc_post_emissions(k::DTCSeparable, x_new::AbstractVector, storage::Sto
     space_kernel = k.k.l
     z_r = k.z
     C_fp_u = Stheno.pairwise(space_kernel, get_space(x_new), z_r)
-    C_u = cholesky(Symmetric(Stheno.pairwise(space_kernel, z_r)))
+    C_u = cholesky(Symmetric(Stheno.pairwise(space_kernel, z_r) + ident_eps(z_r, 1e-9)))
     Cr_rpred_diag = Stheno.elementwise(space_kernel, get_space(x_new))
     spatial_Q_diag = Cr_rpred_diag - Stheno.diag_Xt_invA_X(C_u, C_fp_u')
 
@@ -223,17 +248,21 @@ function dtc_post_emissions(k::DTCSeparable, x_new::AbstractVector, storage::Sto
     time_vars = Stheno.ew(time_kernel, get_time(x_new))
     new_Σs = map(s_t -> Diagonal(spatial_Q_diag * s_t), time_vars)
 
-    return map(adjoint, new_Hs), new_hs, new_Σs
+    return new_proj, new_Σs
 end
 
 function dtc_post_emissions(k::Scaled, x_new::AbstractVector, storage::StorageType)
-    Hs, hs, Σs = dtc_post_emissions(k.k, x_new, storage)
+    (Cs, cs, Hs, hs), Σs = dtc_post_emissions(k.k, x_new, storage)
     σ = sqrt(convert(eltype(storage_type), only(k.σ²)))
-    return map(H->σ * H, Hs), map(h->σ * h, hs), map(Σ->σ^2 * Σ, Σs)
+    return (Cs, cs, map(H->σ * H, Hs), map(h->σ * h, hs)), map(Σ->σ^2 * Σ, Σs)
 end
 
 function dtc_post_emissions(k::Sum, x_new::AbstractVector, storage::StorageType)
-    Hs_l, hs_l, Σs_l = dtc_post_emissions(k.kl, x_new, storage)
-    Hs_r, hs_r, Σs_r = dtc_post_emissions(k.kr, x_new, storage)
-    return map(hcat, Hs_l, Hs_r), map(+, hs_l, hs_r), map(+, Σs_l, Σs_r)
+    (Cs_l, cs_l, Hs_l, hs_l), Σs_l = dtc_post_emissions(k.kl, x_new, storage)
+    (Cs_r, cs_r, Hs_r, hs_r), Σs_r = dtc_post_emissions(k.kr, x_new, storage)
+    Cs = map(vcat, Cs_l, Cs_r)
+    cs = cs_l + cs_r
+    Hs = map(blk_diag, Hs_l, Hs_r)
+    hs = map(vcat, hs_l, hs_r)
+    return (Cs, cs, Hs, hs), map(+, Σs_l, Σs_r)
 end

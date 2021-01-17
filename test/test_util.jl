@@ -321,8 +321,8 @@ function adjoint_test(
 
     # Check type inference if requested.
     if check_infers
-        # @code_warntype Zygote._pullback(context, f, x...)
-        # @code_warntype pb(ȳ)
+        @descend Zygote._pullback(context, f, x...)
+        @code_warntype pb(ȳ)
         @inferred Zygote._pullback(context, f, x...)
         @inferred pb(ȳ)
     end
@@ -509,47 +509,37 @@ function test_interface(
 )
     y_no_missing = rand(rng, ssm)
 
-    @testset "rand" begin
-        @test is_of_storage_type(y_no_missing[1], storage_type(ssm))
-        @test y_no_missing isa AbstractVector
-        @test length(y_no_missing) == length(ssm)
-        check_infers && @inferred rand(rng, ssm)
-        if check_adjoints
-            adjoint_test(
-                ssm -> rand(MersenneTwister(123456), ssm), (ssm, );
-                check_infers=check_infers, kwargs...,
-            )
-        end
-    end
-
-    @testset "basics" begin
-        @inferred storage_type(ssm)
-        @test length(ssm) == length(y_no_missing)
-    end
-
-    @testset "marginals" begin
-        xs = marginals(ssm)
-        @test is_of_storage_type(xs, storage_type(ssm))
-        @test xs isa AbstractVector{<:Gaussian}
-        @test length(xs) == length(ssm)
-        check_infers && @inferred marginals(ssm)
-        if check_adjoints
-            adjoint_test(marginals, (ssm, ); check_infers=check_infers, kwargs...)
-        end
-        if check_allocs
-            check_adjoint_allocations(marginals, (ssm, ); kwargs...)
-        end
-    end
-
-    # # Construct a missing-data example.
-    # y_missing = Vector{Union{Missing, eltype(y_no_missing)}}(undef, length(y_no_missing))
-    # y_missing .= y_no_missing
-    # y_missing[1] = missing
-    # if length(ssm) >= 3
-    #     y_missing[3] = missing
+    # @testset "rand" begin
+    #     @test is_of_storage_type(y_no_missing[1], storage_type(ssm))
+    #     @test y_no_missing isa AbstractVector
+    #     @test length(y_no_missing) == length(ssm)
+    #     check_infers && @inferred rand(rng, ssm)
+    #     if check_adjoints
+    #         adjoint_test(
+    #             ssm -> rand(MersenneTwister(123456), ssm), (ssm, );
+    #             check_infers=check_infers, kwargs...,
+    #         )
+    #     end
     # end
-    # missing_idx = length(ssm) >= 3 ? [1, 3] : [1]
-    # α_missing = decorrelate(ssm, y_missing)
+
+    # @testset "basics" begin
+    #     @inferred storage_type(ssm)
+    #     @test length(ssm) == length(y_no_missing)
+    # end
+
+    # @testset "marginals" begin
+    #     xs = marginals(ssm)
+    #     @test is_of_storage_type(xs, storage_type(ssm))
+    #     @test xs isa AbstractVector{<:Gaussian}
+    #     @test length(xs) == length(ssm)
+    #     check_infers && @inferred marginals(ssm)
+    #     if check_adjoints
+    #         adjoint_test(marginals, (ssm, ); check_infers=check_infers, kwargs...)
+    #     end
+    #     if check_allocs
+    #         check_adjoint_allocations(marginals, (ssm, ); kwargs...)
+    #     end
+    # end
 
     @testset "$(data.name)" for data in [
         (name="no-missings", y=y_no_missing),
@@ -580,8 +570,8 @@ function test_interface(
 
         # Hack to only run the AD tests if requested.
         @testset "adjoints" for _ in (check_adjoints ? [1] : [])
-            adjoint_test(logpdf, (ssm, y); check_infers=_check_infers, kwargs...)
-            adjoint_test(_filter, (ssm, y); check_infers=_check_infers, kwargs...)
+            # adjoint_test(logpdf, (ssm, y); check_infers=_check_infers, kwargs...)
+            # adjoint_test(_filter, (ssm, y); check_infers=_check_infers, kwargs...)
             adjoint_test(posterior, (ssm, y); check_infers=_check_infers, kwargs...)
 
             if check_allocs
