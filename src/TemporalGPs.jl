@@ -15,7 +15,6 @@ module TemporalGPs
     using ZygoteRules
 
     using FillArrays: AbstractFill
-    using Kronecker: KroneckerProduct
     using Zygote: _pullback
 
     import Stheno:

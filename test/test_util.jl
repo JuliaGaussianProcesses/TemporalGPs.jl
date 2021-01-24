@@ -321,8 +321,8 @@ function adjoint_test(
 
     # Check type inference if requested.
     if check_infers
-        @descend Zygote._pullback(context, f, x...)
-        @code_warntype pb(ȳ)
+        # @code_warntype Zygote._pullback(context, f, x...)
+        # @code_warntype pb(ȳ)
         @inferred Zygote._pullback(context, f, x...)
         @inferred pb(ȳ)
     end

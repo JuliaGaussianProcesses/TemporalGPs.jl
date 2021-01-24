@@ -168,7 +168,7 @@ dim_in(f::LargeOutputLGC) = size(f.A, 2)
 function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y)
     A = f.A
     Q = cholesky(Symmetric(f.Q))
-    P = cholesky(Symmetric(x.P))
+    P = cholesky(Symmetric(x.P + ident_eps(1e-12)))
 
     # Compute posterior covariance matrix.
     B = P.U * A' / Q.U

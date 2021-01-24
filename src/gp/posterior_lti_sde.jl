@@ -50,7 +50,7 @@ end
 # `y_pred`. This is used in all of the inference procedures. Also provide a collection of
 # indices that can be used to obtain the requested prediction locations from the joint data.
 
-# This is the most dumb way of going about this.
+# This is the most naive way of going about this.
 # The present implementation assumes that there are no overlapping data, which will lead to
 # numerical issues if violated.
 function build_inference_data(

@@ -218,16 +218,20 @@ end
 
 # inlining for the benefit of type inference. Needed in at least julia-1.5.3.
 @inline function invert_dynamics(xf::Gaussian, xp::Gaussian, prior::SmallOutputLGC)
-    U = cholesky(Symmetric(xp.P + ident_eps(xf))).U
+    U = cholesky(Symmetric(xp.P + ident_eps(1e-10))).U
     Gt = U \ (U' \ (prior.A * xf.P))
     return SmallOutputLGC(_collect(Gt'), xf.m - Gt'xp.m, _compute_Pf(xf.P, U * Gt))
 end
 
 _compute_Pf(Pp::AbstractMatrix, B::AbstractMatrix) = Pp - B'B
 
-ident_eps(xf) = ident_eps(xf, 1e-12)
+ident_eps(xf::Gaussian) = ident_eps(xf, 1e-12)
 
 ident_eps(xf, ε) = UniformScaling(convert(eltype(xf), ε))
+
+ident_eps(ε::Real) = UniformScaling(ε)
+
+ident_eps(x::ColVecs, ε::Real) = UniformScaling(convert(eltype(x.X), ε))
 
 function Zygote._pullback(::NoContext, ::typeof(ident_eps), args...)
     return ident_eps(args...), nograd_pullback

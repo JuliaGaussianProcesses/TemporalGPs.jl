@@ -1,5 +1,3 @@
-using Kronecker: KroneckerProduct
-
 my_I(T, N) = Matrix{T}(I, N, N)
 
 Zygote._pullback(::AContext, ::typeof(my_I), args...) = my_I(args...), nograd_pullback

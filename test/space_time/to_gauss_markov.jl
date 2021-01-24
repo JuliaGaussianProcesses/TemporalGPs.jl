@@ -50,7 +50,7 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
 
         y = rand(MersenneTwister(123456), ft_sde)
 
-        model = build_lgssm(ft_sde)
+        model = TemporalGPs.build_lgssm(ft_sde)
         @test all(
             isequal.(
                 length.(TemporalGPs.restructure(y, model.emissions)),
@@ -86,17 +86,17 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
         # # adjoint_test(logpdf, (ft_sde, y); fdm=central_fdm(2, 1), check_infers=false)
 
 
-        # # if t.val isa RegularSpacing
-        # #     adjoint_test(
-        # #         (r, Δt, y) -> begin
-        # #             x = RectilinearGrid(r, RegularSpacing(t.val.t0, Δt, Nt))
-        # #             _f = to_sde(GP(k.val, GPC()))
-        # #             _ft = _f(x, σ².val...)
-        # #             return logpdf(_ft, y)
-        # #         end,
-        # #         (r, t.val.Δt, y_sde);
-        # #         check_infers=false,
-        # #     )
-        # # end
+        # if t.val isa RegularSpacing
+        #     adjoint_test(
+        #         (r, Δt, y) -> begin
+        #             x = RectilinearGrid(r, RegularSpacing(t.val.t0, Δt, Nt))
+        #             _f = to_sde(GP(k.val, GPC()))
+        #             _ft = _f(x, σ².val...)
+        #             return logpdf(_ft, y)
+        #         end,
+        #         (r, t.val.Δt, y_sde);
+        #         check_infers=false,
+        #     )
+        # end
     end
 end

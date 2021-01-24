@@ -294,8 +294,6 @@ function _sum_emission_projections(
     (Hs_l, hs_l)::Tuple{AbstractVector, AbstractVector},
     (Hs_r, hs_r)::Tuple{AbstractVector, AbstractVector},
 )
-    a = map(vcat, Hs_l, Hs_r)
-    b = hs_l + hs_r
     return (map(vcat, Hs_l, Hs_r), hs_l + hs_r)
 end
 
