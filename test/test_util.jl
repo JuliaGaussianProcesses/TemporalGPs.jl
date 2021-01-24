@@ -90,7 +90,9 @@ end
 
 # Fallback method for `to_vec`. Won't always do what you wanted, but should be fine a decent
 # chunk of the time.
-function to_vec(x::T) where {T}
+to_vec(x) = generic_struct_to_vec(x)
+
+function generic_struct_to_vec(x::T) where {T}
     Base.isstructtype(T) || throw(error("Expected a struct type"))
 
     val_vecs_and_backs = map(name -> to_vec(getfield(x, name)), fieldnames(T))
@@ -105,6 +107,8 @@ function to_vec(x::T) where {T}
     end
     return v, structtype_from_vec
 end
+
+to_vec(x::TemporalGPs.RectilinearGrid) = generic_struct_to_vec(x)
 
 function to_vec(gpc::GPC)
     GPC_from_vec(v) = gpc
@@ -130,22 +134,6 @@ function to_vec(X::BlockDiagonal)
     end
 
     return Xs_vec, BlockDiagonal_from_vec
-end
-
-function to_vec(X::KroneckerProduct)
-    A, B = getmatrices(X)
-    A_vec, A_from_vec = to_vec(A)
-    B_vec, B_from_vec = to_vec(B)
-    X_vec, back = to_vec((A_vec, B_vec))
-
-    function KroneckerProduct_from_vec(X_vec)
-        (A_vec, B_vec) = back(X_vec)
-        A = A_from_vec(A_vec)
-        B = B_from_vec(B_vec)
-        return A ⊗ B
-    end
-
-    return X_vec, KroneckerProduct_from_vec
 end
 
 function to_vec(::typeof(identity))
@@ -242,15 +230,6 @@ to_vec(::Nothing) = Bool[], _ -> nothing
         Ns = [3, 5, 1]
         Xs = map(N -> randn(N, N), Ns)
         X = BlockDiagonal(Xs)
-
-        X_vec, X_from_vec = to_vec(X)
-        @test X_vec isa Vector{<:Real}
-        @test X_from_vec(X_vec) == X
-    end
-    @testset "to_vec(::KroneckerProduct" begin
-        A = randn(4, 5)
-        B = randn(6, 7)
-        X = A ⊗ B
 
         X_vec, X_from_vec = to_vec(X)
         @test X_vec isa Vector{<:Real}

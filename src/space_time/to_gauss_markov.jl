@@ -43,14 +43,31 @@ function build_Σs(x::RegularInTime, Σ::Diagonal{<:Real})
     return Diagonal.(collect.(vs))
 end
 
-function restructure(y::AbstractVector{<:Real}, emissions::StructArray)
-    return restructure(y, map(dim_out, emissions))
-end
-
 function restructure(y::AbstractVector{<:Real}, lengths::AbstractVector{<:Integer})
     idxs_start = cumsum(vcat(0, lengths)) .+ 1
     idxs_end = idxs_start[1:end-1] .+ lengths .- 1
     return map(n -> y[idxs_start[n]:idxs_end[n]], eachindex(lengths))
+end
+
+function Zygote._pullback(
+    ::AContext,
+    ::typeof(restructure),
+    y::Vector{<:Real},
+    lengths::AbstractVector{<:Integer},
+)
+    function restructure_pullback(Δ::Vector{<:Vector{<:Real}})
+        return nothing, vcat(Δ...), nothing
+    end
+    return restructure(y, lengths), restructure_pullback
+end
+
+# Implement specific to Fills for AD's sake.
+function restructure(y::Fill{<:Real}, lengths::AbstractVector{<:Integer})
+    return map(l -> Fill(y.value, l), Zygote.dropgrad(lengths))
+end
+
+function restructure(y::AbstractVector{<:Real}, emissions::StructArray)
+    return restructure(y, Zygote.dropgrad(map(dim_out, emissions)))
 end
 
 destructure(y::AbstractVector{<:AbstractVector{<:Real}}) = vcat(y...)

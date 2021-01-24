@@ -86,9 +86,11 @@ function kernel_diagonals(k::DTCSeparable, x::RegularInTime)
     space_kernel = k.k.l
     time_kernel = k.k.r
     time_vars = Stheno.elementwise(time_kernel, get_time(x))
-    return map(zip(time_vars, x.vs)) do (s_t, x_r)
-        Diagonal(Stheno.elementwise(space_kernel, x_r) * s_t)
-    end
+    return map(
+        (s_t, x_r) -> Diagonal(Stheno.elementwise(space_kernel, x_r) * s_t),
+        time_vars,
+        x.vs,
+    )
 end
 
 function kernel_diagonals(k::Scaled, x::AbstractVector)
@@ -160,7 +162,7 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
     As = map(A -> kron(ident_M, A), As_t)
     as = map(a -> repeat(a, M), as_t)
     Qs = map(Q -> kron(K_space_z, Q), Qs_t)
-    Cs = map((H, v) -> K_space_z_chol \ pw(space_kernel, z_space, v), Hs_t, x.vs)
+    Cs = map((v) -> K_space_z_chol \ pw(space_kernel, z_space, v), x.vs)
     cs = map((h, v) -> fill(h, length(v)), hs_t, x.vs) # This should currently be zero.
     Hs = map(H_t -> kron(ident_M, H_t), Hs_t)
     hs = Fill(Zeros(M), length(ts))

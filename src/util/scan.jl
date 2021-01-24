@@ -104,23 +104,29 @@ _get_zero_adjoint(x::AbstractArray) = zero(x)
 
 # Vector. In all probability, only one of these methods is necessary.
 
-function get_adjoint_storage(x::Vector{T}, n::Int, Δx::T) where {T<:Real}
-    x̄ = Vector{T}(undef, length(x))
+function get_adjoint_storage(x::Array, n::Int, Δx::T) where {T}
+    x̄ = Array{T}(undef, size(x))
     x̄[n] = Δx
     return x̄
 end
 
-function get_adjoint_storage(x::Vector, n::Int, init::T) where {T<:AbstractVecOrMat{<:Real}}
-    Δx = Vector{T}(undef, length(x))
-    Δx[n] = init
-    return Δx
-end
+# function get_adjoint_storage(x::Vector{T}, n::Int, Δx::T) where {T<:Real}
+#     x̄ = Vector{T}(undef, length(x))
+#     x̄[n] = Δx
+#     return x̄
+# end
 
-function get_adjoint_storage(x::Vector, n::Int, init::T) where {T<:NamedTuple{(:diag,)}}
-    Δx = Vector{T}(undef, length(x))
-    Δx[n] = init
-    return Δx
-end
+# function get_adjoint_storage(x::Vector, n::Int, init::T) where {T<:AbstractVecOrMat{<:Real}}
+#     Δx = Vector{T}(undef, length(x))
+#     Δx[n] = init
+#     return Δx
+# end
+
+# function get_adjoint_storage(x::Vector, n::Int, init::T) where {T<:NamedTuple{(:diag,)}}
+#     Δx = Vector{T}(undef, length(x))
+#     Δx[n] = init
+#     return Δx
+# end
 
 
 

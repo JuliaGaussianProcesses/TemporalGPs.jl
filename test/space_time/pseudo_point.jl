@@ -40,7 +40,7 @@ using TemporalGPs:
     xs = [
         (
             name="rectilinear",
-            val=RectilinearGrid(randn(25), RegularSpacing(0.0, 0.3, 10)),
+            val=RectilinearGrid(randn(2), RegularSpacing(0.0, 0.3, 2)),
         ),
         (
             name="regular-in-time",
@@ -86,6 +86,13 @@ using TemporalGPs:
         elbo_naive = elbo(fx_naive, y, f_naive(z_naive))
         elbo_sde = elbo(fx, y, z_r)
         @test elbo_naive ≈ elbo_sde rtol=1e-7
+
+        adjoint_test(
+            (y, z_r) -> elbo(fx, y, z_r), (y, z_r);
+            rtol=1e-7,
+            context=Zygote.Context(),
+            check_infers=false,
+        )
 
         # Compute approximate posterior marginals naively.
         f_approx_post_naive = f_naive | Stheno.PseudoObs(fx_naive ← y, f_naive(z_naive))

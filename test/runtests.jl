@@ -2,7 +2,6 @@ using BlockDiagonals
 using ChainRulesCore
 using FillArrays
 using FiniteDifferences
-using Kronecker
 using LinearAlgebra
 using Random
 using Stheno
@@ -13,7 +12,6 @@ using Test
 using Zygote
 
 using FiniteDifferences: rand_tangent
-using Kronecker: KroneckerProduct
 using Stheno: var
 using TemporalGPs: AbstractLGSSM, _filter, NoContext
 using Zygote: Context, _pullback

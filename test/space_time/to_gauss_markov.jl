@@ -5,6 +5,17 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
     Nr = 3
     Nt = 5
 
+    @testset "restructure" begin
+        adjoint_test(
+            x -> TemporalGPs.restructure(x, [26, 24, 20, 30]), (randn(100), );
+            check_infers=false,
+        )
+        adjoint_test(
+            x -> TemporalGPs.restructure(x, [26, 24, 20, 30]), (Fill(randn(), 100), );
+            check_infers=false,
+        )
+    end
+
     k_sep = 1.5 * Separable(stretch(EQ(), 1.4), stretch(Matern32(), 1.3))
 
     σ²s = [

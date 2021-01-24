@@ -5,7 +5,6 @@ module TemporalGPs
     using ChainRulesCore
     using Distributions
     using FillArrays
-    using Kronecker
     using LinearAlgebra
     using Random
     using StaticArrays
