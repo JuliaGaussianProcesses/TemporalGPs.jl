@@ -32,7 +32,9 @@ function random_matrix(rng::AbstractRNG, M::Int, N::Int, ::SArrayStorage{T}) whe
     return SMatrix{M, N}(randn(rng, T, M, N))
 end
 
-function random_nice_psd_matrix(rng::AbstractRNG, N::Integer, ::ArrayStorage{T}) where {T}
+function random_nice_psd_matrix(
+    rng::AbstractRNG, N::Integer, ::Val{:dense}, ::ArrayStorage{T},
+) where {T}
 
     # Generate random positive definite matrix.
     U = UpperTriangular(randn(rng, T, N, N))
@@ -48,8 +50,26 @@ function random_nice_psd_matrix(rng::AbstractRNG, N::Integer, ::ArrayStorage{T})
     return collect(Symmetric(Γ * Diagonal(λ) * Γ'))
 end
 
-function random_nice_psd_matrix(rng::AbstractRNG, N::Integer, ::SArrayStorage{T}) where {T}
-    return SMatrix{N, N, T}(random_nice_psd_matrix(rng, N, ArrayStorage(T)))
+function random_nice_psd_matrix(
+    rng::AbstractRNG, N::Integer, ::Val{:dense}, ::SArrayStorage{T},
+) where {T}
+    return SMatrix{N, N, T}(random_nice_psd_matrix(rng, N, Val(:dense), ArrayStorage(T)))
+end
+
+function random_nice_psd_matrix(rng::AbstractRNG, N::Integer, storage::StorageType)
+    return random_nice_psd_matrix(rng, N, Val(:dense), storage)
+end
+
+function random_nice_psd_matrix(
+    rng::AbstractRNG, N::Integer, ::Val{:diag}, ::ArrayStorage{T},
+) where {T}
+    return Diagonal(rand(T, N) .+ T(0.1))
+end
+
+function random_nice_psd_matrix(
+    rng::AbstractRNG, N::Integer, ::Val{:diag}, ::SArrayStorage{T},
+) where {T}
+    return Diagonal(rand(SVector{N, T}) .+ T(0.1))
 end
 
 function random_nice_psd_matrix(rng::AbstractRNG, ::Integer, ::ScalarStorage{T}) where {T}
@@ -77,11 +97,13 @@ end
 
 # Generation of SmallOutputLGC.
 
-function random_small_output_lgc(rng::AbstractRNG, Dlat::Int, Dobs::Int, s::StorageType)
+function random_small_output_lgc(
+    rng::AbstractRNG, Dlat::Int, Dobs::Int, Q_type::Val, s::StorageType,
+)
     return SmallOutputLGC(
         random_matrix(rng, Dobs, Dlat, s),
         random_vector(rng, Dobs, s),
-        random_nice_psd_matrix(rng, Dobs, s),
+        random_nice_psd_matrix(rng, Dobs, Q_type, s),
     )
 end
 
@@ -99,21 +121,23 @@ function lgc_from_scalar_output_lgc(lgc::ScalarOutputLGC)
     )
 end
 
-function random_large_output_lgc(rng::AbstractRNG, Dlat::Int, Dobs::Int, s::StorageType)
+function random_large_output_lgc(
+    rng::AbstractRNG, Dlat::Int, Dobs::Int, Q_type::Val, s::StorageType,
+)
     return LargeOutputLGC(
         random_matrix(rng, Dobs, Dlat, s),
         random_vector(rng, Dobs, s),
-        random_nice_psd_matrix(rng, Dobs, s),
+        random_nice_psd_matrix(rng, Dobs, Q_type, s),
     )
 end
 
 function random_bottleneck_lgc(
-    rng::AbstractRNG, Dlat::Int, Dmid::Int, Dobs::Int, s::StorageType,
+    rng::AbstractRNG, Dlat::Int, Dmid::Int, Dobs::Int, Q_type::Val, s::StorageType,
 )
     return BottleneckLGC(
         random_matrix(rng, Dmid, Dlat, s),
         random_vector(rng, Dmid, s),
-        random_large_output_lgc(rng, Dmid, Dobs, s),
+        random_large_output_lgc(rng, Dmid, Dobs, Q_type, s),
     )
 end
 

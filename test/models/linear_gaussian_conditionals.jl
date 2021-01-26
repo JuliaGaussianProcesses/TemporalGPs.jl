@@ -9,17 +9,19 @@ using TemporalGPs: posterior_and_lml, predict, predict_marginals
         (name="dense storage Float64", val=ArrayStorage(Float64)),
         # (name="static storage Float64", val=SArrayStorage(Float64)),
     ]
+    Q_types = [Val(:dense), Val(:diag)]
 
-    @testset "SmallOutputLGC (Dlat=$Dlat, Dobs=$Dobs, $(storage.name))" for
+    @testset "SmallOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))" for
         Dlat in Dlats,
         Dobs in Dobss,
+        Q_type in Q_types,
         storage in storages
 
-        println("SmallOutputLGC (Dlat=$Dlat, Dobs=$Dobs, $(storage.name))")
+        println("SmallOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))")
 
         rng = MersenneTwister(123456)
         x = random_gaussian(rng, Dlat, storage.val)
-        model = random_small_output_lgc(rng, Dlat, Dobs, storage.val)
+        model = random_small_output_lgc(rng, Dlat, Dobs, Q_type, storage.val)
 
         test_interface(
             rng, model, x;
@@ -59,16 +61,17 @@ using TemporalGPs: posterior_and_lml, predict, predict_marginals
         end
     end
 
-    @testset "LargeOutputLGC (Dlat=$Dlat, Dobs=$Dobs, $(storage.name))" for
+    @testset "LargeOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))" for
         Dlat in Dlats,
         Dobs in Dobss,
+        Q_type in Q_types,
         storage in storages
 
-        println("LargeOutputLGC (Dlat=$Dlat, Dobs=$Dobs, $(storage.name))")
+        println("LargeOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))")
 
         rng = MersenneTwister(123456)
         x = random_gaussian(rng, Dlat, storage.val)
-        model = random_large_output_lgc(rng, Dlat, Dobs, storage.val)
+        model = random_large_output_lgc(rng, Dlat, Dobs, Q_type, storage.val)
 
         @testset "consistency with SmallOutputLGC" begin
             y = rand(rng, TemporalGPs.predict(x, model))
@@ -153,17 +156,18 @@ using TemporalGPs: posterior_and_lml, predict, predict_marginals
 
     Dmids = [1, 3]
 
-    @testset "BottleneckLGC (Din=$Din, Dmid=$Dmid, Dout=$Dout)" for
+    @testset "BottleneckLGC (Din=$Din, Dmid=$Dmid, Dout=$Dout, Q=$(Q_type))" for
         Din in Dlats,
         Dout in Dobss,
-        Dmid in Dmids
+        Dmid in Dmids,
+        Q_type in Q_types
 
-        println("BottleneckLGC (Din=$Din, Dmid=$Dmid, Dout=$Dout)")
+        println("BottleneckLGC (Din=$Din, Dmid=$Dmid, Dout=$Dout, Q=$(Q_type))")
 
         storage = ArrayStorage(Float64)
         rng = MersenneTwister(123456)
         x = random_gaussian(rng, Din, storage)
-        model = random_bottleneck_lgc(rng, Din, Dmid, Dout, storage)
+        model = random_bottleneck_lgc(rng, Din, Dmid, Dout, Q_type, storage)
 
         @test TemporalGPs.dim_out(model) == Dout
         @test TemporalGPs.dim_in(model) == Din
