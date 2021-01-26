@@ -58,19 +58,22 @@ end
 Compute the ELBO (Evidence Lower BOund) in state-space form [insert reference].
 """
 function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)
+
     fx_dtc = dtcify(z_r, fx)
 
     # Compute diagonals over prior marginals.
     lgssm = build_lgssm(fx_dtc)
     Σs = lgssm.emissions.fan_out.Q
-    marg_diag = marginals_diag(lgssm)
+    marg_diags = marginals_diag(lgssm)
 
     k = fx_dtc.f.f.k
     Cf_diags = kernel_diagonals(k, fx_dtc.x)
 
-    tmp = map(eachindex(marg_diag)) do n
-        sum(diag(Σs[n] \ (Cf_diags[n] - marg_diag[n].P + Σs[n])))
-    end
+    tmp = zygote_friendly_map(
+        ((Σ, Cf_diag, marg_diag), ) -> sum(diag(Σ \ (Cf_diag - marg_diag.P + Σ))),
+        zip(Σs, Cf_diags, marg_diags),
+    )
+
     return logpdf(lgssm, restructure(y, lgssm.emissions)) - sum(tmp) / 2
 end
 
@@ -156,16 +159,32 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
 
     # Get some size info.
     M = length(z_space)
+    N = length(ts)
     ident_M = my_I(eltype(storage), M)
 
     # Construct approximately low-rank model spatio-temporal LGSSM.
-    As = map(A -> kron(ident_M, A), As_t)
-    as = map(a -> repeat(a, M), as_t)
-    Qs = map(Q -> kron(K_space_z, Q), Qs_t)
-    Cs = map((v) -> K_space_z_chol \ pw(space_kernel, z_space, v), x.vs)
+    As = zygote_friendly_map(
+        ((I, A), ) -> kron(I, A),
+        zip(Fill(ident_M, N), As_t),
+    )
+    # As = map(A -> kron(ident_M, A), As_t)
+    as = zygote_friendly_map(a -> repeat(a, M), as_t)
+    Qs = zygote_friendly_map(
+        ((K_space_z, Q), ) -> kron(K_space_z, Q),
+        zip(Fill(K_space_z, N), Qs_t),
+    )
+    # Qs = map(Q -> kron(K_space_z, Q), Qs_t)
+    Cs = zygote_friendly_map(
+        ((X, v, k, z), ) -> X \ pw(k, z, v),
+        zip(Fill(K_space_z_chol, N), x.vs, Fill(space_kernel, N), Fill(z_space, N)),
+    )
     cs = map((h, v) -> fill(h, length(v)), hs_t, x.vs) # This should currently be zero.
-    Hs = map(H_t -> kron(ident_M, H_t), Hs_t)
-    hs = Fill(Zeros(M), length(ts))
+    Hs = zygote_friendly_map(
+        ((I, H_t), ) -> kron(I, H_t),
+        zip(Fill(ident_M, N), Hs_t),
+    )
+    # Hs = map(H_t -> kron(ident_M, H_t), Hs_t)
+    hs = Fill(Zeros(M), N)
     x0 = Gaussian(repeat(x0_t.m, M), kron(K_space_z, x0_t.P))
     return As, as, Qs, (Cs, cs, Hs, hs), x0
 end
