@@ -111,37 +111,37 @@ using TemporalGPs: posterior_and_lml, predict, predict_marginals
         )
     end
 
-    # @testset "ScalarOutputLGC (Dlat=$Dlat, ($storage.name))" for
-    #     Dlat in Dlats,
-    #     storage in [
-    #         (name="dense storage Float64", val=ArrayStorage(Float64)),
-    #         (name="static storage Float64", val=SArrayStorage(Float64)),
-    #     ]
+    @testset "ScalarOutputLGC (Dlat=$Dlat, ($storage.name))" for
+        Dlat in Dlats,
+        storage in [
+            (name="dense storage Float64", val=ArrayStorage(Float64)),
+            (name="static storage Float64", val=SArrayStorage(Float64)),
+        ]
 
-    #     println("ScalarOutputLGC (Dlat=$Dlat, ($storage.name))")
+        println("ScalarOutputLGC (Dlat=$Dlat, ($storage.name))")
 
-    #     rng = MersenneTwister(123456)
-    #     x = random_gaussian(rng, Dlat, storage.val)
-    #     model = random_scalar_output_lgc(rng, Dlat, storage.val)
+        rng = MersenneTwister(123456)
+        x = random_gaussian(rng, Dlat, storage.val)
+        model = random_scalar_output_lgc(rng, Dlat, storage.val)
 
-    #     @testset "consistency with LGC" begin
-    #         vanilla_model = lgc_from_scalar_output_lgc(model)
-    #         y_vanilla = rand(rng, predict(x, vanilla_model))
-    #         x_vanilla, lml_vanilla = posterior_and_lml(x, vanilla_model, y_vanilla)
-    #         x_scalar, lml_scalar = posterior_and_lml(x, model, only(y_vanilla))
+        @testset "consistency with LGC" begin
+            vanilla_model = lgc_from_scalar_output_lgc(model)
+            y_vanilla = rand(rng, predict(x, vanilla_model))
+            x_vanilla, lml_vanilla = posterior_and_lml(x, vanilla_model, y_vanilla)
+            x_scalar, lml_scalar = posterior_and_lml(x, model, only(y_vanilla))
 
-    #         @test x_vanilla.m ≈ x_scalar.m
-    #         @test x_vanilla.P ≈ x_scalar.P
-    #         @test lml_vanilla ≈ lml_scalar
-    #     end
+            @test x_vanilla.m ≈ x_scalar.m
+            @test x_vanilla.P ≈ x_scalar.P
+            @test lml_vanilla ≈ lml_scalar
+        end
 
-    #     test_interface(
-    #         rng, model, x;
-    #         check_adjoints=true,
-    #         check_infers=true,
-    #         check_allocs=storage.val isa SArrayStorage,
-    #     )
-    # end
+        test_interface(
+            rng, model, x;
+            check_adjoints=true,
+            check_infers=true,
+            check_allocs=storage.val isa SArrayStorage,
+        )
+    end
 
     Dmids = [1, 3]
 
