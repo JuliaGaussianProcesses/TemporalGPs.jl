@@ -38,9 +38,7 @@ be equivalent to
     Gaussian(f.A * x.m + f.a, f.A * x.P * f.A' + f.Q)
 ```
 """
-function predict(x::Gaussian, f::AbstractLGC)
-    return Gaussian(f.A * x.m + f.a, f.A * x.P * f.A' + f.Q)
-end
+predict(x::Gaussian, f::AbstractLGC) = Gaussian(f.A * x.m + f.a, f.A * x.P * f.A' + f.Q)
 
 """
     predict_marginals(x::Gaussian, f::AbstractLGC)
