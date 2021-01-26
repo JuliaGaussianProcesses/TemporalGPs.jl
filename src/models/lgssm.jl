@@ -144,7 +144,7 @@ end
 
 # Compute the log marginal likelihood of the observations `y`.
 
-function Stheno.logpdf(model::LGSSM, y::AbstractVector)
+function Stheno.logpdf(model::LGSSM, y::AbstractVector{<:Union{AbstractVector, <:Real}})
     return sum(scan_emit(step_logpdf, zip(model, y), x0(model), eachindex(model))[1])
 end
 

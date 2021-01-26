@@ -226,12 +226,13 @@ function random_lgssm(
     Dlat::Int,
     Dobs::Int,
     N::Int,
-    storage::StorageType,
+    Q_type::Val=Val{:dense},
+    storage::StorageType=ArrayStorage(Float64),
 )
     transitions = random_tv_gmm(rng, ordering, Dlat, N, storage)
     Hs = map(_ -> random_matrix(rng, Dobs, Dlat, storage), 1:N)
     hs = map(_ -> random_vector(rng, Dobs, storage), 1:N)
-    Σs = map(_ -> random_nice_psd_matrix(rng, Dobs, storage), 1:N)
+    Σs = map(_ -> random_nice_psd_matrix(rng, Dobs, Q_type, storage), 1:N)
     T = emission_type{eltype(Hs), eltype(hs), eltype(Σs)}
     emissions = StructArray{T}((Hs, hs, Σs))
     return LGSSM(transitions, emissions)
@@ -245,12 +246,13 @@ function random_lgssm(
     Dlat::Int,
     Dobs::Int,
     N::Int,
-    storage::StorageType,
+    Q_type::Val=Val{:dense},
+    storage::StorageType=ArrayStorage(Float64),
 )
     transitions = random_ti_gmm(rng, ordering, Dlat, N, storage)
     Hs = Fill(random_matrix(rng, Dobs, Dlat, storage), N)
     hs = Fill(random_vector(rng, Dobs, storage), N)
-    Σs = Fill(random_nice_psd_matrix(rng, Dobs, storage), N)
+    Σs = Fill(random_nice_psd_matrix(rng, Dobs, Q_type, storage), N)
     T = emission_type{eltype(Hs), eltype(hs), eltype(Σs)}
     emissions = StructArray{T}((Hs, hs, Σs))
     return LGSSM(transitions, emissions)

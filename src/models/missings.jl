@@ -7,7 +7,9 @@
 #
 # In an ideal world, strategy 1 would work. Unfortunately Zygote isn't up to it yet.
 
-function Stheno.logpdf(model::LGSSM, y::AbstractVector{Union{Missing, T}}) where {T}
+function Stheno.logpdf(
+    model::LGSSM, y::AbstractVector{Union{Missing, <:Union{<:AbstractVector, <:Real}}},
+)
     model_with_missings, y_filled_in = transform_model_and_obs(model, y)
     return logpdf(model_with_missings, y_filled_in) + _logpdf_volume_compensation(y, model)
 end
@@ -22,7 +24,9 @@ function posterior(model::LGSSM, y::AbstractVector{Union{Missing, T}}) where {T}
     return posterior(model_with_missings, y_filled_in)
 end
 
-function transform_model_and_obs(model::LGSSM, y::AbstractVector)
+function transform_model_and_obs(
+    model::LGSSM, y::AbstractVector{<:Union{Missing, <:AbstractVector}},
+)
     Σs_filled_in, y_filled_in = fill_in_missings(model.emissions.Q, y)
     model_with_missings = replace_observation_noise_cov(model, Σs_filled_in)
     return model_with_missings, y_filled_in
