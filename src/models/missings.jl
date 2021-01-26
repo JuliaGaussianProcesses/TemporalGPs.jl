@@ -44,8 +44,14 @@ function _logpdf_volume_compensation(y, model)
     return y_obs_count * log(2π * _large_var_const()) / 2
 end
 
+function _logpdf_volume_compensation(y::AbstractVector{<:Union{Missing, <:Real}})
+    return sum(!ismissing, y) * log(2π * _large_var_const()) / 2
+end
 
-Zygote.@nograd _logpdf_volume_compensation
+
+function Zygote._pullback(::AContext, ::typeof(_logpdf_volume_compensation), y)
+    return _logpdf_volume_compensation(y), nograd_pullback
+end
 
 function fill_in_missings(
     Σs::Vector, y::AbstractVector{Union{Missing, T}},
@@ -64,6 +70,11 @@ function fill_in_missings(
         eachindex(y),
     )
     return Σs_filled_in, y_filled_in
+end
+
+function fill_in_missings(Σ::Diagonal, y::AbstractVector{<:Union{Missing, <:Real}})
+    Σ_diag_filled, y_filled = fill_in_missings(Σ.diag, y)
+    return Diagonal(Σ_diag_filled), y_filled
 end
 
 # We need to densify anyway, might as well do it here and save having to implement the

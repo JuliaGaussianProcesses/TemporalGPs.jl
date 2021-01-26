@@ -116,7 +116,7 @@ dim_out(f::SmallOutputLGC) = size(f.A, 1)
 
 dim_in(f::SmallOutputLGC) = size(f.A, 2)
 
-function posterior_and_lml(x::Gaussian, f::SmallOutputLGC, y)
+function posterior_and_lml(x::Gaussian, f::SmallOutputLGC, y::AbstractVector{<:Real})
     A = f.A
     V = A * x.P
 
@@ -126,6 +126,15 @@ function posterior_and_lml(x::Gaussian, f::SmallOutputLGC, y)
 
     lml = -(length(y) * convert(scalar_type(y), log(2π)) + logdet(S) + α'α) / 2
     return Gaussian(x.m + B'α, x.P - B'B), lml
+end
+
+function posterior_and_lml(
+    x::Gaussian, f::SmallOutputLGC, y::AbstractVector{<:Union{Missing, <:Real}},
+)
+    # This implicitly assumes that Q is Diagonal. MethodError if not.
+    Q_filled, y_filled = fill_in_missings(f.Q, y)
+    x_post, lml_raw = posterior_and_lml(x, SmallOutputLGC(f.A, f.a, Q_filled), y_filled)
+    return x_post, lml_raw + _logpdf_volume_compensation(y)
 end
 
 # Required for type-stability. This is a technical detail.
