@@ -48,7 +48,7 @@ WARNING: this API is unstable, and subject to change in future versions of Tempo
 was thrown together quickly in pursuit of a conference deadline, and has yet to receive the
 attention it deserves.
 """
-function Stheno.dtc(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)
+function Stheno.dtc(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
     return logpdf(dtcify(z_r, fx), y)
 end
 
@@ -57,7 +57,7 @@ end
 
 Compute the ELBO (Evidence Lower BOund) in state-space form [insert reference].
 """
-function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)
+function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
 
     fx_dtc = dtcify(z_r, fx)
 
@@ -70,12 +70,14 @@ function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractV
     Cf_diags = kernel_diagonals(k, fx_dtc.x)
 
     tmp = zygote_friendly_map(
-        ((Σ, Cf_diag, marg_diag), ) -> sum(diag(Σ \ (Cf_diag - marg_diag.P + Σ))),
+        ((Σ, Cf_diag, marg_diag), ) -> sum(diag(Σ \ ((Cf_diag - marg_diag.P) + Σ))),
         zip(Σs, Cf_diags, marg_diags),
     )
 
     return logpdf(lgssm, restructure(y, lgssm.emissions)) - sum(tmp) / 2
 end
+
+Zygote.accum(x::NamedTuple{(:diag, )}, y::Diagonal) = Zygote.accum(x, (diag=y.diag, ))
 
 function kernel_diagonals(k::DTCSeparable, x::RectilinearGrid)
     space_kernel = k.k.l
