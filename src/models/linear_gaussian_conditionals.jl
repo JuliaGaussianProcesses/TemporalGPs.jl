@@ -170,11 +170,22 @@ struct LargeOutputLGC{
     Q::TQ
 end
 
+function Zygote._pullback(
+    ::AContext,
+    ::Type{<:LargeOutputLGC},
+    A::AbstractMatrix,
+    a::AbstractVector,
+    Q::AbstractMatrix,
+)
+    LargeOutputLGC_pullback(Δ) = nothing, Δ.A, Δ.a, Δ.Q
+    return LargeOutputLGC(A, a, Q), LargeOutputLGC_pullback
+end
+
 dim_out(f::LargeOutputLGC) = size(f.A, 1)
 
 dim_in(f::LargeOutputLGC) = size(f.A, 2)
 
-function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y)
+function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y::AbstractVector{<:Real})
     A = f.A
     Q = cholesky(Symmetric(f.Q))
     P = cholesky(Symmetric(x.P + ident_eps(1e-12)))
@@ -200,6 +211,14 @@ end
 # For some compiler-y reason, chopping this up helps.
 _compute_lml(δ, F, β, c, Q) = -(δ'δ - β'β + c + logdet(F) + logdet(Q)) / 2
 
+function posterior_and_lml(
+    x::Gaussian, f::LargeOutputLGC, y::AbstractVector{<:Union{Missing, <:Real}},
+)
+    # This implicitly assumes that Q is Diagonal. MethodError if not.
+    Q_filled, y_filled = fill_in_missings(f.Q, y)
+    x_post, lml_raw = posterior_and_lml(x, LargeOutputLGC(f.A, f.a, Q_filled), y_filled)
+    return x_post, lml_raw + _logpdf_volume_compensation(y)
+end
 
 """
     ScalarOutputLGC
@@ -291,7 +310,7 @@ function predict_marginals(x::Gaussian, f::BottleneckLGC)
     return predict_marginals(_project(x, f), f.fan_out)
 end
 
-function posterior_and_lml(x::Gaussian, f::BottleneckLGC, y::AbstractVector{<:Real})
+function posterior_and_lml(x::Gaussian, f::BottleneckLGC, y::AbstractVector)
 
     # Get the posterior over the intermediate variable `z`.
     z = _project(x, f)
