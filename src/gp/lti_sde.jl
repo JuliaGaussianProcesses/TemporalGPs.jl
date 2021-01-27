@@ -51,7 +51,11 @@ end
 
 Stheno.rand(ft::FiniteLTISDE, N::Int) = rand(Random.GLOBAL_RNG, ft, N)
 
-function Stheno.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
+Stheno.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Real}) = _logpdf(ft, y)
+
+Stheno.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}}) = _logpdf(ft, y)
+
+function _logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
     model = build_lgssm(ft)
     return logpdf(model, restructure(y, model.emissions))
 end

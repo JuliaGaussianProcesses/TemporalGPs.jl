@@ -49,7 +49,7 @@ function _logpdf_volume_compensation(y, model)
 end
 
 function _logpdf_volume_compensation(y::AbstractVector{<:Union{Missing, <:Real}})
-    return sum(!ismissing, y) * log(2π * _large_var_const()) / 2
+    return count(ismissing, y) * log(2π * _large_var_const()) / 2
 end
 
 
@@ -86,6 +86,8 @@ end
 function fill_in_missings(Σs::Fill, y::AbstractVector{Union{Missing, T}}) where {T}
     return fill_in_missings(collect(Σs), y)
 end
+
+fill_in_missings(Σ::Diagonal, y::AbstractVector{<:Real}) = (Σ, y)
 
 function Zygote._pullback(
     ::AContext,

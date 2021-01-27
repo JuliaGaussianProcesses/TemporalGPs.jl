@@ -40,7 +40,7 @@ using TemporalGPs:
     xs = [
         (
             name="rectilinear",
-            val=RectilinearGrid(randn(2), RegularSpacing(0.0, 0.3, 2)),
+            val=RectilinearGrid(randn(2), RegularSpacing(0.0, 0.3, 3)),
         ),
         (
             name="regular-in-time",
@@ -104,5 +104,44 @@ using TemporalGPs:
 
         @test mean.(naive_approx_post_marginals) ≈ mean.(approx_post_marginals) rtol=1e-7
         @test std.(naive_approx_post_marginals) ≈ std.(approx_post_marginals) rtol=1e-7
+
+        @testset "missings" begin
+
+            # Construct missing data.
+            y_missing = Vector{Union{eltype(y), Missing}}(undef, size(y))
+            y_missing .= y
+            missing_idx = sort(randperm(length(y))[1:Int(floor(length(y) / 3))])
+            missing_idx = eachindex(y)
+            y_missing[missing_idx] .= missing
+
+            # Construct naive missing inputs and outputs.
+            present_idx = setdiff(eachindex(y), missing_idx)
+            naive_inputs_missings = collect(x.val)[present_idx]
+            naive_y_missings = y[present_idx]
+            fx_naive = f_naive(naive_inputs_missings, 0.1)
+
+            # Compute DTC using both approaches.
+            dtc_naive = dtc(fx_naive, naive_y_missings, f_naive(z_naive))
+            dtc_sde = dtc(fx, y_missing, z_r)
+            @test dtc_naive ≈ dtc_sde rtol=1e-7 atol=1e-7
+
+            elbo_naive = elbo(fx_naive, naive_y_missings, f_naive(z_naive))
+            elbo_sde = elbo(fx, y_missing, z_r)
+            @test elbo_naive ≈ elbo_sde rtol=1e-7 atol=1e-7
+
+            # Compute approximate posterior marginals naively with missings.
+            f_approx_post_naive = |(
+                f_naive, Stheno.PseudoObs(fx_naive ← naive_y_missings, f_naive(z_naive)),
+            )
+            naive_approx_post_marginals = marginals(f_approx_post_naive(collect(x_pr)))
+
+            # Compute approximate posterior marginals using the state-space approximation.
+            approx_post_marginals = approx_posterior_marginals(
+                dtc, fx, y_missing, z_r, x_pr_r,
+            )
+
+            @test mean.(naive_approx_post_marginals) ≈ mean.(approx_post_marginals) rtol=1e-7
+            @test std.(naive_approx_post_marginals) ≈ std.(approx_post_marginals) rtol=1e-7
+        end
     end
 end

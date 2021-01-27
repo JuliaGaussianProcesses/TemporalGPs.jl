@@ -69,12 +69,17 @@ function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
     k = fx_dtc.f.f.k
     Cf_diags = kernel_diagonals(k, fx_dtc.x)
 
+    y_vecs = restructure(y, lgssm.emissions)
+
     tmp = zygote_friendly_map(
-        ((Σ, Cf_diag, marg_diag), ) -> sum(diag(Σ \ ((Cf_diag - marg_diag.P) + Σ))),
-        zip(Σs, Cf_diags, marg_diags),
+        ((Σ, Cf_diag, marg_diag, yn), ) -> begin
+            Σ_, _ = fill_in_missings(Σ, yn)
+            return sum(diag(Σ_ \ ((Cf_diag - marg_diag.P) + Σ_))) - count(ismissing, yn)
+        end,
+        zip(Σs, Cf_diags, marg_diags, y_vecs),
     )
 
-    return logpdf(lgssm, restructure(y, lgssm.emissions)) - sum(tmp) / 2
+    return logpdf(lgssm, y_vecs) - sum(tmp) / 2
 end
 
 Zygote.accum(x::NamedTuple{(:diag, )}, y::Diagonal) = Zygote.accum(x, (diag=y.diag, ))

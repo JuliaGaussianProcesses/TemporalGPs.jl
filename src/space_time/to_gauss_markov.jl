@@ -32,9 +32,7 @@ end
 function Zygote._pullback(
     ::AContext, ::typeof(build_Σs), x::RectilinearGrid, Σ::Diagonal{<:Real},
 )
-    function build_Σs_pullback(Δ)
-        return nothing, nothing, (diag=vcat(getfield.(Δ, :diag)...), )
-    end
+    build_Σs_pullback(Δ) = nothing, nothing, (diag=vcat(getfield.(Δ, :diag)...), )
     return build_Σs(x, Σ), build_Σs_pullback
 end
 
@@ -60,14 +58,9 @@ function restructure(y::AbstractVector{T}, lengths::AbstractVector{<:Integer}) w
 end
 
 function Zygote._pullback(
-    ::AContext,
-    ::typeof(restructure),
-    y::Vector,
-    lengths::AbstractVector{<:Integer},
+    ::AContext, ::typeof(restructure), y::Vector, lengths::AbstractVector{<:Integer},
 )
-    function restructure_pullback(Δ::Vector)
-        return nothing, vcat(Δ...), nothing
-    end
+    restructure_pullback(Δ::Vector) = nothing, vcat(Δ...), nothing
     return restructure(y, lengths), restructure_pullback
 end
 

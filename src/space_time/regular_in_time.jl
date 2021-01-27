@@ -20,6 +20,8 @@ function Base.collect(x::RegularInTime)
     return [(x, t) for (x, t) in zip(space_inputs, time_inputs)]
 end
 
+Base.show(io::IO, x::RegularInTime) = Base.show(io::IO, collect(x))
+
 """
     match_to(y::AbstractVector, x::RegularInTime)
 
