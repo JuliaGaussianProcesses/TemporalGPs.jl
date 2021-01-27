@@ -69,6 +69,7 @@ function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
     k = fx_dtc.f.f.k
     Cf_diags = kernel_diagonals(k, fx_dtc.x)
 
+    # Transform a vector into a vector-of-vectors.
     y_vecs = restructure(y, lgssm.emissions)
 
     tmp = zygote_friendly_map(
