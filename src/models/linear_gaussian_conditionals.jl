@@ -38,7 +38,10 @@ be equivalent to
     Gaussian(f.A * x.m + f.a, f.A * x.P * f.A' + f.Q)
 ```
 """
-predict(x::Gaussian, f::AbstractLGC) = Gaussian(f.A * x.m + f.a, f.A * x.P * f.A' + f.Q)
+function predict(x::Gaussian, f::AbstractLGC)
+    # Symmetric wrapper needed for numerical stability. Do not unwrap.
+    return Gaussian(f.A * x.m + f.a, f.A * Symmetric(x.P) * f.A' + f.Q)
+end
 
 """
     predict_marginals(x::Gaussian, f::AbstractLGC)
@@ -218,6 +221,8 @@ function posterior_and_lml(
     x_post, lml_raw = posterior_and_lml(x, LargeOutputLGC(f.A, f.a, Q_filled), y_filled)
     return x_post, lml_raw + _logpdf_volume_compensation(y)
 end
+
+
 
 """
     ScalarOutputLGC
