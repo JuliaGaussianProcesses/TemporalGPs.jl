@@ -11,7 +11,9 @@ improved performance when used in conjunction with `Zygote`.
 - Similarly, `f` has no mutable state (follows from the above).
 - `f` doesn't mutate its argument.
 """
-function zygote_friendly_map(f, x)
+zygote_friendly_map(f, x) = dense_zygote_friendly_map(f, x)
+
+function dense_zygote_friendly_map(f, x)
 
     # Perform first iteration.
     y_1 = f(_getindex(x, 1))
@@ -28,7 +30,7 @@ function zygote_friendly_map(f, x)
     return ys
 end
 
-function Zygote._pullback(::AContext, ::typeof(zygote_friendly_map), f, x)
+function Zygote._pullback(::AContext, ::typeof(dense_zygote_friendly_map), f, x)
 
     # Perform first iteration.
     y_1, pb_1 = Zygote._pullback(NoContext(), f, _getindex(x, 1))
@@ -65,4 +67,10 @@ function Zygote._pullback(::AContext, ::typeof(zygote_friendly_map), f, x)
     end
 
     return ys, zygote_friendly_map_pullback
+end
+
+zygote_friendly_map(f, x::Fill) = map(f, x)
+
+function zygote_friendly_map(f, x::Base.Iterators.Zip{<:Tuple{Vararg{Fill, N}}}) where {N}
+    return zygote_friendly_map(f, Fill(map(first, x.is), length(x)))
 end

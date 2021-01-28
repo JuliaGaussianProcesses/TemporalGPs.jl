@@ -62,9 +62,9 @@ function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
     fx_dtc = dtcify(z_r, fx)
 
     # Compute diagonals over prior marginals.
-    lgssm = build_lgssm(fx_dtc)
+    lgssm = time_ad(Val(:disabled), "lgssm", build_lgssm, fx_dtc)
     Σs = lgssm.emissions.fan_out.Q
-    marg_diags = marginals_diag(lgssm)
+    marg_diags = time_ad(Val(:disabled), "marg_diags", marginals_diag, lgssm)
 
     k = fx_dtc.f.f.k
     Cf_diags = kernel_diagonals(k, fx_dtc.x)
@@ -72,7 +72,7 @@ function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
     # Transform a vector into a vector-of-vectors.
     y_vecs = restructure(y, lgssm.emissions)
 
-    tmp = zygote_friendly_map(
+    tmp = time_ad(Val(:disabled), "tmp", zygote_friendly_map,
         ((Σ, Cf_diag, marg_diag, yn), ) -> begin
             Σ_, _ = fill_in_missings(Σ, yn)
             return sum(diag(Σ_ \ ((Cf_diag - marg_diag.P) + Σ_))) - count(ismissing, yn)
@@ -80,7 +80,7 @@ function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
         zip(Σs, Cf_diags, marg_diags, y_vecs),
     )
 
-    return logpdf(lgssm, y_vecs) - sum(tmp) / 2
+    return time_ad(Val(:disabled), "logpdf", logpdf, lgssm, y_vecs) - sum(tmp) / 2
 end
 
 Zygote.accum(x::NamedTuple{(:diag, )}, y::Diagonal) = Zygote.accum(x, (diag=y.diag, ))
@@ -175,29 +175,53 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
         ((I, A), ) -> kron(I, A),
         zip(Fill(ident_M, N), As_t),
     )
-    # As = map(A -> kron(ident_M, A), As_t)
     as = zygote_friendly_map(a -> repeat(a, M), as_t)
     Qs = zygote_friendly_map(
         ((K_space_z, Q), ) -> kron(K_space_z, Q),
         zip(Fill(K_space_z, N), Qs_t),
     )
-    # Qs = map(Q -> kron(K_space_z, Q), Qs_t)
-    Cs = zygote_friendly_map(
-        ((X, v, k, z), ) -> X \ pw(k, z, v),
-        zip(Fill(K_space_z_chol, N), x.vs, Fill(space_kernel, N), Fill(z_space, N)),
-    )
+    # Cs = @time zygote_friendly_map(
+        # ((X, v, k, z), ) -> X \ pw(k, z, v),
+        # zip(Fill(K_space_z_chol, N), x.vs, Fill(space_kernel, N), Fill(z_space, N)),
+    # )
+    x_big = time_ad(Val(:disabled), "x_big", _reduce, vcat, x.vs)
+    C__ = time_ad(Val(:disabled), "C__", pw, space_kernel, z_space, x_big)
+    C = time_ad(Val(:disabled), "C", \, K_space_z_chol, C__)
+    Cs = time_ad(Val(:disabled), "Cs", partition, Zygote.dropgrad(map(length, x.vs)), C)
+
     cs = map((h, v) -> fill(h, length(v)), hs_t, x.vs) # This should currently be zero.
     Hs = zygote_friendly_map(
         ((I, H_t), ) -> kron(I, H_t),
         zip(Fill(ident_M, N), Hs_t),
     )
-    # Hs = map(H_t -> kron(ident_M, H_t), Hs_t)
     hs = Fill(Zeros(M), N)
     x0 = Gaussian(repeat(x0_t.m, M), kron(K_space_z, x0_t.P))
+
     return As, as, Qs, (Cs, cs, Hs, hs), x0
 end
 
 _extract_emission_proj((Hs, hs)::Tuple{AbstractVector, AbstractVector}) = Hs, hs
+
+function _reduce(::typeof(vcat), xs::Vector{<:ColVecs})
+    return ColVecs(reduce(hcat, getfield.(xs, :X)))
+end
+
+function partition(lengths::AbstractVector{<:Integer}, A::Matrix{<:Real})
+    starts = vcat(1, cumsum(lengths) .+ 1)
+    starts = starts[1:end-1]
+    return map((s, d) -> collect(view(A, :, s:s+d-1)), starts, lengths)
+end
+
+function Zygote._pullback(
+    ctx::AContext,
+    ::typeof(partition),
+    lengths::AbstractVector{<:Integer},
+    A::Matrix{<:Real},
+)
+    partition_pullback(::Nothing) = nothing
+    partition_pullback(Δ::Vector) = nothing, nothing, reduce(hcat, Δ)
+    return partition(lengths, A), partition_pullback
+end
 
 function build_emissions(
     (Cs, cs, Hs, hs)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},

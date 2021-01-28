@@ -57,9 +57,11 @@ function Zygote._pullback(::AContext, ::typeof(_logpdf_volume_compensation), y)
     return _logpdf_volume_compensation(y), nograd_pullback
 end
 
-function fill_in_missings(
-    Σs::Vector, y::AbstractVector{Union{Missing, T}},
-) where {T}
+function fill_in_missings(Σs::Vector, y::AbstractVector{Union{Missing, T}}) where {T}
+    return _fill_in_missings(Σs, y)
+end
+
+function _fill_in_missings(Σs::Vector, y::AbstractVector{Union{Missing, T}}) where {T}
 
     # Fill in observation covariance matrices with very large values.
     Σs_filled_in = map(eachindex(y)) do n
@@ -91,20 +93,26 @@ fill_in_missings(Σ::Diagonal, y::AbstractVector{<:Real}) = (Σ, y)
 
 function Zygote._pullback(
     ::AContext,
-    ::typeof(fill_in_missings),
+    ::typeof(_fill_in_missings),
     Σs::Vector,
     y::AbstractVector{Union{T, Missing}},
 ) where {T}
+    pullback_fill_in_missings(Δ::Nothing) = nothing
     function pullback_fill_in_missings(Δ)
         ΔΣs_filled_in = Δ[1]
         Δy_filled_in = Δ[2]
 
         # The cotangent of a `Missing` doesn't make sense, so should be a `DoesNotExist`.
-        Δy = Vector{Union{eltype(Δy_filled_in), DoesNotExist}}(undef, length(y))
-        map!(
-            n -> y[n] === missing ? DoesNotExist() : Δy_filled_in[n],
-            Δy, eachindex(y),
-        )
+        Δy = if Δy_filled_in === nothing
+            nothing
+        else
+            Δy = Vector{Union{eltype(Δy_filled_in), DoesNotExist}}(undef, length(y))
+            map!(
+                n -> y[n] === missing ? DoesNotExist() : Δy_filled_in[n],
+                Δy, eachindex(y),
+            )
+            Δy
+        end
 
         # Fill in missing locations with zeros. Opting for type-stability to keep things
         # simple.

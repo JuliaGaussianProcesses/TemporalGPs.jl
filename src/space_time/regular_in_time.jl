@@ -12,7 +12,7 @@ struct RegularInTime{
     vs::Tvs
 end
 
-Base.size(x::RegularInTime) = sum(length, x.vs)
+Base.size(x::RegularInTime) = (sum(length, x.vs), )
 
 function Base.collect(x::RegularInTime)
     time_inputs = vcat([fill(t, length(x)) for (t, x) in zip(x.ts, x.vs)]...)

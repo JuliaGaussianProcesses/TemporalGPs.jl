@@ -281,3 +281,21 @@ function Zygote._pullback(
     end
     return value, literal_getproperty_pullback
 end
+
+function time_ad(label::String, f, x...)
+    println("primal: ", label)
+    return @time f(x...)
+end
+
+time_ad(::Val{:disabled}, label::String, f, x...) = f(x...)
+
+function Zygote._pullback(ctx::AContext, ::typeof(time_ad), label::String, f, x...)
+    println("Forward: ", label)
+    out, pb = @time Zygote._pullback(ctx, f, x...)
+    function time_ad_pullback(Δ)
+        println("Pullback: ", label)
+        Δinputs = @time pb(Δ)
+        return (nothing, nothing, Δinputs...)
+    end
+    return out, time_ad_pullback
+end
