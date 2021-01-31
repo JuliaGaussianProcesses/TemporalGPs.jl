@@ -202,6 +202,8 @@ end
 
 _extract_emission_proj((Hs, hs)::Tuple{AbstractVector, AbstractVector}) = Hs, hs
 
+_reduce(::typeof(vcat), xs::Vector{<:Vector{<:Real}}) = reduce(vcat, xs)
+
 function _reduce(::typeof(vcat), xs::Vector{<:ColVecs})
     return ColVecs(reduce(hcat, getfield.(xs, :X)))
 end
@@ -232,16 +234,6 @@ function build_emissions(
     fan_outs = StructArray{LargeOutputLGC{eltype(Cs), eltype(cs), eltype(Σs)}}((Cst, cs, Σs))
     return StructArray{BottleneckLGC{eltype(Hst), eltype(hs), eltype(fan_outs)}}((Hst, hs, fan_outs))
 end
-
-# function get_type(Cs_prime, cs, Hs_prime, hs::AbstractVector{<:AbstractVector}, Σs)
-#     TCs = eltype(Cs_prime)
-#     THs = eltype(Hs_prime)
-#     Ths = eltype(hs)
-#     TΣs = eltype(Σs)
-#     T = BottleneckLGC{THs, Ths, LargeOutputLGC{}
-#     T = SmallOutputLGC{THs, Ths, TΣs}
-#     return T
-# end
 
 """
     approx_posterior_marginals(
@@ -283,13 +275,54 @@ function approx_posterior_marginals(
     return vcat(map(marginals, marginals_diag(new_fx_post))...)
 end
 
-function dtc_post_emissions(k::DTCSeparable, x_new::AbstractVector, storage::StorageType)
-    _, _, _, new_proj, _ = lgssm_components(k, x_new, storage)
+"""
+    approx_posterior_marginals(
+        ::typeof(dtc),
+        fx::FiniteLTISDE,
+        y::AbstractVector,
+        z_r::AbstractVector,
+        x_r::AbstractVector,
+        t::Int,
+    )
 
-    # Compute cross-covariance between target points and pseudo-points.
-    # We only need to do this once over all times because the kernel is separable and we're
-    # considering the same locations in space at each point in time.
-    # This could be simplified further, but it's a hack that works fine for now.
+Same as other method, but only returns the predictions at index `t` in `fx`.
+
+As with the other method of this function, it's a bit of a hack. It's correct of course, but
+needs to be tidied up at some point.
+"""
+function approx_posterior_marginals(
+    ::typeof(dtc),
+    fx::FiniteLTISDE,
+    y::AbstractVector,
+    z_r::AbstractVector,
+    x_r::AbstractVector,
+    t::Int,
+)
+    ts = get_time(fx.x)
+    if t < 1 || t > length(ts)
+        throw(error("t must be between 1 and length(fx)."))
+    end
+
+    # Compute approximate posterior LGSSM.
+    lgssm = build_lgssm(dtcify(z_r, fx))
+    fx_post = posterior(lgssm, restructure(y, lgssm.emissions))
+
+    # Prep prediction locations.
+    x_other = x_r[1:1]
+    x_rs = fill(x_other, length(ts))
+    x_rs[t] = x_r
+    x_pr = RegularInTime(ts, x_rs)
+
+    # Compute the new emission distributions + approx posterior model.
+    k_dtc = dtcify(z_r, fx.f.f.k)
+    new_proj, Σs = dtc_post_emissions(k_dtc, x_pr, fx.f.storage)
+    new_fx_post = LGSSM(fx_post.transitions, build_emissions(new_proj, Σs))
+
+    # Compute marginals under modified posterior.
+    return marginals(marginals_diag(new_fx_post)[t])
+end
+
+function build_emission_covs(k::DTCSeparable, x_new::RectilinearGrid)
     space_kernel = k.k.l
     z_r = k.z
     C_fp_u = Stheno.pairwise(space_kernel, get_space(x_new), z_r)
@@ -299,8 +332,27 @@ function dtc_post_emissions(k::DTCSeparable, x_new::AbstractVector, storage::Sto
 
     time_kernel = k.k.r
     time_vars = Stheno.ew(time_kernel, get_time(x_new))
-    new_Σs = map(s_t -> Diagonal(spatial_Q_diag * s_t), time_vars)
+    return map(s_t -> Diagonal(spatial_Q_diag * s_t), time_vars)
+end
 
+function build_emission_covs(k::DTCSeparable, x_new::RegularInTime)
+    space_kernel = k.k.l
+    z_r = k.z
+    C_u = cholesky(Symmetric(Stheno.pairwise(space_kernel, z_r) + ident_eps(z_r, 1e-9)))
+
+    time_kernel = k.k.r
+    time_vars = Stheno.ew(time_kernel, get_time(x_new))
+    return map(zip(time_vars, x_new.vs)) do ((time_var, x_r))
+        C_fp_u = Stheno.pairwise(space_kernel, x_r, z_r)
+        Cr_rpred_diag = Stheno.elementwise(space_kernel, x_r)
+        spatial_Q_diag = Cr_rpred_diag - Stheno.diag_Xt_invA_X(C_u, C_fp_u')
+        return Diagonal(spatial_Q_diag * time_var)
+    end
+end
+
+function dtc_post_emissions(k::DTCSeparable, x_new::AbstractVector, storage::StorageType)
+    _, _, _, new_proj, _ = lgssm_components(k, x_new, storage)
+    new_Σs = build_emission_covs(k, x_new)
     return new_proj, new_Σs
 end
 

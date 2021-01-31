@@ -51,7 +51,7 @@ using TemporalGPs:
         ),
     ]
 
-    # Spatial-locations of pseudo-inputs.
+    # Spatial-locations of pseudo-inputs and predictions.
     z_r = randn(2)
     x_pr_r = randn(10)
 
@@ -81,11 +81,11 @@ using TemporalGPs:
         # The two approaches to DTC computation should be equivalent up to roundoff error.
         dtc_naive = dtc(fx_naive, y, f_naive(z_naive))
         dtc_sde = dtc(fx, y, z_r)
-        @test dtc_naive ≈ dtc_sde rtol=1e-7
+        @test dtc_naive ≈ dtc_sde rtol=1e-6
 
         elbo_naive = elbo(fx_naive, y, f_naive(z_naive))
         elbo_sde = elbo(fx, y, z_r)
-        @test elbo_naive ≈ elbo_sde rtol=1e-7
+        @test elbo_naive ≈ elbo_sde rtol=1e-6
 
         adjoint_test(
             (y, z_r) -> elbo(fx, y, z_r), (y, z_r);
@@ -104,6 +104,16 @@ using TemporalGPs:
 
         @test mean.(naive_approx_post_marginals) ≈ mean.(approx_post_marginals) rtol=1e-7
         @test std.(naive_approx_post_marginals) ≈ std.(approx_post_marginals) rtol=1e-7
+
+        # Similarly awful interface, make predictions for each point separately.
+        approx_post_marginals_individual = map(eachindex(t)) do t
+            approx_posterior_marginals(dtc, fx, y, z_r, x_pr_r, t)
+        end
+
+        approx_post_marginals_vec = reduce(vcat, approx_post_marginals_individual)
+
+        @test mean.(approx_post_marginals) ≈ mean.(approx_post_marginals_vec)
+        @test std.(approx_post_marginals) ≈ std.(approx_post_marginals_vec)
 
         @testset "missings" begin
 
