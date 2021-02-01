@@ -180,10 +180,6 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
         ((K_space_z, Q), ) -> kron(K_space_z, Q),
         zip(Fill(K_space_z, N), Qs_t),
     )
-    # Cs = @time zygote_friendly_map(
-        # ((X, v, k, z), ) -> X \ pw(k, z, v),
-        # zip(Fill(K_space_z_chol, N), x.vs, Fill(space_kernel, N), Fill(z_space, N)),
-    # )
     x_big = time_ad(Val(:disabled), "x_big", _reduce, vcat, x.vs)
     C__ = time_ad(Val(:disabled), "C__", pw, space_kernel, z_space, x_big)
     C = time_ad(Val(:disabled), "C", \, K_space_z_chol, C__)
@@ -300,7 +296,7 @@ function approx_posterior_marginals(
 )
     ts = get_time(fx.x)
     if t < 1 || t > length(ts)
-        throw(error("t must be between 1 and length(fx)."))
+        throw(error("t = $t must be between 1 and length(ts) = $(length(ts))."))
     end
 
     # Compute approximate posterior LGSSM.
