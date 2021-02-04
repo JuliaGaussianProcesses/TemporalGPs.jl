@@ -299,3 +299,47 @@ function Zygote._pullback(ctx::AContext, ::typeof(time_ad), label::String, f, x.
     end
     return out, time_ad_pullback
 end
+
+function Zygote._pullback(ctx::AContext, ::typeof(\), A::Diagonal{<:Real}, x::Vector{<:Real})
+    out, pb = Zygote._pullback(ctx, (a, x) -> a .\ x, diag(A), x)
+    function ldiv_pullback(Δ)
+        _, Δa, Δx = pb(Δ)
+        return nothing, Diagonal(Δa), Δx
+    end
+    return out, ldiv_pullback
+end
+
+function Zygote._pullback(ctx::AContext, ::typeof(\), A::Diagonal{<:Real}, x::Matrix{<:Real})
+    out, pb = Zygote._pullback(ctx, (a, x) -> a .\ x, diag(A), x)
+    function ldiv_pullback(Δ)
+        _, Δa, Δx = pb(Δ)
+        return nothing, Diagonal(Δa), Δx
+    end
+    return out, ldiv_pullback
+end
+
+using Base.Broadcast: broadcasted
+
+function Zygote._pullback(
+    ::AContext, ::typeof(broadcasted), ::typeof(\), a::Vector{<:Real}, x::Vector{<:Real},
+)
+    y = a .\ x
+    # function broadcast_ldiv_pullback(Δ::Nothing)
+    #     return nothing
+    # end
+    function broadcast_ldiv_pullback(Δ::Vector{<:Real})
+        return nothing, nothing, -(Δ .* y ./ a), a .\ Δ
+    end
+    return y, broadcast_ldiv_pullback
+end
+
+function Zygote._pullback(
+    ::AContext, ::typeof(broadcasted), ::typeof(\), a::Vector{<:Real}, x::Matrix{<:Real},
+)
+    y = a .\ x
+    # broadcast_ldiv_pullback(::Nothing) = nothing
+    function broadcast_ldiv_pullback(Δ::Matrix{<:Real})
+        return nothing, nothing, -vec(sum(Δ .* y ./ a; dims=2)), a .\ Δ
+    end
+    return y, broadcast_ldiv_pullback
+end

@@ -134,4 +134,13 @@ using TemporalGPs: time_exp, logdet_pullback
         xs_sa = StructArray{eltype(xs)}((ms, Ps))
         adjoint_test(xs -> xs.m, (xs_sa, ))
     end
+    @testset "\\" begin
+        adjoint_test(\, (Diagonal(randn(10)), randn(10)))
+        adjoint_test(\, (Diagonal(randn(10)), randn(10, 2)))
+    end
+    @testset ".\\" begin
+        adjoint_test((a, x) -> a .\ x, (randn(10), randn(10)), )
+        adjoint_test((a, x) -> a .\ x, (randn(10), randn(10, 3)), )
+        adjoint_test((a, x) -> a .\ x, (randn(3), randn(3, 10)), )
+    end
 end
