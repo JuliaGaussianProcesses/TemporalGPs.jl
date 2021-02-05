@@ -52,6 +52,11 @@ function Stheno.dtc(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
     return logpdf(dtcify(z_r, fx), y)
 end
 
+# This stupid pullback saves an absurb amount of compute time.
+function Zygote._pullback(::AContext, ::typeof(count), ::typeof(ismissing), yn)
+    return count(ismissing, yn), nograd_pullback
+end
+
 """
     elbo(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)
 
@@ -59,7 +64,7 @@ Compute the ELBO (Evidence Lower BOund) in state-space form [insert reference].
 """
 function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
 
-    fx_dtc = dtcify(z_r, fx)
+    fx_dtc = time_ad(Val(:disabled), "fx_dtc", dtcify, z_r, fx)
 
     # Compute diagonals over prior marginals.
     lgssm = time_ad(Val(:disabled), "lgssm", build_lgssm, fx_dtc)
@@ -67,10 +72,10 @@ function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
     marg_diags = time_ad(Val(:disabled), "marg_diags", marginals_diag, lgssm)
 
     k = fx_dtc.f.f.k
-    Cf_diags = kernel_diagonals(k, fx_dtc.x)
+    Cf_diags = time_ad(Val(:disabled), "Cf_diags", kernel_diagonals, k, fx_dtc.x)
 
     # Transform a vector into a vector-of-vectors.
-    y_vecs = restructure(y, lgssm.emissions)
+    y_vecs = time_ad(Val(:disabled), "y_vecs", restructure, y, lgssm.emissions)
 
     tmp = time_ad(Val(:disabled), "tmp", zygote_friendly_map,
         ((Σ, Cf_diag, marg_diag, yn), ) -> begin
@@ -316,6 +321,31 @@ function approx_posterior_marginals(
 
     # Compute marginals under modified posterior.
     return marginals(marginals_diag(new_fx_post)[t])
+end
+
+function approx_posterior_marginals(
+    ::typeof(dtc),
+    fx::FiniteLTISDE,
+    y::AbstractVector,
+    z_r::AbstractVector,
+    x_pr::RegularInTime,
+)
+    ts = get_time(fx.x)
+    if ts != get_time(x_pr)
+        throw(error("Times don't match."))
+    end
+
+    # Compute approximate posterior LGSSM.
+    lgssm = build_lgssm(dtcify(z_r, fx))
+    fx_post = posterior(lgssm, restructure(y, lgssm.emissions))
+
+    # Compute the new emission distributions + approx posterior model.
+    k_dtc = dtcify(z_r, fx.f.f.k)
+    new_proj, Σs = dtc_post_emissions(k_dtc, x_pr, fx.f.storage)
+    new_fx_post = LGSSM(fx_post.transitions, build_emissions(new_proj, Σs))
+
+    # Compute marginals under modified posterior.
+    return vcat(map(marginals, marginals_diag(new_fx_post))...)
 end
 
 function build_emission_covs(k::DTCSeparable, x_new::RectilinearGrid)

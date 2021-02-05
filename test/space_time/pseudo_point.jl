@@ -115,6 +115,13 @@ using TemporalGPs:
         @test mean.(approx_post_marginals) ≈ mean.(approx_post_marginals_vec)
         @test std.(approx_post_marginals) ≈ std.(approx_post_marginals_vec)
 
+        # Do the RegularInTime one and compare it against RectilinearGrid.
+        x_pr_rit = RegularInTime(get_time(x_pr), [get_space(x_pr) for _ in get_time(x.val)])
+        approx_post_marginals_rit = approx_posterior_marginals(dtc, fx, y, z_r, x_pr_rit)
+
+        @test mean.(approx_post_marginals) ≈ mean.(approx_post_marginals_rit) rtol=1e-7
+        @test std.(approx_post_marginals) ≈ std.(approx_post_marginals_rit) rtol=1e-7
+
         @testset "missings" begin
 
             # Construct missing data.
