@@ -190,17 +190,19 @@ dim_in(f::LargeOutputLGC) = size(f.A, 2)
 function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y::AbstractVector{<:Real})
     A = f.A
     Q = cholesky(Symmetric(f.Q))
+    # Q = Zygote.hook(Δ -> (println(typeof(Δ)); Δ), Q)
     P = cholesky(Symmetric(x.P + ident_eps(1e-10)))
 
     # Compute posterior covariance matrix.
-    B = P.U * A' / Q.U
-    F = cholesky(Symmetric(B * B' + UniformScaling(1.0)))
+    # B = P.U * A'# / Q.U
+    Bt = Q.U' \ A * P.U'
+    F = cholesky(Symmetric(Bt' * Bt + UniformScaling(1.0)))
     G = F.U' \ P.U
     P_post = G'G
 
     # Compute posterior mean.
     δ = Q.U' \ (y - (A * x.m + f.a))
-    β = F.U' \ (B * δ)
+    β = F.U' \ (Bt' * δ)
     m_post = x.m + G' * β
 
     # Compute log marginal likelihood.
