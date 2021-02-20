@@ -7,5 +7,5 @@ using TemporalGPs: RegularInTime
     ts = RegularSpacing(0.0, 0.3, T)
     x = RegularInTime(ts, xs)
 
-    @test size(x) == length(collect(x))
+    @test prod(size(x)) == length(collect(x))
 end
