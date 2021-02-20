@@ -338,7 +338,7 @@ function Zygote._pullback(
 )
     y = a .\ x
     # broadcast_ldiv_pullback(::Nothing) = nothing
-    function broadcast_ldiv_pullback(Δ::Matrix{<:Real})
+    function broadcast_ldiv_pullback(Δ::Union{Matrix{<:Real}, Adjoint{<:Real, <:Matrix{<:Real}}})
         return nothing, nothing, -vec(sum(Δ .* y ./ a; dims=2)), a .\ Δ
     end
     return y, broadcast_ldiv_pullback
