@@ -124,7 +124,7 @@ function lgssm_components(
     t = vcat([first(t) - 1], t)
     As = map(Δt -> time_exp(F, T(Δt)), diff(t))
     as = Fill(Zeros{T}(size(first(As), 1)), length(As))
-    Qs = map(A -> P - A * P * A', As)
+    Qs = map(A -> Symmetric(P) - A * Symmetric(P) * A', As)
     Hs = Fill(H, length(As))
     hs = Fill(zero(T), length(As))
     emission_projections = (Hs, hs)
@@ -145,7 +145,7 @@ function lgssm_components(
     A = time_exp(F, T(step(t)))
     As = Fill(A, length(t))
     as = Fill(Zeros{T}(size(F, 1)), length(t))
-    Q = P - A * P * A'
+    Q = Symmetric(P) - A * Symmetric(P) * A'
     Qs = Fill(Q, length(t))
     Hs = Fill(H, length(t))
     hs = Fill(zero(T), length(As))
