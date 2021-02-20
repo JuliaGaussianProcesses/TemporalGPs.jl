@@ -15,7 +15,7 @@ function lgssm_components(k::Separable, x::SpaceTimeGrid, storage)
     ident = my_I(eltype(storage), Nr)
     As = map(A -> kron(ident, A), As_t)
     as = map(a -> repeat(a, Nr), as_t)
-    Qs = map(Q -> kron(Kr, Q) + UniformScaling(1e-12), Qs_t)
+    Qs = map(Q -> kron(Kr + ident_eps(1e-12), Q), Qs_t)
     emission_proj = _build_st_proj(emission_proj_t, Nr, ident)
     x0 = Gaussian(repeat(x0_t.m, Nr), kron(Kr, x0_t.P))
     return As, as, Qs, emission_proj, x0
