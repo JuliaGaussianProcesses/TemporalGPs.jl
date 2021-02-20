@@ -80,7 +80,8 @@ function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
     tmp = time_ad(Val(:disabled), "tmp", zygote_friendly_map,
         ((Σ, Cf_diag, marg_diag, yn), ) -> begin
             Σ_, _ = fill_in_missings(Σ, yn)
-            return sum(diag(Σ_ \ ((Cf_diag - marg_diag.P) + Σ_))) - count(ismissing, yn)
+            return sum(diag(Σ_ \ (Cf_diag - marg_diag.P))) -
+                count(ismissing, yn) + size(Σ_, 1)
         end,
         zip(Σs, Cf_diags, marg_diags, y_vecs),
     )
@@ -133,15 +134,15 @@ function lgssm_components(k_dtc::DTCSeparable, x::SpaceTimeGrid, storage::Storag
     K_space_z = pw(space_kernel, z_space)
     K_space_zx = pw(space_kernel, z_space, x_space)
 
+
     # Get some size info.
     M = length(z_space)
     N = length(x_space)
     ident_M = my_I(eltype(storage), M)
-    ident_N = my_I(eltype(storage), N)
 
     # G is the time-invariant component of the H-matrices. It is only time-invariant because
     # we have the same obsevation locations at each point in time.
-    Λu_Cuf = cholesky(Symmetric(K_space_z + 1e-9I)) \ K_space_zx
+    Λu_Cuf = cholesky(Symmetric(K_space_z + 1e-12I)) \ K_space_zx
 
     # Construct approximately low-rank model spatio-temporal LGSSM.
     As = map(A -> kron(ident_M, A), As_t)
