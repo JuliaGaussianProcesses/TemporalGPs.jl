@@ -83,11 +83,15 @@ end
 
 @adjoint function Base.map(f::Tf, x::Fill) where {Tf}
     y_el, back = Zygote._pullback(__context__, f, x.value)
-    function map_Fill_pullback(Δ::NamedTuple)
-        Δf, Δx_el = back(Δ.value)
+    function map_Fill_pullback(Δ::Union{NamedTuple, Composite})
+        if Δ isa Composite
+            Δ_ = (value=Δ.value, axes=Δ.axes)
+        else
+            Δ_ = Δ
+        end
+        Δf, Δx_el = back(Δ_.value)
         return Δf, (value = Δx_el, axes=nothing)
     end
-    map_Fill_pullback(Δ::Composite) = map_Fill_pullback((value=Δ.value, axes=Δ.axes))
     return Fill(y_el, size(x)), map_Fill_pullback
 end
 
@@ -222,31 +226,31 @@ end
 
 Base.:(+)(::Composite, ::Nothing) = Zero()
 
-function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}) where i
-  y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
-  back(::Nothing) = nothing
-  back(ȳ) = b(ȳ[1])
-  (y, i+1), back
-end
+# function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}) where i
+#   y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
+#   back(::Nothing) = nothing
+#   back(ȳ) = b(ȳ[1])
+#   (y, i+1), back
+# end
 
-function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}, st) where i
-  y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
-  back(::Nothing) = nothing
-  back(ȳ) = (b(ȳ[1])..., nothing)
-  (y, i+1), back
-end
+# function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}, st) where i
+#   y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
+#   back(::Nothing) = nothing
+#   back(ȳ) = (b(ȳ[1])..., nothing)
+#   (y, i+1), back
+# end
 
 Zygote._pullback(cx::AContext, ::typeof(getproperty), x, f::Symbol) =
   Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
 
-Zygote._pullback(cx::AContext, ::typeof(getfield), x, f::Symbol) =
-  Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
+# Zygote._pullback(cx::AContext, ::typeof(getfield), x, f::Symbol) =
+#   Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
 
-Zygote._pullback(cx::AContext, ::typeof(literal_getindex), x::NamedTuple, ::Val{f}) where f =
-  Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
+# Zygote._pullback(cx::AContext, ::typeof(literal_getindex), x::NamedTuple, ::Val{f}) where f =
+#   Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
 
-Zygote._pullback(cx::AContext, ::typeof(literal_getproperty), x::Tuple, ::Val{f}) where f =
-  Zygote._pullback(cx, Zygote.literal_getindex, x, Val(f))
+# Zygote._pullback(cx::AContext, ::typeof(literal_getproperty), x::Tuple, ::Val{f}) where f =
+#   Zygote._pullback(cx, Zygote.literal_getindex, x, Val(f))
 
 
 # function Zygote._pullback(
