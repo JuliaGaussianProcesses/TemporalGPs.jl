@@ -20,43 +20,39 @@ end
 
 dim(x::Gaussian) = length(x.m)
 
-function get_fields(x::Gaussian)
-    m = Zygote.literal_getfield(x, Val(:m))
-    P = Zygote.literal_getfield(x, Val(:P))
-    return m, P
-end
+Stheno.mean(x::Gaussian) = Zygote.literal_getfield(x, Val(:m))
+
+Stheno.cov(x::Gaussian) = Zygote.literal_getfield(x, Val(:P))
+
+get_fields(x::Gaussian) = mean(x), cov(x)
 
 Random.rand(rng::AbstractRNG, x::Gaussian) = vec(rand(rng, x, 1))
 
-Random.rand(rng::AbstractRNG, x::Gaussian{<:SVector}) = randn(rng, typeof(x.m))
+Random.rand(rng::AbstractRNG, x::Gaussian{<:SVector}) = randn(rng, typeof(mean(x)))
 
 function Random.rand(rng::AbstractRNG, x::Gaussian, S::Int)
-    P = x.P + UniformScaling(1e-12)
-    return x.m .+ cholesky(Symmetric(P)).U' * randn(rng, length(x.m), S)
+    P = cov(x) + UniformScaling(1e-12)
+    return mean(x) .+ cholesky(Symmetric(P)).U' * randn(rng, length(mean(x)), S)
 end
 
 Stheno.logpdf(x::Gaussian, y::AbstractVector{<:Real}) = first(logpdf(x, reshape(y, :, 1)))
 
 function Stheno.logpdf(x::Gaussian, Y::AbstractMatrix{<:Real})
-    μ, C = x.m, cholesky(Symmetric(x.P))
+    μ, C = mean(x), cholesky(Symmetric(cov(x)))
     T = promote_type(eltype(μ), eltype(C), eltype(Y))
     return -((size(Y, 1) * T(log(2π)) + logdet(C)) .+ Stheno.diag_Xt_invA_X(C, Y .- μ)) ./ 2
 end
 
-Base.:(==)(x::Gaussian, y::Gaussian) = x.m == y.m && x.P == y.P
+Base.:(==)(x::Gaussian, y::Gaussian) = mean(x) == mean(y) && cov(x) == cov(y)
 
 function Base.isapprox(x::Gaussian, y::Gaussian; kwargs...)
-    return isapprox(x.m, y.m; kwargs...) && isapprox(x.P, y.P; kwargs...)
+    return isapprox(mean(x), mean(y); kwargs...) && isapprox(cov(x), cov(y); kwargs...)
 end
 
-Stheno.mean(x::Gaussian) = x.m
-
-Stheno.cov(x::Gaussian) = x.P
-
-Stheno.marginals(x::Gaussian{<:Real, <:Real}) = Normal(x.m, sqrt(x.P))
+Stheno.marginals(x::Gaussian{<:Real, <:Real}) = Normal(mean(x), sqrt(cov(x)))
 
 function Stheno.marginals(x::Gaussian{<:AbstractVector, <:AbstractMatrix})
-    return Normal.(x.m, sqrt.(diag(x.P)))
+    return Normal.(mean(x), sqrt.(diag(cov(x))))
 end
 
 storage_type(x::Gaussian{<:SVector{D, T}}) where {D, T<:Real} = SArrayStorage(T)
@@ -74,4 +70,4 @@ end
 Base.length(x::Gaussian) = 0
 
 # Zero-adjoint initialisation for the benefit of `scan`.
-_get_zero_adjoint(x::Gaussian) = (m=_get_zero_adjoint(x.m), P=_get_zero_adjoint(x.P))
+_get_zero_adjoint(x::Gaussian) = (m=_get_zero_adjoint(mean(x)), P=_get_zero_adjoint(cov(x)))
