@@ -339,9 +339,6 @@ function Zygote._pullback(
     ::AContext, ::typeof(broadcasted), ::typeof(\), a::Vector{<:Real}, x::Vector{<:Real},
 )
     y = a .\ x
-    # function broadcast_ldiv_pullback(Δ::Nothing)
-    #     return nothing
-    # end
     function broadcast_ldiv_pullback(Δ::Union{Nothing, Vector{<:Real}})
         if Δ === nothing
             return nothing
@@ -356,7 +353,6 @@ function Zygote._pullback(
     ::AContext, ::typeof(broadcasted), ::typeof(\), a::Vector{<:Real}, x::Matrix{<:Real},
 )
     y = a .\ x
-    # broadcast_ldiv_pullback(::Nothing) = nothing
     function broadcast_ldiv_pullback(
         Δ::Union{Nothing, Matrix{<:Real}, Adjoint{<:Real, <:Matrix{<:Real}}},
     )
