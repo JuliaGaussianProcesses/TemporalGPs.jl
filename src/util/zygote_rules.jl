@@ -18,7 +18,10 @@ Zygote._pullback(::AContext, ::typeof(eltype), x) = eltype(x), nograd_pullback
 
 # Hacks to help the compiler out in very specific situations.
 Zygote.accum(a::Array{T}, b::Array{T}) where {T<:Real} = a + b
+
 Zygote.accum(a::SArray{size, T}, b::SArray{size, T}) where {size, T<:Real} = a + b
+
+Zygote.accum(a::Tuple, b::Tuple, c::Tuple) = map(Zygote.accum, a, b, c)
 
 @adjoint function SVector{D}(x::AbstractVector) where {D}
     SVector_pullback(Δ) = (convert(typeof(x), Δ),)
@@ -240,8 +243,8 @@ Base.:(+)(::Composite, ::Nothing) = Zero()
 #   (y, i+1), back
 # end
 
-Zygote._pullback(cx::AContext, ::typeof(getproperty), x, f::Symbol) =
-  Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
+# Zygote._pullback(cx::AContext, ::typeof(getproperty), x, f::Symbol) =
+#   Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
 
 # Zygote._pullback(cx::AContext, ::typeof(getfield), x, f::Symbol) =
 #   Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
@@ -307,8 +310,12 @@ end
 function Zygote._pullback(ctx::AContext, ::typeof(\), A::Diagonal{<:Real}, x::Vector{<:Real})
     out, pb = Zygote._pullback(ctx, (a, x) -> a .\ x, diag(A), x)
     function ldiv_pullback(Δ)
-        _, Δa, Δx = pb(Δ)
-        return nothing, Diagonal(Δa), Δx
+        if Δ === nothing
+            return nothing
+        else
+            _, Δa, Δx = pb(Δ)
+            return nothing, Diagonal(Δa), Δx
+        end
     end
     return out, ldiv_pullback
 end
@@ -316,8 +323,12 @@ end
 function Zygote._pullback(ctx::AContext, ::typeof(\), A::Diagonal{<:Real}, x::Matrix{<:Real})
     out, pb = Zygote._pullback(ctx, (a, x) -> a .\ x, diag(A), x)
     function ldiv_pullback(Δ)
-        _, Δa, Δx = pb(Δ)
-        return nothing, Diagonal(Δa), Δx
+        if Δ === nothing
+            return nothing
+        else
+            _, Δa, Δx = pb(Δ)
+            return nothing, Diagonal(Δa), Δx
+        end
     end
     return out, ldiv_pullback
 end
@@ -331,8 +342,12 @@ function Zygote._pullback(
     # function broadcast_ldiv_pullback(Δ::Nothing)
     #     return nothing
     # end
-    function broadcast_ldiv_pullback(Δ::Vector{<:Real})
-        return nothing, nothing, -(Δ .* y ./ a), a .\ Δ
+    function broadcast_ldiv_pullback(Δ::Union{Nothing, Vector{<:Real}})
+        if Δ === nothing
+            return nothing
+        else
+            return nothing, nothing, -(Δ .* y ./ a), a .\ Δ
+        end
     end
     return y, broadcast_ldiv_pullback
 end
@@ -342,8 +357,14 @@ function Zygote._pullback(
 )
     y = a .\ x
     # broadcast_ldiv_pullback(::Nothing) = nothing
-    function broadcast_ldiv_pullback(Δ::Union{Matrix{<:Real}, Adjoint{<:Real, <:Matrix{<:Real}}})
-        return nothing, nothing, -vec(sum(Δ .* y ./ a; dims=2)), a .\ Δ
+    function broadcast_ldiv_pullback(
+        Δ::Union{Nothing, Matrix{<:Real}, Adjoint{<:Real, <:Matrix{<:Real}}},
+    )
+        if Δ === nothing
+            return nothing
+        else
+            return nothing, nothing, -vec(sum(Δ .* y ./ a; dims=2)), a .\ Δ
+        end
     end
     return y, broadcast_ldiv_pullback
 end
