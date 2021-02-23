@@ -65,7 +65,7 @@ function is_of_storage_type(model::GaussMarkovModel, s::StorageType)
     return is_of_storage_type((model.As, model.as, model.Qs, model.x0), s)
 end
 
-x0(model::GaussMarkovModel) = model.x0
+x0(model::GaussMarkovModel) = Zygote.literal_getfield(model, Val(:x0))
 
 function get_adjoint_storage(x::GaussMarkovModel, n::Int, Δx::NamedTuple{(:A, :a, :Q)})
     return (
