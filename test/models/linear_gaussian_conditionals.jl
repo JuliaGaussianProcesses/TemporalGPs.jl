@@ -7,9 +7,11 @@ using TemporalGPs: posterior_and_lml, predict, predict_marginals
     # Dobss = [2]
     storages = [
         (name="dense storage Float64", val=ArrayStorage(Float64)),
-        # (name="static storage Float64", val=SArrayStorage(Float64)),
     ]
-    Q_types = [Val(:dense), Val(:diag)]
+    Q_types = [
+        Val(:dense),
+        Val(:diag),
+    ]
 
     @testset "SmallOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))" for
         Dlat in Dlats,
