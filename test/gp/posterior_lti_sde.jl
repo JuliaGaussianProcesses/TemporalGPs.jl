@@ -106,8 +106,8 @@
         fx_post = f_post(x_pr, post_obs_var)
         y_post = rand(fx_post)
 
-        @test mean.(marginals(fx_post_naive)) ≈ mean.(marginals(fx_post)) rtol=1e-6
-        @test std.(marginals(fx_post_naive)) ≈ std.(marginals(fx_post)) rtol=1e-6
-        @test logpdf(fx_post_naive, y_post) ≈ logpdf(fx_post, y_post) rtol=1e-6
+        @test mean.(marginals(fx_post_naive)) ≈ mean.(marginals(fx_post)) rtol=1e-5
+        @test std.(marginals(fx_post_naive)) ≈ std.(marginals(fx_post)) rtol=1e-5
+        @test logpdf(fx_post_naive, y_post) ≈ logpdf(fx_post, y_post) rtol=1e-5
     end
 end
