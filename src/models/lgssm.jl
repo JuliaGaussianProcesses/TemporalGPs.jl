@@ -11,30 +11,38 @@ struct LGSSM{Ttransitions<:GaussMarkovModel, Temissions<:StructArray} <: Abstrac
     emissions::Temissions
 end
 
-@inline ordering(model::LGSSM) = ordering(model.transitions)
+@inline function transitions(model::LGSSM)
+    return Zygote.literal_getfield(model, Val(:transitions))
+end
+
+@inline function emissions(model::LGSSM)
+    return Zygote.literal_getfield(model, Val(:emissions))
+end
+
+@inline ordering(model::LGSSM) = ordering(transitions(model))
 
 Zygote._pullback(::AContext, ::typeof(ordering), model) = ordering(model), nograd_pullback
 
 function Base.:(==)(x::LGSSM, y::LGSSM)
-    return (x.transitions == y.transitions) && (x.emissions == y.emissions)
+    return (transitions(x) == transitions(y)) && (emissions(x) == emissions(y))
 end
 
-Base.length(model::LGSSM) = length(model.transitions)
+Base.length(model::LGSSM) = length(transitions(model))
 
-Base.eachindex(model::LGSSM) = eachindex(model.transitions)
+Base.eachindex(model::LGSSM) = eachindex(transitions(model))
 
-storage_type(model::LGSSM) = storage_type(model.transitions)
+storage_type(model::LGSSM) = storage_type(transitions(model))
 
 Zygote.@nograd storage_type
 
 function is_of_storage_type(model::LGSSM, s::StorageType)
-    return is_of_storage_type((model.transitions, model.emissions), s)
+    return is_of_storage_type((transitions(model), emissions(model)), s)
 end
 
 # Get the (Gaussian) distribution over the latent process at time t=0.
-x0(model::LGSSM) = x0(model.transitions)
+x0(model::LGSSM) = x0(transitions(model))
 
-emission_type(model::LGSSM) = eltype(model.emissions)
+emission_type(model::LGSSM) = eltype(emissions(model))
 
 
 
@@ -46,11 +54,17 @@ struct ElementOfLGSSM{Tordering, Ttransition, Temission}
     emission::Temission
 end
 
-@inline ordering(x::ElementOfLGSSM) = x.ordering
+@inline function ordering(x::ElementOfLGSSM)
+    return Zygote.literal_getfield(x, Val(:ordering))
+end
 
-@inline transition_dynamics(x::ElementOfLGSSM) = x.transition
+@inline function transition_dynamics(x::ElementOfLGSSM)
+    return Zygote.literal_getfield(x, Val(:transition))
+end
 
-@inline emission_dynamics(x::ElementOfLGSSM) = x.emission
+@inline function emission_dynamics(x::ElementOfLGSSM)
+    return Zygote.literal_getfield(x, Val(:emission))
+end
 
 @inline function Base.getindex(model::LGSSM, n::Int)
     return ElementOfLGSSM(ordering(model), model.transitions[n], model.emissions[n])
@@ -218,9 +232,12 @@ end
 
 # inlining for the benefit of type inference. Needed in at least julia-1.5.3.
 @inline function invert_dynamics(xf::Gaussian, xp::Gaussian, prior::SmallOutputLGC)
-    U = cholesky(Symmetric(xp.P + ident_eps(1e-10))).U
-    Gt = U \ (U' \ (prior.A * xf.P))
-    return SmallOutputLGC(_collect(Gt'), xf.m - Gt'xp.m, _compute_Pf(xf.P, U * Gt))
+    A, _, _ = get_fields(prior)
+    mf, Pf = get_fields(xf)
+    mp, Pp = get_fields(xp)
+    U = cholesky(Symmetric(Pp + ident_eps(1e-10))).U
+    Gt = U \ (U' \ (A * Pf))
+    return SmallOutputLGC(_collect(Gt'), mf - Gt'mp, _compute_Pf(Pf, U * Gt))
 end
 
 _compute_Pf(Pp::AbstractMatrix, B::AbstractMatrix) = Pp - B'B
