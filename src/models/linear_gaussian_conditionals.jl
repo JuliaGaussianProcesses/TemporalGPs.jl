@@ -39,8 +39,10 @@ be equivalent to
 ```
 """
 function predict(x::Gaussian, f::AbstractLGC)
+    A, a, Q = get_fields(f)
+    m, P = get_fields(x)
     # Symmetric wrapper needed for numerical stability. Do not unwrap.
-    return Gaussian(f.A * x.m + f.a, f.A * Symmetric(x.P) * f.A' + f.Q)
+    return Gaussian(A * m + a, A * Symmetric(P) * A' + Q)
 end
 
 """
@@ -74,7 +76,8 @@ function conditional_rand(rng::AbstractRNG, f::AbstractLGC, x::AbstractVector)
 end
 
 function conditional_rand(ε::AbstractVector, f::AbstractLGC, x::AbstractVector)
-    return (f.A * x + f.a) + cholesky(Symmetric(f.Q + UniformScaling(1e-9))).U' * ε
+    A, a, Q = get_fields(f)
+    return (A * x + a) + cholesky(Symmetric(Q + UniformScaling(1e-9))).U' * ε
 end
 
 """
@@ -117,24 +120,34 @@ dim_out(f::SmallOutputLGC) = size(f.A, 1)
 
 dim_in(f::SmallOutputLGC) = size(f.A, 2)
 
-function posterior_and_lml(x::Gaussian, f::SmallOutputLGC, y::AbstractVector{<:Real})
-    A = f.A
-    V = A * x.P
+function get_fields(f::SmallOutputLGC)
+    A = Zygote.literal_getfield(f, Val(:A))
+    a = Zygote.literal_getfield(f, Val(:a))
+    Q = Zygote.literal_getfield(f, Val(:Q))
+    return A, a, Q
+end
 
-    S = cholesky(Symmetric(V * A' + f.Q))
+function posterior_and_lml(x::Gaussian, f::SmallOutputLGC, y::AbstractVector{<:Real})
+    m, P = get_fields(x)
+    A, a, Q = get_fields(f)
+
+    V = A * P
+
+    S = cholesky(Symmetric(V * A' + Q))
     B = S.U' \ V
-    α = S.U' \ (y - (A * x.m + f.a))
+    α = S.U' \ (y - (A * m + a))
 
     lml = -(length(y) * convert(scalar_type(y), log(2π)) + logdet(S) + α'α) / 2
-    return Gaussian(x.m + B'α, x.P - B'B), lml
+    return Gaussian(m + B'α, P - B'B), lml
 end
 
 function posterior_and_lml(
     x::Gaussian, f::SmallOutputLGC, y::AbstractVector{<:Union{Missing, <:Real}},
 )
     # This implicitly assumes that Q is Diagonal. MethodError if not.
-    Q_filled, y_filled = fill_in_missings(f.Q, y)
-    x_post, lml_raw = posterior_and_lml(x, SmallOutputLGC(f.A, f.a, Q_filled), y_filled)
+    A, a, Q = get_fields(f)
+    Q_filled, y_filled = fill_in_missings(Q, y)
+    x_post, lml_raw = posterior_and_lml(x, SmallOutputLGC(A, a, Q_filled), y_filled)
     return x_post, lml_raw + _logpdf_volume_compensation(y)
 end
 
@@ -187,23 +200,29 @@ dim_out(f::LargeOutputLGC) = size(f.A, 1)
 
 dim_in(f::LargeOutputLGC) = size(f.A, 2)
 
+function get_fields(f::LargeOutputLGC)
+    A = Zygote.literal_getfield(f, Val(:A))
+    a = Zygote.literal_getfield(f, Val(:a))
+    Q = Zygote.literal_getfield(f, Val(:Q))
+    return A, a, Q
+end
+
 function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y::AbstractVector{<:Real})
-    A = f.A
-    Q = cholesky(Symmetric(f.Q))
-    # Q = Zygote.hook(Δ -> (println(typeof(Δ)); Δ), Q)
-    P = cholesky(Symmetric(x.P + ident_eps(1e-10)))
+    m, _P = get_fields(x)
+    A, a, _Q = get_fields(f)
+    Q = cholesky(Symmetric(_Q))
+    P = cholesky(Symmetric(_P + ident_eps(1e-10)))
 
     # Compute posterior covariance matrix.
-    # B = P.U * A'# / Q.U
     Bt = Q.U' \ A * P.U'
     F = cholesky(Symmetric(Bt' * Bt + UniformScaling(1.0)))
     G = F.U' \ P.U
     P_post = G'G
 
     # Compute posterior mean.
-    δ = Q.U' \ (y - (A * x.m + f.a))
+    δ = Q.U' \ (y - (A * m + a))
     β = F.U' \ (Bt' * δ)
-    m_post = x.m + G' * β
+    m_post = m + G' * β
 
     # Compute log marginal likelihood.
     c = convert(scalar_type(y), length(y) * log(2π))
@@ -218,9 +237,10 @@ _compute_lml(δ, F, β, c, Q) = -(δ'δ - β'β + c + logdet(F) + logdet(Q)) / 2
 function posterior_and_lml(
     x::Gaussian, f::LargeOutputLGC, y::AbstractVector{<:Union{Missing, <:Real}},
 )
+    A, a, Q = get_fields(f)
     # This implicitly assumes that Q is Diagonal. MethodError if not.
-    Q_filled, y_filled = fill_in_missings(f.Q, y)
-    x_post, lml_raw = posterior_and_lml(x, LargeOutputLGC(f.A, f.a, Q_filled), y_filled)
+    Q_filled, y_filled = fill_in_missings(Q, y)
+    x_post, lml_raw = posterior_and_lml(x, LargeOutputLGC(A, a, Q_filled), y_filled)
     return x_post, lml_raw + _logpdf_volume_compensation(y)
 end
 
@@ -245,21 +265,30 @@ dim_out(f::ScalarOutputLGC) = 1
 
 dim_in(f::ScalarOutputLGC) = size(f.A, 2)
 
+function get_fields(f::ScalarOutputLGC)
+    A = Zygote.literal_getfield(f, Val(:A))
+    a = Zygote.literal_getfield(f, Val(:a))
+    Q = Zygote.literal_getfield(f, Val(:Q))
+    return A, a, Q
+end
+
 function conditional_rand(ε::Real, f::ScalarOutputLGC, x::AbstractVector)
-    return (f.A * x + f.a) + sqrt(f.Q) * ε
+    A, a, Q = get_fields(f)
+    return (A * x + a) + sqrt(Q) * ε
 end
 
 ε_randn(rng::AbstractRNG, f::ScalarOutputLGC) = randn(rng, eltype(f))
 
 function posterior_and_lml(x::Gaussian, f::ScalarOutputLGC, y::T) where {T<:Real}
-    A = f.A
-    V = A * x.P
-    sqrtS = sqrt(V * A' + f.Q)
+    m, P = get_fields(x)
+    A, a, Q = get_fields(f)
+    V = A * P
+    sqrtS = sqrt(V * A' + Q)
     B = sqrtS \ V
-    α = sqrtS \ (y - (A * x.m + f.a))
+    α = sqrtS \ (y - (A * m + a))
 
     lml = -(convert(T, log(2π)) + 2 * log(sqrtS) + α^2) / 2
-    return Gaussian(x.m + B'α, x.P - B'B), lml
+    return Gaussian(m + B'α, P - B'B), lml
 end
 
 
@@ -299,31 +328,50 @@ dim_out(f::BottleneckLGC) = dim_out(f.fan_out)
 
 dim_in(f::BottleneckLGC) = size(f.H, 2)
 
+function get_fields(f::BottleneckLGC)
+    H = Zygote.literal_getfield(f, Val(:H))
+    h = Zygote.literal_getfield(f, Val(:h))
+    fan_out = Zygote.literal_getfield(f, Val(:fan_out))
+    return H, h, fan_out
+end
+
+fan_out(f::BottleneckLGC) = Zygote.literal_getfield(f, Val(:fan_out))
+
 function conditional_rand(ε::AbstractVector{<:Real}, f::BottleneckLGC, x::AbstractVector)
-    return conditional_rand(ε, f.fan_out, f.H * x + f.h)
+    H, h, fan_out = get_fields(f)
+    return conditional_rand(ε, fan_out, H * x + h)
 end
 
 ε_randn(rng::AbstractRNG, f::BottleneckLGC) = ε_randn(rng, f.fan_out)
 
 # Construct the low-dimensional projection given by f.H and f.h of `x`.
 function _project(x::Gaussian, f::BottleneckLGC)
-    return Gaussian(f.H * x.m + f.h, f.H * x.P * f.H' + ident_eps(x))
+    m, P = get_fields(x)
+    H, h, _ = get_fields(f)
+    return Gaussian(H * m + h, H * P * H' + ident_eps(x))
 end
 
-predict(x::Gaussian, f::BottleneckLGC) = predict(_project(x, f), f.fan_out)
+function predict(x::Gaussian, f::BottleneckLGC)
+    return predict(_project(x, f), fan_out(f))
+end
 
 function predict_marginals(x::Gaussian, f::BottleneckLGC)
-    return predict_marginals(_project(x, f), f.fan_out)
+    return predict_marginals(_project(x, f), fan_out(f))
 end
 
 function posterior_and_lml(x::Gaussian, f::BottleneckLGC, y::AbstractVector)
 
+    xm, xP = get_fields(x)
+    H, _, fan_out = get_fields(f)
+
     # Get the posterior over the intermediate variable `z`.
     z = _project(x, f)
-    z_post, lml = posterior_and_lml(z, f.fan_out, y)
+    z_post, lml = posterior_and_lml(z, fan_out, y)
 
     # Compute the posterior `x | y` by integrating `x | z` against `z | y`.
-    U = cholesky(Symmetric(z.P + ident_eps(z, 1e-9))).U
-    Gt = U \ (U' \ (f.H * x.P))
-    return Gaussian(x.m + Gt' * (z_post.m - z.m), x.P + Gt' * (z_post.P - z.P) * Gt), lml
+    zm, zP = get_fields(z)
+    z_postm, z_postP = get_fields(z_post)
+    U = cholesky(Symmetric(zP + ident_eps(z, 1e-9))).U
+    Gt = U \ (U' \ (H * xP))
+    return Gaussian(xm + Gt' * (z_postm - zm), xP + Gt' * (z_postP - zP) * Gt), lml
 end

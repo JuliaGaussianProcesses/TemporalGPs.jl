@@ -20,6 +20,12 @@ end
 
 dim(x::Gaussian) = length(x.m)
 
+function get_fields(x::Gaussian)
+    m = Zygote.literal_getfield(x, Val(:m))
+    P = Zygote.literal_getfield(x, Val(:P))
+    return m, P
+end
+
 Random.rand(rng::AbstractRNG, x::Gaussian) = vec(rand(rng, x, 1))
 
 Random.rand(rng::AbstractRNG, x::Gaussian{<:SVector}) = randn(rng, typeof(x.m))
