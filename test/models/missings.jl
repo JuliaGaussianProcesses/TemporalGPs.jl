@@ -41,7 +41,15 @@ using TemporalGPs:
         )
 
         # Build LGSSM.
-        model = random_lgssm(rng, order, Val(tv), emission.val, Dlat, Dobs, N, storage.val)
+        model = if emission.val ∈ (SmallOutputLGC, LargeOutputLGC)
+            random_lgssm(
+                rng, order, Val(tv), emission.val, Dlat, Dobs, N, Val(:dense), storage.val,
+            )
+        elseif emission.val == ScalarOutputLGC
+            random_lgssm(rng, order, Val(tv), emission.val, Dlat, Dobs, N, storage.val)
+        else
+            throw(error("Unrecognised storage $(emission.val)"))
+        end
 
         # Verify the correct output types has been obtained.
         @test eltype(model.emissions) <: emission.val
@@ -141,7 +149,6 @@ using TemporalGPs:
         order in orderings
 
         println("missing-in-obs (tv=$(tv), N=$N, Dlat=$Dlat, emission=$emission")
-
 
         # Build LGSSM.
         model = random_lgssm(

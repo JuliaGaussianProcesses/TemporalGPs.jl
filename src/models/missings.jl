@@ -27,13 +27,13 @@ end
 function transform_model_and_obs(
     model::LGSSM, y::AbstractVector{<:Union{Missing, T}},
 ) where {T<:Union{<:AbstractVector, <:Real}}
-    Σs_filled_in, y_filled_in = fill_in_missings(model.emissions.Q, y)
+    Σs_filled_in, y_filled_in = fill_in_missings(emissions(model).Q, y)
     model_with_missings = replace_observation_noise_cov(model, Σs_filled_in)
     return model_with_missings, y_filled_in
 end
 
 function replace_observation_noise_cov(model::LGSSM, Σs_new::AbstractVector)
-    return LGSSM(model.transitions, replace_noise_cov(model.emissions, Σs_new))
+    return LGSSM(transitions(model), replace_noise_cov(emissions(model), Σs_new))
 end
 
 function replace_noise_cov(emissions::StructArray{T}, Qs_new) where {T<:AbstractLGC}
