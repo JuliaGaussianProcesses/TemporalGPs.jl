@@ -190,7 +190,13 @@ end
 Zygote.accum(a::UpperTriangular, b::Diagonal) = Zygote.accum(b, a)
 
 Zygote._symmetric_back(Δ::UpperTriangular{<:Any, <:SArray}, uplo) = Δ
-Zygote._symmetric_back(Δ::SArray, uplo) = Δ
+function Zygote._symmetric_back(Δ::SMatrix{N, N}, uplo) where {N}
+    if uplo === 'U'
+        return SMatrix{N, N}(UpperTriangular(Δ) + UpperTriangular(Δ') - Diagonal(Δ))
+    else
+        return SMatrix{N, N}(LowerTriangular(Δ) + LowerTriangular(Δ') - Diagonal(Δ))
+    end
+end
 
 
 # Temporary hacks.
@@ -228,6 +234,12 @@ function Zygote.accum(a::Composite{T}, b::NamedTuple) where {T}
 end
 
 Base.:(+)(::Composite, ::Nothing) = Zero()
+
+function Base.:(-)(
+    A::UpperTriangular{<:Real, <:SMatrix{N, N}}, B::Diagonal{<:Real, <:SVector{N}},
+) where {N}
+    return UpperTriangular(A.data - B)   
+end
 
 # function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}) where i
 #   y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
