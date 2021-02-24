@@ -371,7 +371,7 @@ function posterior_and_lml(x::Gaussian, f::BottleneckLGC, y::AbstractVector)
     # Compute the posterior `x | y` by integrating `x | z` against `z | y`.
     zm, zP = get_fields(z)
     z_postm, z_postP = get_fields(z_post)
-    U = cholesky(Symmetric(zP + ident_eps(z, 1e-9))).U
+    U = cholesky(Symmetric(zP + ident_eps(z, 1e-12))).U
     Gt = U \ (U' \ (H * xP))
     return Gaussian(xm + Gt' * (z_postm - zm), xP + Gt' * (z_postP - zP) * Gt), lml
 end
