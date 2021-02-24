@@ -120,4 +120,27 @@ using TemporalGPs: time_exp, logdet_pullback
             @test allocs(@benchmark($pbs($Δ); samples=1, evals=1)) == 0
         end
     end
+    @testset "StructArray" begin
+        a = randn(5)
+        b = rand(5)
+        adjoint_test(StructArray, ((a, b), ))
+        # adjoint_test(StructArray, ((a=a, b=b), ))
+
+        xs = [Gaussian(randn(1), randn(1, 1)) for _ in 1:2]
+        ms = getfield.(xs, :m)
+        Ps = getfield.(xs, :P)
+        adjoint_test(StructArray{eltype(xs)}, ((ms, Ps), ))
+
+        xs_sa = StructArray{eltype(xs)}((ms, Ps))
+        adjoint_test(xs -> xs.m, (xs_sa, ))
+    end
+    @testset "\\" begin
+        adjoint_test(\, (Diagonal(randn(10)), randn(10)))
+        adjoint_test(\, (Diagonal(randn(10)), randn(10, 2)))
+    end
+    @testset ".\\" begin
+        adjoint_test((a, x) -> a .\ x, (randn(10), randn(10)), )
+        adjoint_test((a, x) -> a .\ x, (randn(10), randn(10, 3)), )
+        adjoint_test((a, x) -> a .\ x, (randn(3), randn(3, 10)), )
+    end
 end

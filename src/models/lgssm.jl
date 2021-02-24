@@ -1,215 +1,282 @@
-abstract type AbstractSSM end
+abstract type AbstractLGSSM end
 
 """
-    LGSSM <: AbstractSSM
+    LGSSM{Ttransitions<:GaussMarkovModel, Temissions<:StructArray} <: AbstractLGSSM
 
-A linear-Gaussian state-space model. Represented in terms of a Gauss-Markov model `gmm` and
-a vector of observation covariance matrices.
+A linear-Gaussian state-space model. Represented in terms of a Gauss-Markov model
+`transitions` and collection of emission dynamics `emissions`.
 """
-struct LGSSM{Tgmm<:GaussMarkovModel, TΣ<:AV{<:AM{<:Real}}} <: AbstractSSM
-    gmm::Tgmm
-    Σ::TΣ
+struct LGSSM{Ttransitions<:GaussMarkovModel, Temissions<:StructArray} <: AbstractLGSSM
+    transitions::Ttransitions
+    emissions::Temissions
 end
 
-function Zygote._pullback(
-    ::AContext, ::Type{<:LGSSM}, gmm::GaussMarkovModel, Σ::AV{<:AM{<:Real}},
-)
-    LGSSM_pullback(::Nothing) = (nothing, nothing, nothing)
-    LGSSM_pullback(Δ::NamedTuple) = (nothing, Δ.gmm, Δ.Σ)
-    return LGSSM(gmm, Σ), LGSSM_pullback
+@inline function transitions(model::LGSSM)
+    return Zygote.literal_getfield(model, Val(:transitions))
 end
 
-Base.:(==)(x::LGSSM, y::LGSSM) = (x.gmm == y.gmm) && (x.Σ == y.Σ)
+@inline function emissions(model::LGSSM)
+    return Zygote.literal_getfield(model, Val(:emissions))
+end
 
-Base.length(ft::LGSSM) = length(ft.gmm)
+@inline ordering(model::LGSSM) = ordering(transitions(model))
 
-dim_obs(ft::LGSSM) = dim_obs(ft.gmm)
+Zygote._pullback(::AContext, ::typeof(ordering), model) = ordering(model), nograd_pullback
 
-dim_latent(ft::LGSSM) = dim_latent(ft.gmm)
+function Base.:(==)(x::LGSSM, y::LGSSM)
+    return (transitions(x) == transitions(y)) && (emissions(x) == emissions(y))
+end
 
-Base.eltype(ft::LGSSM) = eltype(ft.gmm)
+Base.length(model::LGSSM) = length(transitions(model))
 
-storage_type(ft::LGSSM) = storage_type(ft.gmm)
+Base.eachindex(model::LGSSM) = eachindex(transitions(model))
+
+storage_type(model::LGSSM) = storage_type(transitions(model))
 
 Zygote.@nograd storage_type
 
-function is_of_storage_type(ft::LGSSM, s::StorageType)
-    return is_of_storage_type((ft.gmm, ft.Σ), s)
+function is_of_storage_type(model::LGSSM, s::StorageType)
+    return is_of_storage_type((transitions(model), emissions(model)), s)
 end
 
-is_time_invariant(model::LGSSM) = false
-is_time_invariant(model::LGSSM{<:GaussMarkovModel, <:Fill}) = is_time_invariant(model.gmm)
+# Get the (Gaussian) distribution over the latent process at time t=0.
+x0(model::LGSSM) = x0(transitions(model))
 
-Base.getindex(model::LGSSM, n::Int) = (gmm = model.gmm[n], Σ = model.Σ[n])
+emission_type(model::LGSSM) = eltype(emissions(model))
 
-mean(model::LGSSM) = mean(model.gmm)
 
-function cov(model::LGSSM)
-    S = Stheno.cov(model.gmm)
-    Σ = Stheno.block_diagonal(model.Σ)
-    return S + Σ
+
+# Functionality for indexing into an LGSSM.
+
+struct ElementOfLGSSM{Tordering, Ttransition, Temission}
+    ordering::Tordering
+    transition::Ttransition
+    emission::Temission
+end
+
+@inline function ordering(x::ElementOfLGSSM)
+    return Zygote.literal_getfield(x, Val(:ordering))
+end
+
+@inline function transition_dynamics(x::ElementOfLGSSM)
+    return Zygote.literal_getfield(x, Val(:transition))
+end
+
+@inline function emission_dynamics(x::ElementOfLGSSM)
+    return Zygote.literal_getfield(x, Val(:emission))
+end
+
+@inline function Base.getindex(model::LGSSM, n::Int)
+    return ElementOfLGSSM(ordering(model), model.transitions[n], model.emissions[n])
 end
 
 
-# Convert a latent Gaussian marginal into an observed Gaussian marginal.
-to_observed(H::AM, h::AV, x::Gaussian) = Gaussian(H * x.m + h, H * x.P * H')
 
+# Draw a sample from the model.
 
-"""
-    smooth(model::LGSSM, ys::AbstractVector)
-
-Filter, smooth, and compute the log marginal likelihood of the data. Returns all
-intermediate quantities.
-"""
-function smooth(model::LGSSM, ys::AbstractVector)
-
-    lml, _, x_filter = decorrelate(model, ys)
-    ε = convert(eltype(model), 1e-12)
-
-    # Smooth
-    x_smooth = Vector{typeof(last(x_filter))}(undef, length(ys))
-    x_smooth[end] = x_filter[end]
-    for k in reverse(1:length(x_filter) - 1)
-        x = x_filter[k]
-        x′ = predict(model[k + 1], x)
-
-        U = cholesky(Symmetric(x′.P + ε * I)).U
-        Gt = U \ (U' \ (model.gmm.A[k + 1] * x.P))
-        x_smooth[k] = Gaussian(
-            _compute_ms(x.m, Gt, x_smooth[k + 1].m, x′.m),
-            _compute_Ps(x.P, Gt, x_smooth[k + 1].P, x′.P),
-        )
-    end
-
-    Hs = model.gmm.H
-    hs = model.gmm.h
-    return to_observed.(Hs, hs, x_filter), to_observed.(Hs, hs, x_smooth), lml
+function Stheno.rand(rng::AbstractRNG, model::LGSSM)
+    iterable = zip(ε_randn(rng, model), model)
+    init = rand(rng, x0(model))
+    return scan_emit(step_rand, iterable, init, eachindex(model))[1]
 end
 
-"""
-    _compute_ms(mf::AV, Gt::AM, ms′::AV, mp′::AV)
+# Generate randomness used only once so that checkpointing works.
+function ε_randn(rng::AbstractRNG, model::LGSSM)
+    return zip(
+        map(n -> ε_randn(rng, model.transitions[n]), eachindex(model.transitions)),
+        map(f -> ε_randn(rng, f), model.emissions),
+    )
+end
 
-Compute the smoothing mean `ms`, given the filtering mean `mf`, transpose of the smoothing
-gain `Gt`, smoothing mean at the next time step `ms′`, and predictive mean at next time step
-`mp′`.
-"""
-_compute_ms(mf::AV, Gt::AM, ms′::AV, mp′::AV) = mf + Gt' * (ms′ - mp′)
+step_rand(x::AbstractVector, (rng, model)) = step_rand(ordering(model), x, (rng, model))
+
+function step_rand(::Forward, x::AbstractVector, ((ε_t, ε_e), model))
+    x_next = conditional_rand(ε_t, transition_dynamics(model), x)
+    y = conditional_rand(ε_e, emission_dynamics(model), x_next)
+    return y, x_next
+end
+
+function step_rand(::Reverse, x::AbstractVector, ((ε_t, ε_e), model))
+    y = conditional_rand(ε_e, emission_dynamics(model), x)
+    x_next = conditional_rand(ε_t, transition_dynamics(model), x)
+    return y, x_next
+end
+
+
 
 """
-    _compute_Ps(Pf::AM, Gt::AM, Ps′::AM, Pp′::AM)
+    marginals(model::LGSSM)
 
-Compute the smoothing covariance `Ps`, given the filtering covariance `Pf`, transpose of the
-smoothing gain `Gt`, smoothing covariance at the next time step `Ps′`, and the predictive
-covariance at the next time step `Pp′`.
+Compute the complete marginals at each point in time. These are returned as a `Vector` of
+length `length(model)`, each element of which is a dense `Gaussian`.
 """
-_compute_Ps(Pf::AM, Gt::AM, Ps′::AM, Pp′::AM) = Pf + Gt' * (Ps′ - Pp′) * Gt
+function Stheno.marginals(model::LGSSM)
+    return scan_emit(step_marginals, model, x0(model), eachindex(model))[1]
+end
 
-function _compute_Ps(
-    Pf::Symmetric{<:Real, <:Matrix},
-    Gt::Matrix,
-    Ps′::Symmetric{<:Real, <:Matrix},
-    Pp′::Matrix,
+step_marginals(x::Gaussian, model) = step_marginals(ordering(model), x, model)
+
+function step_marginals(::Forward, x::Gaussian, model)
+    xp = predict(x, transition_dynamics(model))
+    y = predict(xp, emission_dynamics(model))
+    return y, xp
+end
+
+function step_marginals(::Reverse, x::Gaussian, model)
+    y = predict(x, emission_dynamics(model))
+    xp = predict(x, transition_dynamics(model))
+    return y, xp
+end
+
+
+
+"""
+    marginals_diag(model::LGSSM)
+
+Compute the diagonal of the marginals at each point in time. These are returned as a
+`Vector` of length `length(model)`, each element of which is a diagonal `Gaussian`.
+"""
+function marginals_diag(model::LGSSM)
+    return scan_emit(step_marginals_diag, model, x0(model), eachindex(model))[1]
+end
+
+step_marginals_diag(x::Gaussian, model) = step_marginals_diag(ordering(model), x, model)
+
+function step_marginals_diag(::Forward, x::Gaussian, model)
+    xp = predict(x, transition_dynamics(model))
+    y = predict_marginals(xp, emission_dynamics(model))
+    return y, xp
+end
+
+function step_marginals_diag(::Reverse, x::Gaussian, model)
+    y = predict_marginals(x, emission_dynamics(model))
+    xp = predict(x, transition_dynamics(model))
+    return y, xp
+end
+
+
+
+# Compute the log marginal likelihood of the observations `y`.
+
+function Stheno.logpdf(model::LGSSM, y::AbstractVector{<:Union{AbstractVector, <:Real}})
+    return sum(scan_emit(step_logpdf, zip(model, y), x0(model), eachindex(model))[1])
+end
+
+step_logpdf(x::Gaussian, (model, y)) = step_logpdf(ordering(model), x, (model, y))
+
+function step_logpdf(::Forward, x::Gaussian, (model, y))
+    xp = predict(x, transition_dynamics(model))
+    xf, lml = posterior_and_lml(xp, emission_dynamics(model), y)
+    return lml, xf
+end
+
+function step_logpdf(::Reverse, x::Gaussian, (model, y))
+    xf, lml = posterior_and_lml(x, emission_dynamics(model), y)
+    xp = predict(xf, transition_dynamics(model))
+    return lml, xp
+end
+
+
+
+# Compute the filtering distributions.
+
+function _filter(model::LGSSM, y::AbstractVector)
+    return scan_emit(step_filter, zip(model, y), x0(model), eachindex(model))[1]
+end
+
+step_filter(x::Gaussian, (model, y)) = step_filter(ordering(model), x, (model, y))
+
+function step_filter(::Forward, x::Gaussian, (model, y))
+    xp = predict(x, transition_dynamics(model))
+    xf, lml = posterior_and_lml(xp, emission_dynamics(model), y)
+    return xf, xf
+end
+
+function step_filter(::Reverse, x::Gaussian, (model, y))
+    xf, lml = posterior_and_lml(x, emission_dynamics(model), y)
+    xp = predict(xf, transition_dynamics(model))
+    return xf, xp
+end
+
+
+
+# Construct the posterior model.
+
+function posterior(prior::LGSSM, y::AbstractVector)
+    new_trans, xf = _a_bit_of_posterior(prior, y)
+    A = map(x -> x.A, new_trans)
+    a = map(x -> x.a, new_trans)
+    Q = map(x -> x.Q, new_trans)
+    return LGSSM(GaussMarkovModel(reverse(ordering(prior)), A, a, Q, xf), prior.emissions)
+end
+
+function _a_bit_of_posterior(prior, y)
+    return scan_emit(step_posterior, zip(prior, y), x0(prior), eachindex(prior))
+end
+step_posterior(xf::Gaussian, (prior, y)) = step_posterior(ordering(prior), xf, (prior, y))
+
+function step_posterior(::Forward, xf::Gaussian, (prior, y))
+    t = transition_dynamics(prior)
+    xp = predict(xf, t)
+    new_dynamics = invert_dynamics(xf, xp, t)
+    xf, _ = posterior_and_lml(xp, emission_dynamics(prior), y)
+    return new_dynamics, xf
+end
+
+function step_posterior(::Reverse, x::Gaussian, (prior, y))
+    xf, _ = posterior_and_lml(x, emission_dynamics(prior), y)
+    t = transition_dynamics(prior)
+    xp = predict(xf, t)
+    return invert_dynamics(xp, xf, t), xp
+end
+
+# inlining for the benefit of type inference. Needed in at least julia-1.5.3.
+@inline function invert_dynamics(xf::Gaussian, xp::Gaussian, prior::SmallOutputLGC)
+    A, _, _ = get_fields(prior)
+    mf, Pf = get_fields(xf)
+    mp, Pp = get_fields(xp)
+    U = cholesky(Symmetric(Pp + ident_eps(1e-10))).U
+    Gt = U \ (U' \ (A * Pf))
+    return SmallOutputLGC(_collect(Gt'), mf - Gt'mp, _compute_Pf(Pf, U * Gt))
+end
+
+_compute_Pf(Pp::AbstractMatrix, B::AbstractMatrix) = Pp - B'B
+
+ident_eps(xf::Gaussian) = ident_eps(xf, 1e-12)
+
+ident_eps(xf, ε) = UniformScaling(convert(eltype(xf), ε))
+
+ident_eps(ε::Real) = UniformScaling(ε)
+
+ident_eps(x::ColVecs, ε::Real) = UniformScaling(convert(eltype(x.X), ε))
+
+function Zygote._pullback(::NoContext, ::typeof(ident_eps), args...)
+    return ident_eps(args...), nograd_pullback
+end
+
+_collect(U::Adjoint{<:Any, <:Matrix}) = collect(U)
+_collect(U::SMatrix) = U
+
+
+
+# AD stuff. No need to understand this unless you're really plumbing the depths...
+
+function get_adjoint_storage(
+    x::LGSSM, n::Int, Δx::NamedTuple{(:ordering, :transition, :emission)},
 )
-    return Symmetric(Pf + Gt' * (Ps′ - Pp′) * Gt)
+    return (
+        transitions = get_adjoint_storage(x.transitions, n, Δx.transition),
+        emissions = get_adjoint_storage(x.emissions, n, Δx.emission)
+    )
 end
 
-function predict(model::NamedTuple{(:gmm, :Σ)}, x)
-    gmm = model.gmm
-    return Gaussian(predict(x.m, x.P, gmm.A, gmm.a, gmm.Q)...)
-end
-
-function observe(model::NamedTuple{(:gmm, :Σ)}, x::Gaussian)
-    gmm = model.gmm
-    m_obs = gmm.H * x.m + gmm.h
-    P_obs = gmm.H * x.P * gmm.H' + model.Σ
-    return Gaussian(m_obs, P_obs)
-end
-
-"""
-    posterior_rand(rng::AbstractRNG, model::LGSSM, ys::Vector{<:AV{<:Real}})
-
-Draw samples from the posterior over an LGSSM. This is not, currently, an especially
-efficient implementation.
-"""
-function posterior_rand(
-    rng::AbstractRNG,
-    model::LGSSM,
-    ys::Vector{<:AV{<:Real}},
-    N_samples::Int,
+function _accum_at(
+    Δxs::NamedTuple{(:transitions, :emissions)},
+    n::Int,
+    Δx::NamedTuple{(:ordering, :transition, :emission)},
 )
-    x_filter = _filter(model, ys)
-
-    chol_Q = cholesky.(Symmetric.(model.gmm.Q .+ Ref(1e-15I)))
-
-    x_T = rand(rng, x_filter[end], N_samples)
-    x_sample = Vector{typeof(x_T)}(undef, length(ys))
-    x_sample[end] = x_T
-    for t in reverse(1:length(ys) - 1)
-
-        # Produce joint samples.
-        x̃ = rand(rng, x_filter[t], N_samples)
-        x̃′ = model.gmm.A[t] * x̃ + model.gmm.a[t] + chol_Q[t].U' * randn(rng, size(x_T)...)
-
-        # Applying conditioning transformation.
-        AP = model.gmm.A[t] * x_filter[t].P
-        S = Symmetric(model.gmm.A[t] * Matrix(transpose(AP)) + model.gmm.Q[t])
-        chol_S = cholesky(S)
-
-        x_sample[t] = x̃ + AP' * (chol_S.U \ (chol_S.U' \ (x_sample[t+1] - x̃′)))
-    end
-
-    return map(n -> model.gmm.H[n] * x_sample[n] .+ model.gmm.h[n], eachindex(x_sample))
+    return (
+        transitions = _accum_at(Δxs.transitions, n, Δx.transition),
+        emissions = _accum_at(Δxs.emissions, n, Δx.emission),
+    )
 end
-
-function posterior_rand(rng::AbstractRNG, model::LGSSM, y::Vector{<:Real}, N_samples::Int)
-    return posterior_rand(rng, model, [SVector{1}(yn) for yn in y], N_samples)
-end
-
-
-
-#
-# Things defined in terms of decorrelate
-#
-
-Stheno.logpdf(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys)[1]
-
-whiten(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys)[2]
-
-_filter(model::AbstractSSM, ys::AbstractVector) = decorrelate(model, ys)[3]
-
-
-#
-# Things defined in terms of correlate
-#
-
-function Random.rand(rng::AbstractRNG, model::AbstractSSM)
-    return correlate(model, rand_αs(rng, model))[2] # last isn't type-stable inside AD.
-end
-
-unwhiten(model::AbstractSSM, αs::AbstractVector) = correlate(model, αs)[2]
-
-function logpdf_and_rand(rng::AbstractRNG, model::AbstractSSM)
-    lml, ys, _ = correlate(model, rand_αs(rng, model))
-    return lml, ys
-end
-
-function rand_αs(rng::AbstractRNG, model::AbstractSSM)
-    D = dim_obs(model)
-    α = randn(rng, eltype(model), length(model) * D)
-    return [α[(n - 1) * D + 1:n * D] for n in 1:length(model)]
-end
-
-function rand_αs(rng::AbstractRNG, model::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}})
-    D = dim_obs(model)
-    ot = output_type(model)
-    α = randn(rng, eltype(model), length(model) * D)
-
-    # For some type-stability reasons, we have to ensure that
-    αs = Vector{output_type(model)}(undef, length(model))
-    map(n -> setindex!(αs, ot(α[(n - 1) * D + 1:n * D]), n), 1:length(model))
-    return αs
-end
-
-ChainRulesCore.@non_differentiable rand_αs(::AbstractRNG, ::AbstractSSM)
-
-output_type(ft::LGSSM{<:GaussMarkovModel{<:AV{<:SArray}}}) = eltype(ft.gmm.h)

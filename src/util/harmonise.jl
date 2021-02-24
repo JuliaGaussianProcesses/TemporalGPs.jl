@@ -26,7 +26,7 @@ function are_harmonised(
 )
     return all(
         name -> are_harmonised(getproperty(a, name), getproperty(b, name)),
-        union(propertynames(a), propertynames(b)),
+        union(fieldnames(typeof(a)), fieldnames(typeof(b))),
     )
 end
 
@@ -36,6 +36,9 @@ end
 harmonise(a::Any, b::AbstractZero) = (a, b)
 harmonise(a::AbstractZero, b::Any) = (a, b)
 harmonise(a::AbstractZero, b::AbstractZero) = (a, b)
+
+# Resolve ambiguity.
+harmonise(a::AbstractZero, b::Composite{<:Any, <:NamedTuple}) = (a, b)
 
 harmonise(a::Number, b::Number) = (a, b)
 
@@ -88,11 +91,20 @@ function harmonise(a::Composite{<:Any, <:NamedTuple}, b::Composite{<:Any, <:Name
 end
 
 function harmonise(a::Composite{<:Any, <:NamedTuple}, b)
-    b_names = propertynames(b)
-    vals = map(name -> getproperty(b, name), b_names)
+    b_names = fieldnames(typeof(b))
+    vals = map(name -> getfield(b, name), b_names)
     return harmonise(
         a, Composite{Any}(; NamedTuple{b_names}(vals)...),
     )
 end
 
+harmonise(a::Composite{<:Any, <:NamedTuple}, b::AbstractZero) = (a, b)
+
 harmonise(a, b::Composite{<:Any, <:NamedTuple}) = reverse(harmonise(b, a))
+
+# Special-cased handling for `Adjoint`s. Due to our usual AD setup, a differential for an
+# Adjoint can be represented either by a matrix or a `Composite`. Both ought to `to_vec` to
+# the same thing though, so this should be fine for now, if a little unsatisfactory.
+function harmonise(a::Adjoint, b::Composite{<:Adjoint, <:NamedTuple})
+    return Composite{Any}(parent=parent(a)), b
+end
