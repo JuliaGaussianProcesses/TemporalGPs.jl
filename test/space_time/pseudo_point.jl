@@ -10,8 +10,11 @@ using TemporalGPs:
     approx_posterior_marginals
 
 @testset "pseudo_point" begin
+
+    rng = MersenneTwister(123456)
+
     @testset "dtcify" begin
-        z = randn(3)
+        z = randn(rng, 3)
         k_sep = Separable(EQ(), Matern32())
         @test dtcify(z, k_sep) isa DTCSeparable
         @test dtcify(z, 0.5 * k_sep) isa Stheno.Scaled{<:Any, <:DTCSeparable}
@@ -40,22 +43,25 @@ using TemporalGPs:
     xs = [
         (
             name="rectilinear",
-            val=RectilinearGrid(randn(2), RegularSpacing(0.0, 0.3, 3)),
+            val=RectilinearGrid(randn(rng, 2), RegularSpacing(0.0, 0.3, 3)),
         ),
         (
             name="regular-in-time",
             val=RegularInTime(
                 RegularSpacing(0.0, 0.1, 11),
-                [randn(3) for _ in 1:11],
+                [randn(rng, 3) for _ in 1:11],
             ),
         ),
     ]
 
     # Spatial-locations of pseudo-inputs and predictions.
-    z_r = randn(2)
-    x_pr_r = randn(10)
+
+    z_r = randn(rng, 2)
+    x_pr_r = randn(rng, 10)
 
     @testset "kernel=$(k.name), x=$(x.name)" for k in kernels, x in xs
+
+
 
         # Compute pseudo-input locations. These have to share time points with `x`.
         t = get_time(x.val)
@@ -65,7 +71,7 @@ using TemporalGPs:
         # Construct naive GP.
         f_naive = GP(k.val, GPC())
         fx_naive = f_naive(collect(x.val), 0.1)
-        y = rand(fx_naive)
+        y = rand(rng, fx_naive)
 
         # Construct state-space GP.
         f = to_sde(f_naive)
@@ -104,6 +110,7 @@ using TemporalGPs:
 
         @test mean.(naive_approx_post_marginals) ≈ mean.(approx_post_marginals) rtol=1e-7
         @test std.(naive_approx_post_marginals) ≈ std.(approx_post_marginals) rtol=1e-7
+        @show norm(std.(naive_approx_post_marginals) - std.(approx_post_marginals))
 
         # Similarly awful interface, make predictions for each point separately.
         approx_post_marginals_individual = map(eachindex(t)) do t
@@ -112,8 +119,8 @@ using TemporalGPs:
 
         approx_post_marginals_vec = reduce(vcat, approx_post_marginals_individual)
 
-        @test mean.(approx_post_marginals) ≈ mean.(approx_post_marginals_vec)
-        @test std.(approx_post_marginals) ≈ std.(approx_post_marginals_vec)
+        @test mean.(approx_post_marginals) ≈ mean.(approx_post_marginals_vec) rtol=1e-7
+        @test std.(approx_post_marginals) ≈ std.(approx_post_marginals_vec) rtol=1e-7
 
         # Do the RegularInTime one and compare it against RectilinearGrid.
         x_pr_rit = RegularInTime(get_time(x_pr), [get_space(x_pr) for _ in get_time(x.val)])
@@ -127,7 +134,7 @@ using TemporalGPs:
             # Construct missing data.
             y_missing = Vector{Union{eltype(y), Missing}}(undef, size(y))
             y_missing .= y
-            missing_idx = sort(randperm(length(y))[1:Int(floor(length(y) / 3))])
+            missing_idx = sort(randperm(rng, length(y))[1:Int(floor(length(y) / 3))])
             missing_idx = eachindex(y)
             y_missing[missing_idx] .= missing
 
