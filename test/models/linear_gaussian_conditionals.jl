@@ -197,7 +197,7 @@ using TemporalGPs: posterior_and_lml, predict, predict_marginals
                 x_post_large, lml_large = posterior_and_lml(x, model, y_missing)
 
                 # Check that they give roughly the same answer.
-                @test x_post_vanilla ≈ x_post_large
+                @test x_post_vanilla ≈ x_post_large rtol=1e-8 atol=1e-8
                 @test lml_vanilla ≈ lml_large rtol=1e-8 atol=1e-8
 
                 # Check that everything infers and AD gives the right answer.
