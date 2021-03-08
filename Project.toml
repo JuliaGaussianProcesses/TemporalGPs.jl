@@ -1,7 +1,7 @@
 name = "TemporalGPs"
 uuid = "e155a3c4-0841-43e1-8b83-a0e4f03cc18f"
 authors = ["willtebbutt <wt0881@my.bristol.ac.uk>"]
-version = "0.4.0-DEV"
+version = "0.4.0"
 
 [deps]
 BlockDiagonals = "0a1fb500-61f7-11e9-3c65-f5ef3456f9f0"
