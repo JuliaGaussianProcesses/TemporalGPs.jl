@@ -6,6 +6,8 @@ is_of_storage_type(::Any, ::StorageType) = false
 
 is_of_storage_type(::T, ::StorageType{T}) where {T<:Real} = true
 
+is_of_storage_type(x::AbstractArray{<:Real}, s::StorageType) = false
+
 is_of_storage_type(x::AbstractArray, s::StorageType) = all(is_of_storage_type.(x, Ref(s)))
 
 # A Tuple of objects are of a particular storage type if each element of the tuple is of
@@ -16,6 +18,7 @@ end
 
 is_of_storage_type(x::Gaussian, s::StorageType) = is_of_storage_type((x.m, x.P), s)
 
+is_of_storage_type(::Nothing, ::StorageType) = true
 
 
 #
@@ -25,6 +28,8 @@ is_of_storage_type(x::Gaussian, s::StorageType) = is_of_storage_type((x.m, x.P),
 struct SArrayStorage{T<:Real} <: StorageType{T} end
 
 SArrayStorage(T) = SArrayStorage{T}()
+
+storage_type(::SArray{<:Any, T}) where {T} = SArrayStorage(T)
 
 is_of_storage_type(::SArray{<:Any, T}, ::SArrayStorage{T}) where {T<:Real} = true
 
@@ -38,4 +43,19 @@ struct ArrayStorage{T<:Real} <: StorageType{T} end
 
 ArrayStorage(T) = ArrayStorage{T}()
 
+storage_type(::Array{T}) where {T} = ArrayStorage(T)
+
 is_of_storage_type(::Array{T}, ::ArrayStorage{T}) where {T<:Real} = true
+
+
+#
+# Working with scalars.
+#
+
+struct ScalarStorage{T<:Real} <: StorageType{T} end
+
+ScalarStorage(T) = ScalarStorage{T}()
+
+storage_type(::T) where {T<:Real} = T
+
+is_of_storage_type(::T, ::ScalarStorage{T}) where {T<:Real} = true

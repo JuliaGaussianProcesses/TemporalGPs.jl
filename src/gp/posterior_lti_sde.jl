@@ -3,20 +3,61 @@ struct PosteriorLTISDE{Tprior<:LTISDE, Tdata} <: AbstractGP
     data::Tdata
 end
 
-function posterior(fx::FiniteLTISDE, y::AbstractVector{<:Real})
+function posterior(fx::FiniteLTISDE, y::AbstractVector)
     return PosteriorLTISDE(fx.f, (y=y, x=fx.x, Σy=fx.Σy))
 end
 
 const FinitePosteriorLTISDE = FiniteGP{<:PosteriorLTISDE}
 
+Stheno.mean(fx::FinitePosteriorLTISDE) = mean.(marginals(fx))
+
+function Stheno.cov(fx::FinitePosteriorLTISDE)
+    @error "Intentionally not implemented. Please don't try to explicitly compute this cov. matrix."
+end
+
+function Stheno.marginals(fx::FinitePosteriorLTISDE)
+    x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x)
+
+    model = build_lgssm(fx.f.prior(x, σ²s))
+    σ²s_pr_full = build_prediction_obs_vars(pr_indices, x, fx.Σy.diag)
+    model_post = replace_observation_noise_cov(posterior(model, y), σ²s_pr_full)
+    return map(marginals, marginals(model_post)[pr_indices])
+end
+
+function Stheno.rand(rng::AbstractRNG, fx::FinitePosteriorLTISDE)
+    x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x)
+
+    model = build_lgssm(fx.f.prior(x, σ²s))
+    σ²s_pr_full = build_prediction_obs_vars(pr_indices, x, fx.Σy.diag)
+    model_post = replace_observation_noise_cov(posterior(model, y), σ²s_pr_full)
+    return rand(rng, model_post)[pr_indices]
+end
+
+Stheno.rand(fx::FinitePosteriorLTISDE) = rand(Random.GLOBAL_RNG, fx)
+
+function Stheno.logpdf(fx::FinitePosteriorLTISDE, y_pr::AbstractVector{<:Real})
+    x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x, fx.Σy.diag, y_pr)
+
+    σ²s_pr_full = build_prediction_obs_vars(pr_indices, x, fx.Σy.diag)
+    y_pr_full = build_prediction_obs(pr_indices, x, y_pr)
+
+    model = build_lgssm(fx.f.prior(x, σ²s))
+    model_post = replace_observation_noise_cov(posterior(model, y), σ²s_pr_full)
+    return logpdf(model_post, y_pr_full)
+end
+
 # Join the dataset used to construct `f` and the one specified by `x_pred`, `σ²s_pred`, and
 # `y_pred`. This is used in all of the inference procedures. Also provide a collection of
 # indices that can be used to obtain the requested prediction locations from the joint data.
+
+# This is the most naive way of going about this.
+# The present implementation assumes that there are no overlapping data, which will lead to
+# numerical issues if violated.
 function build_inference_data(
     f::PosteriorLTISDE,
     x_pred::AbstractVector{<:Real},
-    σ²s_pred::AbstractVector{<:Real},
-    y_pred::AbstractVector{<:Real},
+    σ²s_pred::AbstractVector,
+    y_pred::AbstractVector,
 )
 
     # Pull out the input data.
@@ -25,7 +66,7 @@ function build_inference_data(
 
     # Pull out the observations and create arbitrary fake observations at prediction locs.
     y_cond = f.data.y
-    y_raw = vcat(y_cond, y_pred)
+    y_raw = vcat(y_cond, fill(missing, length(x_pred)))
 
     # Pull out obs. noise variance and make it really large for prediction locations.
     σ²s_cond = diag(f.data.Σy)
@@ -46,52 +87,30 @@ end
 # If no observations or variances are provided, make the observations arbitrary and the
 # variances very large to simulate missing data.
 function build_inference_data(f::PosteriorLTISDE, x_pred::AbstractVector{<:Real})
-    σ²s_pred = fill(convert(eltype(f.data.Σy), 1_000_000_000), length(x_pred))
-    y_pred = fill(convert(eltype(f.data.y), 0), length(x_pred))
+    σ²s_pred = fill(convert(eltype(f.data.Σy), _large_var_const()), length(x_pred))
+    y_pred = fill(missing, length(x_pred))
     return build_inference_data(f, x_pred, σ²s_pred, y_pred)
 end
 
-function Stheno.mean(fx::FinitePosteriorLTISDE)
-    return mean.(marginals(fx))
+# Functions that make predictions at new locations require missings to be placed at the
+# locations of the training data.
+function build_prediction_obs_vars(
+    pr_indices::AbstractVector{<:Integer},
+    x_full::AbstractVector{<:Real},
+    σ²s_pr::AbstractVector,
+)
+    σ²s_pr_full = zeros(length(x_full))
+    σ²s_pr_full[pr_indices] .= σ²s_pr
+    return σ²s_pr_full
 end
 
-function Stheno.cov(fx::FinitePosteriorLTISDE)
-    @error "Not implemented. Please don't try to explicitly compute this cov. matrix."
-end
-
-function Stheno.marginals(fx::FinitePosteriorLTISDE)
-    x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x)
-
-    lgssm  = build_lgssm(fx.f.prior(x, σ²s))
-    _, posterior_marginals, _ = smooth(lgssm, y)
-    pr_posterior_marginals = posterior_marginals[pr_indices]
-
-    return Normal.(
-        only.(getfield.(pr_posterior_marginals, :m)),
-        sqrt.(only.(getfield.(pr_posterior_marginals, :P)) .+ fx.Σy.diag),
-    )
-end
-
-function Stheno.rand(rng::AbstractRNG, fx::FinitePosteriorLTISDE)
-    x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x)
-
-    lgssm = build_lgssm(fx.f.prior(x, σ²s))
-    fxs = posterior_rand(rng, lgssm, y)
-    return fxs[pr_indices] .+ sqrt.(fx.Σy.diag) .* randn(rng, length(pr_indices))
-end
-
-Stheno.rand(fx::FinitePosteriorLTISDE) = rand(Random.GLOBAL_RNG, fx)
-
-function Stheno.rand(rng::AbstractRNG, ft::FinitePosteriorLTISDE, N::Int)
-    return hcat([rand(rng, ft) for _ in 1:N]...)
-end
-
-Stheno.rand(ft::FinitePosteriorLTISDE, N::Int) = rand(Random.GLOBAL_RNG, ft, N)
-
-function Stheno.logpdf(fx::FinitePosteriorLTISDE, y_pr::AbstractVector{<:Real})
-    x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x, diag(fx.Σy), y_pr)
-
-    logp_prior = logpdf(fx.f.prior(fx.f.data.x, fx.f.data.Σy), fx.f.data.y)
-    logp_all = logpdf(fx.f.prior(x, σ²s), y)
-    return logp_all - logp_prior
+function build_prediction_obs(
+    pr_indices::AbstractVector{<:Integer},
+    x_full::AbstractVector{<:Real},
+    y_pr::AbstractVector,
+)
+    y_pr_full = Vector{Union{Missing, eltype(y_pr)}}(undef, length(x_full))
+    y_pr_full[pr_indices] .= y_pr
+    y_pr_full[setdiff(eachindex(x_full), pr_indices)] .= missing
+    return y_pr_full
 end

@@ -24,6 +24,8 @@ function Base.collect(X::RectilinearGrid{Tl, Tr}) where{Tl, Tr}
     )
 end
 
+Base.show(io::IO, x::RectilinearGrid) = Base.show(io::IO, collect(x))
+
 """
     SpaceTimeGrid{Tr, Tt<:Real}
 
@@ -31,3 +33,7 @@ A `SpaceTimeGrid` is a `RectilinearGrid` in which the left vector corresponds to
 the right `time`. The left eltype is arbitrary, but the right must be `Real`.
 """
 const SpaceTimeGrid{Tr, Tt<:Real} = RectilinearGrid{Tr, Tt, <:AV{Tr}, <:AV{Tt}}
+
+get_space(x::RectilinearGrid) = x.xl
+
+get_time(x::RectilinearGrid) = x.xr

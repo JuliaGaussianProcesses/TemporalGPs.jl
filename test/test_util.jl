@@ -1,14 +1,19 @@
-using TemporalGPs: Gaussian
-
-create_psd_matrix(A::AbstractMatrix) = A * A' + I
-
-function create_psd_stable_matrix(A::AbstractMatrix)
-    B = create_psd_matrix(A)
-    λ, U = eigen(B)
-    λ .+= 1
-    λ ./= (maximum(λ) + 1e-1 * maximum(λ))
-    return Matrix(Symmetric(U * Diagonal(λ) * U'))
-end
+using ChainRulesCore: backing
+using TemporalGPs:
+    Gaussian,
+    harmonise,
+    Forward,
+    Reverse,
+    GaussMarkovModel,
+    LGSSM,
+    ordering,
+    SmallOutputLGC,
+    posterior_and_lml,
+    predict,
+    conditional_rand,
+    AbstractLGC,
+    dim_out,
+    dim_in
 
 
 
@@ -29,8 +34,16 @@ function to_vec(x::Union{Zeros, Ones})
     return Vector{eltype(x)}(undef, 0), _ -> x
 end
 
-function to_vec(x::Base.ReinterpretArray)
-    return to_vec(collect(x))
+function to_vec(::Missing)
+    Missing_from_vec(::Any) = missing
+    return Bool[], Missing_from_vec
+end
+
+# I'M OVERRIDING FINITEDIFFERENCES DEFINITION HERE. THIS IS BAD.
+function to_vec(x::Diagonal)
+    v, diag_from_vec = to_vec(x.diag)
+    Diagonal_from_vec(v) = Diagonal(diag_from_vec(v))
+    return v, Diagonal_from_vec
 end
 
 function to_vec(x::T) where {T<:NamedTuple}
@@ -55,62 +68,60 @@ function to_vec(x::T) where {T<:StaticArray}
     return x_vec, StaticArray_to_vec
 end
 
-function to_vec(x::TemporalGPs.Gaussian)
-    m_vec, m_from_vec = to_vec(x.m)
-    P_vec, P_from_vec = to_vec(x.P)
-
-    x_vec, x_back = to_vec((m_vec, P_vec))
-
-    function Gaussian_from_vec(x_vec)
-        mP_vec = x_back(x_vec)
-
-        m = m_from_vec(mP_vec[1])
-        P = P_from_vec(mP_vec[2])
-
-        return TemporalGPs.Gaussian(m, P)
-    end
-
-    return x_vec, Gaussian_from_vec
+function to_vec(x::Adjoint{<:Any, T}) where {T<:StaticVector}
+    x_vec, back = to_vec(Matrix(x))
+    Adjoint_from_vec(x_vec) = Adjoint(T(conj!(vec(back(x_vec)))))
+    return x_vec, Adjoint_from_vec
 end
 
-function to_vec(gmm::TemporalGPs.GaussMarkovModel)
-    A_vec, A_back = to_vec(gmm.A)
-    a_vec, a_back = to_vec(gmm.a)
-    Q_vec, Q_back = to_vec(gmm.Q)
-    H_vec, H_back = to_vec(gmm.H)
-    h_vec, h_back = to_vec(gmm.h)
-    x0_vec, x0_back = to_vec(gmm.x0)
-
-    gmm_vec, gmm_back = to_vec((A_vec, a_vec, Q_vec, H_vec, h_vec, x0_vec))
-
-    function GaussMarkovModel_from_vec(gmm_vec)
-        vecs = gmm_back(gmm_vec)
-        A = A_back(vecs[1])
-        a = a_back(vecs[2])
-        Q = Q_back(vecs[3])
-        H = H_back(vecs[4])
-        h = h_back(vecs[5])
-        x0 = x0_back(vecs[6])
-        return TemporalGPs.GaussMarkovModel(A, a, Q, H, h, x0)
-    end
-
-    return gmm_vec, GaussMarkovModel_from_vec
+function to_vec(x::Tuple{})
+    empty_tuple_from_vec(v) = x
+    return Bool[], empty_tuple_from_vec
 end
 
-function to_vec(model::TemporalGPs.LGSSM)
-    gmm_vec, gmm_from_vec = to_vec(model.gmm)
-    Σ_vec, Σ_from_vec = to_vec(model.Σ)
-
-    model_vec, back = to_vec((gmm_vec, Σ_vec))
-
-    function LGSSM_from_vec(model_vec)
-        tmp = back(model_vec)
-        gmm = gmm_from_vec(tmp[1])
-        Σ = Σ_from_vec(tmp[2])
-        return TemporalGPs.LGSSM(gmm, Σ)
+function to_vec(x::StructArray{T}) where {T}
+    x_vec, x_fields_from_vec = to_vec(getfield(x, :fieldarrays))
+    function StructArray_from_vec(x_vec)
+        x_field_vecs = x_fields_from_vec(x_vec)
+        return StructArray{T}(Tuple(x_field_vecs))
     end
+    return x_vec, StructArray_from_vec
+end
 
-    return model_vec, LGSSM_from_vec
+# Fallback method for `to_vec`. Won't always do what you wanted, but should be fine a decent
+# chunk of the time.
+to_vec(x) = generic_struct_to_vec(x)
+
+function generic_struct_to_vec(x::T) where {T}
+    Base.isstructtype(T) || throw(error("Expected a struct type"))
+
+    val_vecs_and_backs = map(name -> to_vec(getfield(x, name)), fieldnames(T))
+    vals = first.(val_vecs_and_backs)
+    backs = last.(val_vecs_and_backs)
+    v, vals_from_vec = to_vec(vals)
+
+    function structtype_from_vec(v::Vector{<:Real})
+        val_vecs = vals_from_vec(v)
+        vals = map((b, v) -> b(v), backs, val_vecs)
+        return T(vals...)
+    end
+    return v, structtype_from_vec
+end
+
+to_vec(x::TemporalGPs.RectilinearGrid) = generic_struct_to_vec(x)
+
+function to_vec(gpc::GPC)
+    GPC_from_vec(v) = gpc
+    return Bool[], GPC_from_vec
+end
+
+function to_vec(f::GP)
+    gp_vec, t_from_vec = to_vec((f.m, f.k, f.gpc))
+    function GP_from_vec(v)
+        (m, k, gpc) = t_from_vec(v)
+        return GP(m, k, gpc)
+    end
+    return gp_vec, GP_from_vec
 end
 
 function to_vec(X::BlockDiagonal)
@@ -125,21 +136,17 @@ function to_vec(X::BlockDiagonal)
     return Xs_vec, BlockDiagonal_from_vec
 end
 
-function to_vec(X::KroneckerProduct)
-    A, B = getmatrices(X)
-    A_vec, A_from_vec = to_vec(A)
-    B_vec, B_from_vec = to_vec(B)
-    X_vec, back = to_vec((A_vec, B_vec))
-
-    function KroneckerProduct_from_vec(X_vec)
-        (A_vec, B_vec) = back(X_vec)
-        A = A_from_vec(A_vec)
-        B = B_from_vec(B_vec)
-        return A ⊗ B
-    end
-
-    return X_vec, KroneckerProduct_from_vec
+function to_vec(::typeof(identity))
+    Identity_from_vec(v) = identity
+    return Bool[], Identity_from_vec
 end
+
+function to_vec(x::RegularSpacing)
+    RegularSpacing_from_vec(v) = RegularSpacing(v[1], v[2], x.N)
+    return [x.t0, x.Δt], RegularSpacing_from_vec
+end
+
+to_vec(::Nothing) = Bool[], _ -> nothing
 
 # Ensure that to_vec works for the types that we care about in this package.
 @testset "custom FiniteDifferences stuff" begin
@@ -171,6 +178,15 @@ end
             @test back(x_vec) == x
         end
     end
+    @testset "to_vec(::SmallOutputLGC)" begin
+        A = randn(2, 2)
+        a = randn(2)
+        Q = randn(2, 2)
+        model = SmallOutputLGC(A, a, Q)
+        model_vec, model_from_vec = to_vec(model)
+        @test model_vec isa Vector{<:Real}
+        @test model_from_vec(model_vec) == model
+    end
     @testset "to_vec(::GaussMarkovModel)" begin
         N = 11
         A = [randn(2, 2) for _ in 1:N]
@@ -179,26 +195,33 @@ end
         H = [randn(3, 2) for _ in 1:N]
         h = [randn(3) for _ in 1:N]
         x0 = TemporalGPs.Gaussian(randn(2), randn(2, 2))
-        gmm = TemporalGPs.GaussMarkovModel(A, a, Q, H, h, x0)
+        gmm = TemporalGPs.GaussMarkovModel(Forward(), A, a, Q, x0)
 
         gmm_vec, gmm_from_vec = to_vec(gmm)
         @test gmm_vec isa Vector{<:Real}
         @test gmm_from_vec(gmm_vec) == gmm
     end
+    @testset "StructArray" begin
+        x = StructArray([Gaussian(randn(2), randn(2, 2)) for _ in 1:10])
+        x_vec, x_from_vec = to_vec(x)
+        @test x_vec isa Vector{<:Real}
+        @test x_from_vec(x_vec) == x
+    end
     @testset "to_vec(::LGSSM)" begin
         N = 11
 
+        # Build GaussMarkovModel.
         A = [randn(2, 2) for _ in 1:N]
         a = [randn(2) for _ in 1:N]
         Q = [randn(2, 2) for _ in 1:N]
+        x0 = Gaussian(randn(2), randn(2, 2))
+        gmm = GaussMarkovModel(Forward(), A, a, Q, x0)
+
+        # Build LGSSM.
         H = [randn(3, 2) for _ in 1:N]
         h = [randn(3) for _ in 1:N]
-        x0 = TemporalGPs.Gaussian(randn(2), randn(2, 2))
-        gmm = TemporalGPs.GaussMarkovModel(A, a, Q, H, h, x0)
-
         Σ = [randn(3, 3) for _ in 1:N]
-
-        model = TemporalGPs.LGSSM(gmm, Σ)
+        model = TemporalGPs.LGSSM(gmm, StructArray(map(SmallOutputLGC, H, h, Σ)))
 
         model_vec, model_from_vec = to_vec(model)
         @test model_from_vec(model_vec) == model
@@ -207,15 +230,6 @@ end
         Ns = [3, 5, 1]
         Xs = map(N -> randn(N, N), Ns)
         X = BlockDiagonal(Xs)
-
-        X_vec, X_from_vec = to_vec(X)
-        @test X_vec isa Vector{<:Real}
-        @test X_from_vec(X_vec) == X
-    end
-    @testset "to_vec(::KroneckerProduct" begin
-        A = randn(4, 5)
-        B = randn(6, 7)
-        X = A ⊗ B
 
         X_vec, X_from_vec = to_vec(X)
         @test X_vec isa Vector{<:Real}
@@ -253,28 +267,80 @@ function fd_isapprox(x::Gaussian, y::Gaussian, rtol, atol)
     return isapprox(x.m, y.m; rtol=rtol, atol=atol) &&
         isapprox(x.P, y.P; rtol=rtol, atol=atol)
 end
+function fd_isapprox(x::Real, y::Zero, rtol, atol)
+    return fd_isapprox(x, zero(x), rtol, atol)
+end
+fd_isapprox(x::Zero, y::Real, rtol, atol) = fd_isapprox(y, x, rtol, atol)
+
+function fd_isapprox(x_ad::T, x_fd::T, rtol, atol) where {T<:NamedTuple}
+    f = (x_ad, x_fd)->fd_isapprox(x_ad, x_fd, rtol, atol)
+    return all([f(getfield(x_ad, key), getfield(x_fd, key)) for key in keys(x_ad)])
+end
+
+function fd_isapprox(x::T, y::T, rtol, atol) where {T}
+    if !isstructtype(T)
+        throw(ArgumentError("Non-struct types are not supported by this fallback."))
+    end
+
+    return all(n -> fd_isapprox(getfield(x, n), getfield(y, n), rtol, atol), fieldnames(T))
+end
 
 function adjoint_test(
-    f, ȳ, x...;
+    f, ȳ, x::Tuple, ẋ::Tuple;
     rtol=1e-9,
     atol=1e-9,
-    fdm=FiniteDifferences.central_fdm(5, 1),
-    print_results=false,
+    fdm=central_fdm(5, 1),
     test=true,
+    check_infers=true,
+    context=NoContext(),
+    kwargs...,
 )
-    # Compute forwards-pass and j′vp.
-    adj_fd = j′vp(fdm, f, ȳ, x...)
-    y, back = Zygote.pullback(f, x...)
-    adj_ad = back(ȳ)
+    # Compute <Jᵀ ȳ, ẋ> = <x̄, ẋ> using Zygote.
+    y, pb = Zygote._pullback(context, f, x...)
 
-    # Check that forwards-pass agrees with plain forwards-pass.
+    # Check type inference if requested.
+    if check_infers
+        # @descend only works if you `using Cthulhu`.
+        # @descend Zygote._pullback(context, f, x...)
+        # @descend pb(ȳ)
+
+        # @code_warntype Zygote._pullback(context, f, x...)
+        # @code_warntype pb(ȳ)
+        @inferred Zygote._pullback(context, f, x...)
+        @inferred pb(ȳ)
+    end
+
+    x̄ = pb(ȳ)[2:end]
+
+    # @show x̄
+    # @show harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)[1]
+    inner_ad = dot(harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)...)
+
+    # Approximate <ȳ, J ẋ> = <ȳ, ẏ> using FiniteDifferences.
+    # @show harmonise(j′vp(fdm, f, ȳ, x...), ẋ)[1]
+    # @show typeof(j′vp(fdm, f, ȳ, x...))
+    ẏ = jvp(fdm, f, zip(x, ẋ)...)
+    inner_fd = dot(harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)...)
+
+    # @show inner_fd - inner_ad
+
+    # Check that Zygote didn't modify the forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)
 
-    # Check that ad and fd adjoints (approximately) agree.
-    print_results && print_adjoints(adj_ad, adj_fd, rtol, atol)
-    test && @test fd_isapprox(adj_ad, adj_fd, rtol, atol)
+    # Check for approximate agreement in "inner-products".
+    test && @test fd_isapprox(inner_ad, inner_fd, rtol, atol)
 
-    return adj_ad, adj_fd
+    return x̄
+end
+
+function adjoint_test(f, input::Tuple; kwargs...)
+    Δoutput = rand_zygote_tangent(f(input...))
+    return adjoint_test(f, Δoutput, input; kwargs...)
+end
+
+function adjoint_test(f, Δoutput, input::Tuple; kwargs...)
+    ∂input = map(rand_tangent, input)
+    return adjoint_test(f, Δoutput, input, ∂input; kwargs...)
 end
 
 function print_adjoints(adjoint_ad, adjoint_fd, rtol, atol)
@@ -299,16 +365,40 @@ end
 
 using BenchmarkTools
 
+# Also checks the forwards-pass because it's helpful.
+function check_adjoint_allocations(
+    f, Δoutput, input::Tuple;
+    context=NoContext(),
+    max_primal_allocs=0,
+    max_forward_allocs=0,
+    max_backward_allocs=0,
+    kwargs...,
+)
+    _, pb = _pullback(context, f, input...)
+    # @code_warntype f(input...)
+    # @code_warntype _pullback(context, f, input...)
+    # @code_warntype pb(Δoutput)
+    @test allocs(@benchmark($f($input...); samples=1, evals=1)) <= max_primal_allocs
+    @test allocs(
+        @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
+    ) <= max_forward_allocs
+    @test allocs(@benchmark $pb($Δoutput) samples=1 evals=1) <= max_backward_allocs
+end
+
+function check_adjoint_allocations(f, input::Tuple; kwargs...)
+    return check_adjoint_allocations(f, rand_zygote_tangent(f(input...)), input; kwargs...)
+end
+
 function benchmark_adjoint(f, ȳ, args...; disp=false)
     disp && println("primal")
-    primal = @benchmark $f($args...)
+    primal = @benchmark($f($args...); samples=1, evals=1)
     if disp
         display(primal)
         println()
     end
 
     disp && println("pullback generation")
-    forward_pass = @benchmark Zygote.pullback($f, $args...)
+    forward_pass = @benchmark(Zygote.pullback($f, $args...); samples=1, evals=1)
     if disp
         display(forward_pass)
         println()
@@ -317,7 +407,7 @@ function benchmark_adjoint(f, ȳ, args...; disp=false)
     y, back = Zygote.pullback(f, args...)
 
     disp && println("pullback evaluation")
-    reverse_pass = @benchmark $back($ȳ)
+    reverse_pass = @benchmark($back($ȳ); samples=1, evals=1)
     if disp
         display(reverse_pass)
         println()
@@ -326,29 +416,179 @@ function benchmark_adjoint(f, ȳ, args...; disp=false)
     return primal, forward_pass, reverse_pass
 end
 
-function adjoint_allocs(f, ȳ, args...)
+function test_interface(
+    rng::AbstractRNG, conditional::AbstractLGC, x::Gaussian;
+    check_infers=true, check_adjoints=true, check_allocs=true, kwargs...,
+)
+    x_val = rand(rng, x)
+    y = conditional_rand(rng, conditional, x_val)
 
-    # Execute primal evaluation.
-    primal = allocs(@benchmark $f($args...))
+    @testset "rand" begin
+        @test length(y) == dim_out(conditional)
+        args = (conditional, x_val)
+        check_infers && @inferred conditional_rand(rng, args...)
+        if check_adjoints
+            adjoint_test(
+                (f, x) -> conditional_rand(MersenneTwister(123456), f, x), args;
+                check_infers=check_infers, kwargs...,
+            )
+        end
+        if check_allocs
+            check_adjoint_allocations(conditional_rand, (rng, args...); kwargs...)
+        end
+    end
 
-    # Execute forwards-pass.
-    _, back = Zygote.pullback(f, args...)
-    forward_pass = allocs(@benchmark Zygote.pullback($f, $args...))
+    @testset "predict" begin
+        @test predict(x, conditional) isa Gaussian
+        check_infers && @inferred predict(x, conditional)
+        check_adjoints && adjoint_test(predict, (x, conditional); kwargs...)
+        check_allocs && check_adjoint_allocations(predict, (x, conditional); kwargs...)
+    end
 
-    # Execute reverse-pass.
-    reverse_pass = allocs(@benchmark $back($ȳ))
+    conditional isa ScalarOutputLGC || @testset "predict_marginals" begin
+        @test predict_marginals(x, conditional) isa Gaussian
+        pred = predict(x, conditional)
+        pred_marg = predict_marginals(x, conditional)
+        @test mean(pred_marg) ≈ mean(pred)
+        @test diag(cov(pred_marg)) ≈ diag(cov(pred))
+        @test cov(pred_marg) isa Diagonal
+    end
 
-    return primal, forward_pass, reverse_pass
+    @testset "posterior_and_lml" begin
+        args = (x, conditional, y)
+        @test posterior_and_lml(args...) isa Tuple{Gaussian, Real}
+        check_infers && @inferred posterior_and_lml(args...)
+        if check_adjoints
+            (Δx, Δlml) = rand_zygote_tangent(posterior_and_lml(args...))
+            ∂args = map(rand_tangent, args)
+            adjoint_test(posterior_and_lml, (Δx, Δlml), args, ∂args)
+            adjoint_test(posterior_and_lml, (Δx, nothing), args, ∂args)
+            adjoint_test(posterior_and_lml, (nothing, Δlml), args, ∂args)
+            adjoint_test(posterior_and_lml, (nothing, nothing), args, ∂args)
+        end
+        if check_allocs
+            (Δx, Δlml) = rand_zygote_tangent(posterior_and_lml(args...))
+            check_adjoint_allocations(posterior_and_lml, (Δx, Δlml), args; kwargs...)
+            check_adjoint_allocations(posterior_and_lml, (nothing, Δlml), args; kwargs...)
+            check_adjoint_allocations(posterior_and_lml, (Δx, nothing), args; kwargs...)
+            check_adjoint_allocations(posterior_and_lml, (nothing, nothing), args; kwargs...)
+        end
+    end
 end
 
 """
-    standard_lgssm_tests(rng::AbstractRNG, ssm, y::AbstractVector)
+    test_interface(
+        rng::AbstractRNG, ssm::AbstractLGSSM;
+        check_infers=true, check_adjoints=true, check_allocs=true, kwargs...
+    )
 
-Basic consistency tests that any ssm should be able to satisfy. The purpose of these tests
+Basic consistency tests that any LGSSM should be able to satisfy. The purpose of these tests
 is not to ensure correctness of any given implementation, only to ensure that it is self-
 consistent and implements the required interface.
 """
-function standard_lgssm_tests(rng::AbstractRNG, ssm, y::AbstractVector)
-    @test last(filter(ssm, y)) ≈ logpdf(ssm, y)
-    @test last(smooth(ssm, y)) ≈ logpdf(ssm, y)
+function test_interface(
+    rng::AbstractRNG, ssm::AbstractLGSSM;
+    check_infers=true, check_adjoints=true, check_allocs=true, kwargs...
+)
+    y_no_missing = rand(rng, ssm)
+
+    @testset "rand" begin
+        @test is_of_storage_type(y_no_missing[1], storage_type(ssm))
+        @test y_no_missing isa AbstractVector
+        @test length(y_no_missing) == length(ssm)
+        check_infers && @inferred rand(rng, ssm)
+        if check_adjoints
+            adjoint_test(
+                ssm -> rand(MersenneTwister(123456), ssm), (ssm, );
+                check_infers=check_infers, kwargs...,
+            )
+        end
+    end
+
+    @testset "basics" begin
+        @inferred storage_type(ssm)
+        @test length(ssm) == length(y_no_missing)
+    end
+
+    @testset "marginals" begin
+        xs = marginals(ssm)
+        @test is_of_storage_type(xs, storage_type(ssm))
+        @test xs isa AbstractVector{<:Gaussian}
+        @test length(xs) == length(ssm)
+        check_infers && @inferred marginals(ssm)
+        if check_adjoints
+            adjoint_test(marginals, (ssm, ); check_infers=check_infers, kwargs...)
+        end
+        if check_allocs
+            check_adjoint_allocations(marginals, (ssm, ); kwargs...)
+        end
+    end
+
+    @testset "$(data.name)" for data in [
+        (name="no-missings", y=y_no_missing),
+        # (name="with-missings", y=y_missing),
+    ]
+        _check_infers = data.name == "with-missings" ? false : check_infers
+
+        y = data.y
+        @testset "logpdf" begin
+            lml = logpdf(ssm, y)
+            @test lml isa Real
+            @test is_of_storage_type(lml, storage_type(ssm))
+            _check_infers && @inferred logpdf(ssm, y)
+        end
+        @testset "_filter" begin
+            xs = _filter(ssm, y)
+            @test is_of_storage_type(xs, storage_type(ssm))
+            @test xs isa AbstractVector{<:Gaussian}
+            @test length(xs) == length(ssm)
+            _check_infers && @inferred _filter(ssm, y)
+        end
+        @testset "posterior" begin
+            posterior_ssm = posterior(ssm, y)
+            @test length(posterior_ssm) == length(ssm)
+            @test ordering(posterior_ssm) != ordering(ssm)
+            _check_infers && @inferred posterior(ssm, y)
+        end
+
+        # Hack to only run the AD tests if requested.
+        @testset "adjoints" for _ in (check_adjoints ? [1] : [])
+            adjoint_test(logpdf, (ssm, y); check_infers=_check_infers, kwargs...)
+            adjoint_test(_filter, (ssm, y); check_infers=_check_infers, kwargs...)
+            adjoint_test(posterior, (ssm, y); check_infers=false, kwargs...)
+
+            if check_allocs
+                check_adjoint_allocations(logpdf, (ssm, y); kwargs...)
+                check_adjoint_allocations(_filter, (ssm, y); kwargs...)
+                # check_adjoint_allocations(posterior, (ssm, y); kwargs...)
+            end
+        end
+    end
+end
+
+_diag(x) = diag(x)
+_diag(x::Real) = x
+
+function FiniteDifferences.rand_tangent(rng::AbstractRNG, A::StaticArray)
+    return map(x -> rand_tangent(rng, x), A)
+end
+
+FiniteDifferences.rand_tangent(::AbstractRNG, ::Base.OneTo) = Zero()
+
+# Hacks to make rand_tangent play nicely with Zygote.
+rand_zygote_tangent(A) = Zygote.wrap_chainrules_output(FiniteDifferences.rand_tangent(A))
+
+Zygote.wrap_chainrules_output(x::Array) = map(Zygote.wrap_chainrules_output, x)
+
+function Zygote.wrap_chainrules_input(x::Array)
+    return map(Zygote.wrap_chainrules_input, x)
+end
+
+function LinearAlgebra.dot(A::Composite, B::Composite)
+    mutual_names = intersect(propertynames(A), propertynames(B))
+    if length(mutual_names) == 0
+        return 0
+    else
+        return sum(n -> dot(getproperty(A, n), getproperty(B, n)), mutual_names)
+    end
 end
