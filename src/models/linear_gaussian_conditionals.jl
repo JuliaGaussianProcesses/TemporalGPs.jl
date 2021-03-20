@@ -1,4 +1,16 @@
-using Stheno: Xt_invA_X
+# Misc LinearAlgebra utilities.
+Xt_invA_X(A::Cholesky, x::AbstractVector) = sum(abs2, A.U' \ x)
+
+function Xt_invA_X(A::Cholesky, X::AbstractMatrix)
+    V = A.U' \ X
+    return Symmetric(V'V)
+end
+
+function diag_At_B(A::AVM, B::AVM)
+    @assert size(A) == size(B)
+    return vec(sum(A .* B; dims=1))
+end
+
 
 """
     abstract type AbstractLGC end
@@ -57,7 +69,7 @@ Equivalent to
 function predict_marginals(x::Gaussian, f::AbstractLGC)
     return Gaussian(
         f.A * x.m + f.a,
-        Diagonal(Stheno.diag_At_B(f.A', x.P * f.A') + diag(f.Q)),
+        Diagonal(diag_At_B(f.A', x.P * f.A') + diag(f.Q)),
     )
 end
 

@@ -20,9 +20,9 @@ end
 
 dim(x::Gaussian) = length(x.m)
 
-Stheno.mean(x::Gaussian) = Zygote.literal_getfield(x, Val(:m))
+AbstractGPs.mean(x::Gaussian) = Zygote.literal_getfield(x, Val(:m))
 
-Stheno.cov(x::Gaussian) = Zygote.literal_getfield(x, Val(:P))
+AbstractGPs.cov(x::Gaussian) = Zygote.literal_getfield(x, Val(:P))
 
 get_fields(x::Gaussian) = mean(x), cov(x)
 
@@ -35,9 +35,11 @@ function Random.rand(rng::AbstractRNG, x::Gaussian, S::Int)
     return mean(x) .+ cholesky(Symmetric(P)).U' * randn(rng, length(mean(x)), S)
 end
 
-Stheno.logpdf(x::Gaussian, y::AbstractVector{<:Real}) = first(logpdf(x, reshape(y, :, 1)))
+function AbstractGPs.logpdf(x::Gaussian, y::AbstractVector{<:Real})
+    return first(logpdf(x, reshape(y, :, 1)))
+end
 
-function Stheno.logpdf(x::Gaussian, Y::AbstractMatrix{<:Real})
+function AbstractGPs.logpdf(x::Gaussian, Y::AbstractMatrix{<:Real})
     μ, C = mean(x), cholesky(Symmetric(cov(x)))
     T = promote_type(eltype(μ), eltype(C), eltype(Y))
     return -((size(Y, 1) * T(log(2π)) + logdet(C)) .+ Stheno.diag_Xt_invA_X(C, Y .- μ)) ./ 2
@@ -49,9 +51,9 @@ function Base.isapprox(x::Gaussian, y::Gaussian; kwargs...)
     return isapprox(mean(x), mean(y); kwargs...) && isapprox(cov(x), cov(y); kwargs...)
 end
 
-Stheno.marginals(x::Gaussian{<:Real, <:Real}) = Normal(mean(x), sqrt(cov(x)))
+AbstractGPs.marginals(x::Gaussian{<:Real, <:Real}) = Normal(mean(x), sqrt(cov(x)))
 
-function Stheno.marginals(x::Gaussian{<:AbstractVector, <:AbstractMatrix})
+function AbstractGPs.marginals(x::Gaussian{<:AbstractVector, <:AbstractMatrix})
     return Normal.(mean(x), sqrt.(diag(cov(x))))
 end
 

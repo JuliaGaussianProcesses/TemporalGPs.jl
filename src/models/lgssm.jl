@@ -74,7 +74,7 @@ end
 
 # Draw a sample from the model.
 
-function Stheno.rand(rng::AbstractRNG, model::LGSSM)
+function AbstractGPs.rand(rng::AbstractRNG, model::LGSSM)
     iterable = zip(ε_randn(rng, model), model)
     init = rand(rng, x0(model))
     return scan_emit(step_rand, iterable, init, eachindex(model))[1]
@@ -110,7 +110,7 @@ end
 Compute the complete marginals at each point in time. These are returned as a `Vector` of
 length `length(model)`, each element of which is a dense `Gaussian`.
 """
-function Stheno.marginals(model::LGSSM)
+function AbstractGPs.marginals(model::LGSSM)
     return scan_emit(step_marginals, model, x0(model), eachindex(model))[1]
 end
 
@@ -158,7 +158,9 @@ end
 
 # Compute the log marginal likelihood of the observations `y`.
 
-function Stheno.logpdf(model::LGSSM, y::AbstractVector{<:Union{AbstractVector, <:Real}})
+function AbstractGPs.logpdf(
+    model::LGSSM, y::AbstractVector{<:Union{AbstractVector, <:Real}},
+)
     return sum(scan_emit(step_logpdf, zip(model, y), x0(model), eachindex(model))[1])
 end
 

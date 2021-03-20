@@ -4,12 +4,12 @@
 A lightweight wrapper around a `GP` `f` that tells this package to handle inference in `f`.
 Can be constructed via the `to_sde` function.
 """
-struct LTISDE{Tf<:GP{<:Stheno.ZeroMean}, Tstorage<:StorageType} <: AbstractGP
+struct LTISDE{Tf<:GP{<:AbstractGPs.ZeroMean}, Tstorage<:StorageType} <: AbstractGP
     f::Tf
     storage::Tstorage
 end
 
-function to_sde(f::GP{<:Stheno.ZeroMean}, storage_type=ArrayStorage(Float64))
+function to_sde(f::GP{<:AbstractGPs.ZeroMean}, storage_type=ArrayStorage(Float64))
     return LTISDE(f, storage_type)
 end
 
@@ -25,35 +25,38 @@ opposed to any other `AbstractGP`.
 """
 const FiniteLTISDE = FiniteGP{<:LTISDE}
 
-# Deal with a bug in Stheno.
+# Deal with a bug in AbstractGPs.
 function FiniteGP(f::LTISDE, x::AbstractVector{<:Real})
     return FiniteGP(f, x, convert(eltype(storage_type(f)), 1e-12))
 end
 
-# Implement Stheno's version of the FiniteGP API. This will eventually become AbstractGPs
-# API, but Stheno is still on a slightly different API because I've yet to update it.
+# Implement the AbstractGP API.
 
-Stheno.mean(ft::FiniteLTISDE) = mean.(marginals(build_lgssm(ft)))
+AbstractGPs.mean(ft::FiniteLTISDE) = mean.(marginals(build_lgssm(ft)))
 
-Stheno.cov(ft::FiniteLTISDE) = cov(FiniteGP(ft.f.f, ft.x, ft.Σy))
+AbstractGPs.cov(ft::FiniteLTISDE) = cov(FiniteGP(ft.f.f, ft.x, ft.Σy))
 
-Stheno.marginals(ft::FiniteLTISDE) = vcat(map(marginals, marginals(build_lgssm(ft)))...)
+function AbstractGPs.marginals(ft::FiniteLTISDE)
+    return vcat(map(marginals, marginals(build_lgssm(ft)))...)
+end
 
-function Stheno.rand(rng::AbstractRNG, ft::FiniteLTISDE)
+function AbstractGPs.rand(rng::AbstractRNG, ft::FiniteLTISDE)
     return destructure(rand(rng, build_lgssm(ft)))
 end
 
-Stheno.rand(ft::FiniteLTISDE) = rand(Random.GLOBAL_RNG, ft)
+AbstractGPs.rand(ft::FiniteLTISDE) = rand(Random.GLOBAL_RNG, ft)
 
-function Stheno.rand(rng::AbstractRNG, ft::FiniteLTISDE, N::Int)
+function AbstractGPs.rand(rng::AbstractRNG, ft::FiniteLTISDE, N::Int)
     return hcat([rand(rng, ft) for _ in 1:N]...)
 end
 
-Stheno.rand(ft::FiniteLTISDE, N::Int) = rand(Random.GLOBAL_RNG, ft, N)
+AbstractGPs.rand(ft::FiniteLTISDE, N::Int) = rand(Random.GLOBAL_RNG, ft, N)
 
-Stheno.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Real}) = _logpdf(ft, y)
+AbstractGPs.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Real}) = _logpdf(ft, y)
 
-Stheno.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}}) = _logpdf(ft, y)
+function AbstractGPs.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
+    return _logpdf(ft, y)
+end
 
 function _logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
     model = build_lgssm(ft)
@@ -65,8 +68,6 @@ restructure(y::AbstractVector{<:Real}, ::StructArray{<:ScalarOutputLGC}) = y
 destructure(y::AbstractVector{<:Real}) = y
 
 # Converting GPs into LGSSMs.
-
-using Stheno: MeanFunction, ConstMean, ZeroMean, BaseKernel, Sum, Stretched, Scaled
 
 function build_lgssm(ft::FiniteLTISDE)
     As, as, Qs, emission_proj, x0 = lgssm_components(ft.f.f.k, ft.x, ft.f.storage)

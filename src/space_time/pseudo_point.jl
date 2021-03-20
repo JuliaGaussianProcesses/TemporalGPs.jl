@@ -1,4 +1,4 @@
-using Stheno: Scaled, Stretched, Sum
+using KernelFunctions: ScaledKernel, Stretched, KernelSum
 
 """
     DTCSeparable{Tz<:AbstractVector, Tk<:SeparableKernel} <: Kernel
@@ -31,7 +31,7 @@ dtcify(z::AbstractVector, fx::FiniteLTISDE) = FiniteGP(dtcify(z, fx.f), fx.x, fx
 
 dtcify(z::AbstractVector, fx::LTISDE) = LTISDE(dtcify(z, fx.f), fx.storage)
 
-dtcify(z::AbstractVector, f::GP) = GP(f.m, dtcify(z, f.k), GPC())
+dtcify(z::AbstractVector, f::GP) = GP(f.m, dtcify(z, f.k))
 
 """
     dtc(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)
@@ -41,14 +41,14 @@ Compute the DTC (Deterministic Training Conditional) in state-space form [insert
 `fx` and `y` are the same as would be provided to `logpdf`, and `z_r` is a specification of
 the spatial location of the pseudo-points at each point in time.
 
-Note that this API is slightly different from Stheno.jl's API, in which `z_r` is replaced
-by a `FiniteGP`.
+Note that this API is slightly different from AbstractGPS.jl's API, in which `z_r` is
+replaced by a `FiniteGP`.
 
 WARNING: this API is unstable, and subject to change in future versions of TemporalGPs. It
 was thrown together quickly in pursuit of a conference deadline, and has yet to receive the
 attention it deserves.
 """
-function Stheno.dtc(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
+function dtc(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
     return logpdf(dtcify(z_r, fx), y)
 end
 
@@ -62,7 +62,7 @@ end
 
 Compute the ELBO (Evidence Lower BOund) in state-space form [insert reference].
 """
-function Stheno.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
+function AbstractGPs.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
 
     fx_dtc = time_ad(Val(:disabled), "fx_dtc", dtcify, z_r, fx)
 
@@ -94,17 +94,17 @@ Zygote.accum(x::NamedTuple{(:diag, )}, y::Diagonal) = Zygote.accum(x, (diag=y.di
 function kernel_diagonals(k::DTCSeparable, x::RectilinearGrid)
     space_kernel = k.k.l
     time_kernel = k.k.r
-    Cr_rpred_diag = Stheno.elementwise(space_kernel, get_space(x))
-    time_vars = Stheno.elementwise(time_kernel, get_time(x))
+    Cr_rpred_diag = kerneldiagmatrix(space_kernel, get_space(x))
+    time_vars = kerneldiagmatrix(time_kernel, get_time(x))
     return map(s_t -> Diagonal(Cr_rpred_diag * s_t), time_vars)
 end
 
 function kernel_diagonals(k::DTCSeparable, x::RegularInTime)
     space_kernel = k.k.l
     time_kernel = k.k.r
-    time_vars = Stheno.elementwise(time_kernel, get_time(x))
+    time_vars = kerneldiagmatrix(time_kernel, get_time(x))
     return map(
-        (s_t, x_r) -> Diagonal(Stheno.elementwise(space_kernel, x_r) * s_t),
+        (s_t, x_r) -> Diagonal(kerneldiagmatrix(space_kernel, x_r) * s_t),
         time_vars,
         x.vs,
     )
@@ -261,7 +261,7 @@ function approx_posterior_marginals(
     z_r::AbstractVector,
     x_r::AbstractVector,
 )
-    fx.f.f.m isa Stheno.ZeroMean || throw(error("Prior mean of GP isn't zero."))
+    fx.f.f.m isa AbstractGPs.ZeroMean || throw(error("Prior mean of GP isn't zero."))
 
     # Compute approximate posterior LGSSM.
     lgssm = build_lgssm(dtcify(z_r, fx))
@@ -352,26 +352,26 @@ end
 function build_emission_covs(k::DTCSeparable, x_new::RectilinearGrid)
     space_kernel = k.k.l
     z_r = k.z
-    C_fp_u = Stheno.pairwise(space_kernel, get_space(x_new), z_r)
-    C_u = cholesky(Symmetric(Stheno.pairwise(space_kernel, z_r) + ident_eps(z_r, 1e-9)))
-    Cr_rpred_diag = Stheno.elementwise(space_kernel, get_space(x_new))
+    C_fp_u = kernelmatrix(space_kernel, get_space(x_new), z_r)
+    C_u = cholesky(Symmetric(kernelmatrix(space_kernel, z_r) + ident_eps(z_r, 1e-9)))
+    Cr_rpred_diag = kerneldiagmatrix(space_kernel, get_space(x_new))
     spatial_Q_diag = Cr_rpred_diag - Stheno.diag_Xt_invA_X(C_u, C_fp_u')
 
     time_kernel = k.k.r
-    time_vars = Stheno.ew(time_kernel, get_time(x_new))
+    time_vars = kerneldiagmatrix(time_kernel, get_time(x_new))
     return map(s_t -> Diagonal(spatial_Q_diag * s_t), time_vars)
 end
 
 function build_emission_covs(k::DTCSeparable, x_new::RegularInTime)
     space_kernel = k.k.l
     z_r = k.z
-    C_u = cholesky(Symmetric(Stheno.pairwise(space_kernel, z_r) + ident_eps(z_r, 1e-9)))
+    C_u = cholesky(Symmetric(kernelmatrix(space_kernel, z_r) + ident_eps(z_r, 1e-9)))
 
     time_kernel = k.k.r
-    time_vars = Stheno.ew(time_kernel, get_time(x_new))
+    time_vars = kerneldiagmatrix(time_kernel, get_time(x_new))
     return map(zip(time_vars, x_new.vs)) do ((time_var, x_r))
-        C_fp_u = Stheno.pairwise(space_kernel, x_r, z_r)
-        Cr_rpred_diag = Stheno.elementwise(space_kernel, x_r)
+        C_fp_u = kernelmatrix(space_kernel, x_r, z_r)
+        Cr_rpred_diag = kerneldiagmatrix(space_kernel, x_r)
         spatial_Q_diag = Cr_rpred_diag - Stheno.diag_Xt_invA_X(C_u, C_fp_u')
         return Diagonal(spatial_Q_diag * time_var)
     end

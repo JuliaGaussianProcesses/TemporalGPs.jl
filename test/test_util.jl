@@ -110,13 +110,8 @@ end
 
 to_vec(x::TemporalGPs.RectilinearGrid) = generic_struct_to_vec(x)
 
-function to_vec(gpc::GPC)
-    GPC_from_vec(v) = gpc
-    return Bool[], GPC_from_vec
-end
-
 function to_vec(f::GP)
-    gp_vec, t_from_vec = to_vec((f.m, f.k, f.gpc))
+    gp_vec, t_from_vec = to_vec((f.m, f.k))
     function GP_from_vec(v)
         (m, k, gpc) = t_from_vec(v)
         return GP(m, k, gpc)

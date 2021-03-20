@@ -1,13 +1,14 @@
 module TemporalGPs
 
+    using AbstractGPs
     using BlockDiagonals
     using ChainRulesCore
     using Distributions
     using FillArrays
     using LinearAlgebra
+    using KernelFunctions
     using Random
     using StaticArrays
-    using Stheno
     using StructArrays
     using Zygote
     using ZygoteRules
@@ -15,15 +16,9 @@ module TemporalGPs
     using FillArrays: AbstractFill
     using Zygote: _pullback
 
-    import Stheno:
-        mean,
-        cov,
-        pairwise,
-        logpdf,
-        AV,
-        AM,
-        FiniteGP,
-        AbstractGP
+    import AbstractGPs: mean, cov, logpdf, FiniteGP, AbstractGP
+
+    using KernelFunctions: BaseKernel, Sum, Stretched, Scaled
 
     export
         to_sde,

@@ -1,10 +1,11 @@
+using AbstractGPs
 using BlockDiagonals
 using ChainRulesCore
 using FillArrays
 using FiniteDifferences
 using LinearAlgebra
+using KernelFunctions
 using Random
-using Stheno
 using StaticArrays
 using StructArrays
 using TemporalGPs
@@ -12,7 +13,7 @@ using Test
 using Zygote
 
 using FiniteDifferences: rand_tangent
-using Stheno: var
+using AbstractGPs: var
 using TemporalGPs: AbstractLGSSM, _filter, NoContext
 using Zygote: Context, _pullback
 

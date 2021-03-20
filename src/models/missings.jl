@@ -7,7 +7,7 @@
 #
 # In an ideal world, strategy 1 would work. Unfortunately Zygote isn't up to it yet.
 
-function Stheno.logpdf(
+function AbstractGPs.logpdf(
     model::LGSSM, y::AbstractVector{Union{Missing, T}},
 ) where {T<:Union{<:AbstractVector, <:Real}}
     model_with_missings, y_filled_in = transform_model_and_obs(model, y)
