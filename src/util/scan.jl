@@ -172,11 +172,11 @@ end
 
 function get_adjoint_storage(x::StructArray, n::Int, Δx::NamedTuple)
     init_arrays = map(
-        (x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), getfield(x, :fieldarrays), Δx,
+        (x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), getfield(x, :components), Δx,
     )
-    return (fieldarrays = init_arrays, )
+    return (components = init_arrays, )
 end
 
-function _accum_at(Δxs::NamedTuple{(:fieldarrays,)}, n::Int, Δx::NamedTuple)
-    return (fieldarrays = map((Δy, y) -> _accum_at(Δy, n, y), Δxs.fieldarrays, Δx), )
+function _accum_at(Δxs::NamedTuple{(:components,)}, n::Int, Δx::NamedTuple)
+    return (components = map((Δy, y) -> _accum_at(Δy, n, y), Δxs.components, Δx), )
 end

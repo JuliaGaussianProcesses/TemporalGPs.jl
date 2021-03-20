@@ -80,7 +80,7 @@ function to_vec(x::Tuple{})
 end
 
 function to_vec(x::StructArray{T}) where {T}
-    x_vec, x_fields_from_vec = to_vec(getfield(x, :fieldarrays))
+    x_vec, x_fields_from_vec = to_vec(getfield(x, :components))
     function StructArray_from_vec(x_vec)
         x_field_vecs = x_fields_from_vec(x_vec)
         return StructArray{T}(Tuple(x_field_vecs))

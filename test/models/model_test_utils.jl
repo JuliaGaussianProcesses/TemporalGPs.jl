@@ -300,7 +300,7 @@ function FiniteDifferences.rand_tangent(rng::AbstractRNG, ssm::T) where {T<:LGSS
     Σs = ssm.emissions.Q
     return Composite{T}(
         transitions = rand_tangent(rng, ssm.transitions),
-        emissions = Composite{typeof(ssm.emissions)}(fieldarrays=(
+        emissions = Composite{typeof(ssm.emissions)}(components=(
             A=rand_tangent(rng, Hs),
             a=rand_tangent(rng, hs),
             Q=gmm_Qs_tangent(rng, Σs, storage_type(ssm)),
