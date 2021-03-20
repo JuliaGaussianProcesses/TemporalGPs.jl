@@ -1,7 +1,7 @@
 name = "TemporalGPs"
 uuid = "e155a3c4-0841-43e1-8b83-a0e4f03cc18f"
 authors = ["willtebbutt <wt0881@my.bristol.ac.uk>"]
-version = "0.4.0"
+version = "0.4.1"
 
 [deps]
 BlockDiagonals = "0a1fb500-61f7-11e9-3c65-f5ef3456f9f0"
@@ -20,10 +20,10 @@ ZygoteRules = "700de1a5-db45-46bc-99cf-38207098b444"
 BlockDiagonals = "0.1.7"
 ChainRulesCore = "0.9"
 Distributions = "0.24"
-FillArrays = "0.10"
+FillArrays = "0.10, 0.11"
 StaticArrays = "1"
 Stheno = "0.6.6"
-StructArrays = "0.4"
+StructArrays = "0.5"
 Zygote = "0.6"
 ZygoteRules = "0.2"
 julia = "1.4"
