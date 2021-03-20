@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/willtebbutt/TemporalGPs.jl/workflows/CI/badge.svg)](https://github.com/willtebbutt/TemporalGPs.jl/actions)
 [![Codecov](https://codecov.io/gh/willtebbutt/TemporalGPs.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/willtebbutt/TemporalGPs.jl)
 
-TemporalGPs.jl is a tool to make Gaussian processes (GPs) defined using [Stheno.jl](https://github.com/willtebbutt/Stheno.jl/) fast for time-series. It provides a single-function public API that lets you specify that this package should perform inference, rather than Stheno.jl.
+TemporalGPs.jl is a tool to make Gaussian processes (GPs) defined using [AbstractGPs.jl](https://https://github.com/JuliaGaussianProcesses/AbstractGPs.jl/) fast for time-series. It provides a single-function public API that lets you specify that this package should perform inference, rather than AbstractGPs.jl.
 
 [JuliaCon 2020 Talk](https://www.youtube.com/watch?v=dysmEpX1QoE)
 
@@ -11,19 +11,19 @@ TemporalGPs.jl is a tool to make Gaussian processes (GPs) defined using [Stheno.
 
 TemporalGPs.jl is registered, so simply type the following at the REPL:
 ```julia
-] add Stheno TemporalGPs
+] add AbstractGPs KernelFunctions TemporalGPs
 ```
-While you can install TemporalGPs without Stheno, in practice the latter is needed for all common tasks in TemporalGPs.
+While you can install TemporalGPs without AbstractGPs and KernelFunctions, in practice the latter are needed for all common tasks in TemporalGPs.
 
 # Example Usage
 
 This is a small problem by TemporalGPs' standard. See timing results below for expected performance on larger problems.
 
 ```julia
-using Stheno, TemporalGPs
+using AbstractGPs, KernelFunctions, TemporalGPs
 
-# Specify a Stheno.jl GP as usual
-f_naive = GP(Matern32(), GPC())
+# Specify a AbstractGPs.jl GP as usual
+f_naive = GP(Matern32Kernel())
 
 # Wrap it in an object that TemporalGPs knows how to handle.
 f = to_sde(f_naive, SArrayStorage(Float64))
@@ -68,7 +68,7 @@ This tells TemporalGPs that you want all parameters of `f` and anything derived 
 
 ![](/examples/benchmarks.png)
 
-"naive" timings are with the usual [Stheno.jl](https://github.com/willtebbutt/Stheno.jl/) inference routines, and is the default implementation for GPs. "lgssm" timings are conducted using `to_sde` with no additional arguments. "static-lgssm" uses the `SArrayStorage(Float64)` option discussed above.
+"naive" timings are with the usual [AbstractGPs.jl](https://https://github.com/JuliaGaussianProcesses/AbstractGPs.jl/) inference routines, and is the default implementation for GPs. "lgssm" timings are conducted using `to_sde` with no additional arguments. "static-lgssm" uses the `SArrayStorage(Float64)` option discussed above.
 
 Gradient computations use Zygote. Custom adjoints have been implemented to achieve this level of performance.
 
@@ -79,11 +79,8 @@ Gradient computations use Zygote. Custom adjoints have been implemented to achie
 - Optimisation
     + in-place implementation with `ArrayStorage` to reduce allocations
     + input data types for posterior inference - the `RegularSpacing` type is great for expressing that the inputs are regularly spaced. A carefully constructed data type to let the user build regularly-spaced data when working with posteriors would also be very beneficial.
-- Feature coverage
-    + only a subset of `Stheno.jl`'s probabilistic-programming functionality is currently available, but it's possible to cover much more.
-    + reverse-mode through posterior inference. This is quite straightforward in principle, it just requires a couple of extra ChainRules.
 - Interfacing with other packages
-    + Both Stheno and this package will move over to the AbstractGPs.jl interface at some point, which will enable both to interface more smoothly with other packages in the ecosystem.
+    + When [Stheno.jl](https://github.com/willtebbutt/Stheno.jl/) moves over to the AbstractGPs interface, it should be possible to get some interesting process decomposition functionality in this package.
 
 If you're interested in helping out with this stuff, please get in touch by opening an issue, commenting on an open one, or messaging me on the Julia Slack.
 
