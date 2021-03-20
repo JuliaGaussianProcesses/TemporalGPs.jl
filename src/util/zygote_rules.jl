@@ -273,30 +273,30 @@ end
 #     T::Type{<:StructArray{T, N, C} where {T, N, C<:NamedTuple}},
 #     x::Union{Tuple, NamedTuple},
 # )
-#     function StructArray_pullback(Δ::NamedTuple{(:fieldarrays, )})
-#         @show typeof(x), typeof(Δ.fieldarrays)
-#         return (nothing, Δ.fieldarrays)
+#     function StructArray_pullback(Δ::NamedTuple{(:components, )})
+#         @show typeof(x), typeof(Δ.components)
+#         return (nothing, Δ.components)
 #     end
 #     return T(x), StructArray_pullback
 # end
 
 function Zygote._pullback(::AContext, T::Type{<:StructArray}, x::Tuple)
-    function StructArray_pullback(Δ::NamedTuple{(:fieldarrays, )})
-        return (nothing, values(Δ.fieldarrays))
+    function StructArray_pullback(Δ::NamedTuple{(:components, )})
+        return (nothing, values(Δ.components))
     end
     return T(x), StructArray_pullback
 end
 
-# `getproperty` accesses the `fieldarrays` field of a `StructArray`. This rule makes that
+# `getproperty` accesses the `components` field of a `StructArray`. This rule makes that
 # explicit. 
 function Zygote._pullback(
     ctx::AContext, ::typeof(Zygote.literal_getproperty), x::StructArray, ::Val{p},
 ) where {p}
     value, pb = Zygote._pullback(
-        ctx, Zygote.literal_getproperty, getfield(x, :fieldarrays), Val(p),
+        ctx, Zygote.literal_getproperty, getfield(x, :components), Val(p),
     )
     function literal_getproperty_pullback(Δ)
-        return nothing, (fieldarrays=pb(Δ)[2], ), nothing
+        return nothing, (components=pb(Δ)[2], ), nothing
     end
     return value, literal_getproperty_pullback
 end
