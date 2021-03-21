@@ -42,7 +42,7 @@ end
 function AbstractGPs.logpdf(x::Gaussian, Y::AbstractMatrix{<:Real})
     μ, C = mean(x), cholesky(Symmetric(cov(x)))
     T = promote_type(eltype(μ), eltype(C), eltype(Y))
-    return -((size(Y, 1) * T(log(2π)) + logdet(C)) .+ Stheno.diag_Xt_invA_X(C, Y .- μ)) ./ 2
+    return -((size(Y, 1) * T(log(2π)) + logdet(C)) .+ diag_Xt_invA_X(C, Y .- μ)) ./ 2
 end
 
 Base.:(==)(x::Gaussian, y::Gaussian) = mean(x) == mean(y) && cov(x) == cov(y)

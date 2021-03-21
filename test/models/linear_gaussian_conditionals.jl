@@ -182,8 +182,8 @@ using TemporalGPs: posterior_and_lml, predict, predict_marginals
             x_vanilla, lml_vanilla = posterior_and_lml(x, vanilla_model, y)
             x_bottle, lml_bottle = posterior_and_lml(x, model, y)
             @test x_vanilla.P ≈ x_bottle.P rtol=1e-6
-            @test x_vanilla.m ≈ x_bottle.m
-            @test lml_vanilla ≈ lml_bottle
+            @test x_vanilla.m ≈ x_bottle.m rtol=1e-6
+            @test lml_vanilla ≈ lml_bottle rtol=1e-6
 
             Q_type == Val(:diag) && @testset "missing data" begin
 

@@ -1,6 +1,3 @@
-import Stheno: ew, pw
-import KernelFunctions: kerneldiagmatrix, kernelmatrix
-
 """
     Separable{Tl<:Kernel, Tr<:Kernel} <: Kernel
 
@@ -15,15 +12,19 @@ struct Separable{Tl<:Kernel, Tr<:Kernel} <: Kernel
 end
 
 # Unary methods.
-function kerneldiagmatrix(k::Separable, x::AbstractVector{<:Tuple{Any, Any}})
+function KernelFunctions.kerneldiagmatrix(
+    k::Separable, x::AbstractVector{<:Tuple{Any, Any}},
+)
     return kerneldiagmatrix(k.l, first.(x)) .* kerneldiagmatrix(k.r, last.(x))
 end
-function kernelmatrix(k::Separable, x::AbstractVector{<:Tuple{Any, Any}})
+function KernelFunctions.kernelmatrix(
+    k::Separable, x::AbstractVector{<:Tuple{Any, Any}},
+)
     return kernelmatrix(k.l, first.(x)) .* kernelmatrix(k.r, last.(x))
 end
 
 # Binary methods.
-function kerneldiagmatrix(
+function KernelFunctions.kerneldiagmatrix(
     k::Separable,
     x::AbstractVector{<:Tuple{Any, Any}},
     y::AbstractVector{<:Tuple{Any, Any}},
@@ -31,7 +32,7 @@ function kerneldiagmatrix(
     return kerneldiagmatrix(k.l, first.(x), first.(y)) .*
         kerneldiagmatrix(k.r, last.(x), last.(y))
 end
-function kernelmatrix(
+function KernelFunctions.kernelmatrix(
     k::Separable,
     x::AbstractVector{<:Tuple{Any, Any}},
     y::AbstractVector{<:Tuple{Any, Any}},

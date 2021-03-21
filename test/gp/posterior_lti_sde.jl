@@ -6,7 +6,7 @@
     kernels = vcat(
 
         # Base kernels.
-        (name="base-Matern12", val=Matern12Kernel()),
+        (name="base-Matern12Kernel", val=Matern12Kernel()),
         map([Matern32Kernel, Matern52Kernel]) do k
             (name="base-$k", val=k())
         end,
@@ -18,13 +18,13 @@
 
         # Stretched kernels.
         map([1e-2, 0.1, 1.0, 10.0, 100.0]) do λ
-            (name="stretched-λ=$λ", val=stretch(Matern32Kernel(), λ))
+            (name="stretched-λ=$λ", val=transform(Matern32Kernel(), λ))
         end,
 
         # Summed kernels.
         (
-            name="sum-Matern12-Matern32",
-            val=1.5 * stretch(Matern12Kernel(), 0.1) + 0.3 * stretch(Matern32Kernel(), 1.1),
+            name="sum-Matern12Kernel-Matern32Kernel",
+            val=1.5 * transform(Matern12Kernel(), 0.1) + 0.3 * transform(Matern32Kernel(), 1.1),
         ),
     )
 

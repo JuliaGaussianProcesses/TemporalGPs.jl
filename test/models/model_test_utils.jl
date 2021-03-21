@@ -37,7 +37,7 @@ function random_nice_psd_matrix(
 ) where {T}
 
     # Generate random positive definite matrix.
-    S = Symmetric(pw(Matern12(), 5 .* randn(rng, T, N)) + T(1e-3) * I)
+    S = Symmetric(kernelmatrix(Matern12Kernel(), 5 .* randn(rng, T, N)) + T(1e-3) * I)
 
     # Centre (make eigenvals N(0, 2^2)) and bound the eigenvalues between 0 and 1.
     λ, Γ = eigen(S)

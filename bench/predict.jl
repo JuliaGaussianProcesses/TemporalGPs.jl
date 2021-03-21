@@ -456,7 +456,7 @@ Q = randn(rng, Dlat, Dlat);
 
 # Generate filtering (input) distribution.
 mf = randn(rng, Float64, Dlat);
-Pf = Symmetric(Stheno.pw(EQ(), range(-10.0, 10.0; length=Dlat)));
+Pf = Symmetric(Stheno.kernelmatrix(SEKernel(), range(-10.0, 10.0; length=Dlat)));
 
 
 # Generate corresponding dense dynamics.

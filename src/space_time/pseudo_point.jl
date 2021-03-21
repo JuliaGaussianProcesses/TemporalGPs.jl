@@ -1,5 +1,3 @@
-using KernelFunctions: ScaledKernel, Stretched, KernelSum
-
 """
     DTCSeparable{Tz<:AbstractVector, Tk<:SeparableKernel} <: Kernel
 
@@ -21,11 +19,15 @@ compute the ELBO.
 """
 dtcify(z::AbstractVector, k::Separable) = DTCSeparable(z, k)
 
-dtcify(z::AbstractVector, k::Scaled) = Scaled(k.σ², dtcify(z, k.k), k.f)
+dtcify(z::AbstractVector, k::ScaledKernel) = ScaledKernel(dtcify(z, k.kernel), k.σ²)
 
-dtcify(z::AbstractVector, k::Stretched) = Stretched(k.a, dtcify(z, k.k), k.f)
+function dtcify(z::AbstractVector, k::TransformedKernel{<:Kernel, <:ScaleTransform})
+    return TransformedKernel(dtcify(z, k.kernel), k.transform)
+end
 
-dtcify(z::AbstractVector, k::Sum) = Sum(dtcify(z, k.kl), dtcify(z, k.kr))
+function dtcify(z::AbstractVector, k::KernelSum)
+    return KernelSum(dtcify(z, k.kernels[1]), dtcify(z, k.kernels[2]))
+end
 
 dtcify(z::AbstractVector, fx::FiniteLTISDE) = FiniteGP(dtcify(z, fx.f), fx.x, fx.Σy)
 
@@ -110,12 +112,12 @@ function kernel_diagonals(k::DTCSeparable, x::RegularInTime)
     )
 end
 
-function kernel_diagonals(k::Scaled, x::AbstractVector)
-    return k.σ²[1] .* kernel_diagonals(k.k, x)
+function kernel_diagonals(k::ScaledKernel, x::AbstractVector)
+    return k.σ²[1] .* kernel_diagonals(k.kernel, x)
 end
 
-function kernel_diagonals(k::Sum, x::AbstractVector)
-    return kernel_diagonals(k.kl, x) .+ kernel_diagonals(k.kr, x)
+function kernel_diagonals(k::KernelSum, x::AbstractVector)
+    return kernel_diagonals(k.kernels[1], x) .+ kernel_diagonals(k.kernels[2], x)
 end
 
 function lgssm_components(k_dtc::DTCSeparable, x::SpaceTimeGrid, storage::StorageType)
@@ -131,8 +133,8 @@ function lgssm_components(k_dtc::DTCSeparable, x::SpaceTimeGrid, storage::Storag
     space_kernel = k.l
     x_space = x.xl
     z_space = k_dtc.z
-    K_space_z = pw(space_kernel, z_space)
-    K_space_zx = pw(space_kernel, z_space, x_space)
+    K_space_z = kernelmatrix(space_kernel, z_space)
+    K_space_zx = kernelmatrix(space_kernel, z_space, x_space)
 
 
     # Get some size info.
@@ -168,7 +170,7 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
     # Compute spatial covariance between inducing inputs, and inducing points + obs. points.
     space_kernel = k.l
     z_space = k_dtc.z
-    K_space_z = pw(space_kernel, z_space)
+    K_space_z = kernelmatrix(space_kernel, z_space)
     K_space_z_chol = cholesky(Symmetric(K_space_z + 1e-9I))
 
     # Get some size info.
@@ -187,7 +189,7 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
         zip(Fill(K_space_z, N), Qs_t),
     )
     x_big = time_ad(Val(:disabled), "x_big", _reduce, vcat, x.vs)
-    C__ = time_ad(Val(:disabled), "C__", pw, space_kernel, z_space, x_big)
+    C__ = time_ad(Val(:disabled), "C__", kernelmatrix, space_kernel, z_space, x_big)
     C = time_ad(Val(:disabled), "C", \, K_space_z_chol, C__)
     Cs = time_ad(Val(:disabled), "Cs", partition, Zygote.dropgrad(map(length, x.vs)), C)
 
@@ -355,7 +357,7 @@ function build_emission_covs(k::DTCSeparable, x_new::RectilinearGrid)
     C_fp_u = kernelmatrix(space_kernel, get_space(x_new), z_r)
     C_u = cholesky(Symmetric(kernelmatrix(space_kernel, z_r) + ident_eps(z_r, 1e-9)))
     Cr_rpred_diag = kerneldiagmatrix(space_kernel, get_space(x_new))
-    spatial_Q_diag = Cr_rpred_diag - Stheno.diag_Xt_invA_X(C_u, C_fp_u')
+    spatial_Q_diag = Cr_rpred_diag - diag_Xt_invA_X(C_u, C_fp_u')
 
     time_kernel = k.k.r
     time_vars = kerneldiagmatrix(time_kernel, get_time(x_new))
@@ -372,7 +374,7 @@ function build_emission_covs(k::DTCSeparable, x_new::RegularInTime)
     return map(zip(time_vars, x_new.vs)) do ((time_var, x_r))
         C_fp_u = kernelmatrix(space_kernel, x_r, z_r)
         Cr_rpred_diag = kerneldiagmatrix(space_kernel, x_r)
-        spatial_Q_diag = Cr_rpred_diag - Stheno.diag_Xt_invA_X(C_u, C_fp_u')
+        spatial_Q_diag = Cr_rpred_diag - diag_Xt_invA_X(C_u, C_fp_u')
         return Diagonal(spatial_Q_diag * time_var)
     end
 end
@@ -383,15 +385,15 @@ function dtc_post_emissions(k::DTCSeparable, x_new::AbstractVector, storage::Sto
     return new_proj, new_Σs
 end
 
-function dtc_post_emissions(k::Scaled, x_new::AbstractVector, storage::StorageType)
-    (Cs, cs, Hs, hs), Σs = dtc_post_emissions(k.k, x_new, storage)
+function dtc_post_emissions(k::ScaledKernel, x_new::AbstractVector, storage::StorageType)
+    (Cs, cs, Hs, hs), Σs = dtc_post_emissions(k.kernel, x_new, storage)
     σ = sqrt(convert(eltype(storage_type), only(k.σ²)))
     return (Cs, cs, map(H->σ * H, Hs), map(h->σ * h, hs)), map(Σ->σ^2 * Σ, Σs)
 end
 
-function dtc_post_emissions(k::Sum, x_new::AbstractVector, storage::StorageType)
-    (Cs_l, cs_l, Hs_l, hs_l), Σs_l = dtc_post_emissions(k.kl, x_new, storage)
-    (Cs_r, cs_r, Hs_r, hs_r), Σs_r = dtc_post_emissions(k.kr, x_new, storage)
+function dtc_post_emissions(k::KernelSum, x_new::AbstractVector, storage::StorageType)
+    (Cs_l, cs_l, Hs_l, hs_l), Σs_l = dtc_post_emissions(k.kernels[1], x_new, storage)
+    (Cs_r, cs_r, Hs_r, hs_r), Σs_r = dtc_post_emissions(k.kernels[2], x_new, storage)
     Cs = map(vcat, Cs_l, Cs_r)
     cs = cs_l + cs_r
     Hs = map(blk_diag, Hs_l, Hs_r)

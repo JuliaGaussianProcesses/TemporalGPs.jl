@@ -26,7 +26,7 @@ const data_dir = joinpath(datadir(), exp_dir_name)
 
 
 
-build_gp(k_base, σ², l) = GP(σ² * stretch(k_base, 1 / l), GPC())
+build_gp(k_base, σ², l) = GP(σ² * transform(k_base, 1 / l), GPC())
 
 # Naive implementation.
 function build(::Val{:naive}, k_base, σ², l, x, σ²_n)
@@ -79,9 +79,9 @@ tagsave(
             2_000_000, 5_000_000, 10_000_000,
         ],
         :kernels => [
-            # (k=Matern12(), sym=:Matern12, name="Matern12"),
-            # (k=Matern32(), sym=:Matern32, name="Matern32"),
-            (k=Matern52(), sym=:Matern52, name="Matern52"),
+            # (k=Matern12Kernel(), sym=:Matern12Kernel, name="Matern12Kernel"),
+            # (k=Matern32Kernel(), sym=:Matern32Kernel, name="Matern32Kernel"),
+            (k=Matern52Kernel(), sym=:Matern52Kernel, name="Matern52Kernel"),
         ],
         :implementations => [
             (
