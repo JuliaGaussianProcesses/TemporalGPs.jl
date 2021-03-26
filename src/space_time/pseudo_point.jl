@@ -33,7 +33,7 @@ dtcify(z::AbstractVector, fx::FiniteLTISDE) = FiniteGP(dtcify(z, fx.f), fx.x, fx
 
 dtcify(z::AbstractVector, fx::LTISDE) = LTISDE(dtcify(z, fx.f), fx.storage)
 
-dtcify(z::AbstractVector, f::GP) = GP(f.m, dtcify(z, f.k))
+dtcify(z::AbstractVector, f::GP) = GP(f.mean, dtcify(z, f.kernel))
 
 """
     dtc(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)
@@ -73,7 +73,7 @@ function AbstractGPs.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVect
     Σs = lgssm.emissions.fan_out.Q
     marg_diags = time_ad(Val(:disabled), "marg_diags", marginals_diag, lgssm)
 
-    k = fx_dtc.f.f.k
+    k = fx_dtc.f.f.kernel
     Cf_diags = time_ad(Val(:disabled), "Cf_diags", kernel_diagonals, k, fx_dtc.x)
 
     # Transform a vector into a vector-of-vectors.
@@ -263,7 +263,7 @@ function approx_posterior_marginals(
     z_r::AbstractVector,
     x_r::AbstractVector,
 )
-    fx.f.f.m isa AbstractGPs.ZeroMean || throw(error("Prior mean of GP isn't zero."))
+    fx.f.f.mean isa AbstractGPs.ZeroMean || throw(error("Prior mean of GP isn't zero."))
 
     # Compute approximate posterior LGSSM.
     lgssm = build_lgssm(dtcify(z_r, fx))
@@ -271,7 +271,7 @@ function approx_posterior_marginals(
 
     # Compute the new emission distributions + approx posterior model.
     x_pr = RectilinearGrid(x_r, get_time(fx.x))
-    k_dtc = dtcify(z_r, fx.f.f.k)
+    k_dtc = dtcify(z_r, fx.f.f.kernel)
     new_proj, Σs = dtc_post_emissions(k_dtc, x_pr, fx.f.storage)
     new_fx_post = LGSSM(fx_post.transitions, build_emissions(new_proj, Σs))
 
@@ -318,7 +318,7 @@ function approx_posterior_marginals(
     x_pr = RegularInTime(ts, x_rs)
 
     # Compute the new emission distributions + approx posterior model.
-    k_dtc = dtcify(z_r, fx.f.f.k)
+    k_dtc = dtcify(z_r, fx.f.f.kernel)
     new_proj, Σs = dtc_post_emissions(k_dtc, x_pr, fx.f.storage)
     new_fx_post = LGSSM(fx_post.transitions, build_emissions(new_proj, Σs))
 
@@ -343,7 +343,7 @@ function approx_posterior_marginals(
     fx_post = posterior(lgssm, restructure(y, lgssm.emissions))
 
     # Compute the new emission distributions + approx posterior model.
-    k_dtc = dtcify(z_r, fx.f.f.k)
+    k_dtc = dtcify(z_r, fx.f.f.kernel)
     new_proj, Σs = dtc_post_emissions(k_dtc, x_pr, fx.f.storage)
     new_fx_post = LGSSM(fx_post.transitions, build_emissions(new_proj, Σs))
 

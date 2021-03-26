@@ -17,9 +17,9 @@ using TemporalGPs:
         z = randn(rng, 3)
         k_sep = Separable(SEKernel(), Matern32Kernel())
         @test dtcify(z, k_sep) isa DTCSeparable
-        @test dtcify(z, 0.5 * k_sep) isa ScaledKernel{<:Any, <:DTCSeparable}
+        @test dtcify(z, 0.5 * k_sep) isa ScaledKernel{<:DTCSeparable}
         @test dtcify(z, transform(k_sep, 0.5)) isa TransformedKernel{<:DTCSeparable}
-        @test dtcify(z, k_sep + k_sep) isa KernelSum{<:DTCSeparable, <:DTCSeparable}
+        @test dtcify(z, k_sep + k_sep) isa KernelSum{<:Tuple{DTCSeparable, DTCSeparable}}
     end
 
     # A couple of "base" kernels used as components in more complicated kernels below.
@@ -39,7 +39,7 @@ using TemporalGPs:
         ),
 
         (name="sum-separable-1", val=separable_1 + separable_2),
-        (name="sum-separable-2", val=1.3 * separable_1 + separable_2 * 0.95),
+        (name="sum-separable-2", val=1.3 * separable_1 + 0.95 * separable_2),
     ]
 
     # Input locations.
@@ -158,7 +158,7 @@ using TemporalGPs:
 
             # Compute approximate posterior marginals naively with missings.
             f_approx_post_naive = approx_posterior(
-                VFE, fx_naive, naive_y_missings, f_naive(z_naive),
+                VFE(), fx_naive, naive_y_missings, f_naive(z_naive),
             )
             naive_approx_post_marginals = marginals(f_approx_post_naive(collect(x_pr)))
 

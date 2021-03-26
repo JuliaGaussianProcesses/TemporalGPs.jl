@@ -16,7 +16,7 @@ module TemporalGPs
     using FillArrays: AbstractFill
     using Zygote: _pullback
 
-    import AbstractGPs: mean, cov, logpdf, FiniteGP, AbstractGP, posterior
+    import AbstractGPs: mean, cov, logpdf, FiniteGP, AbstractGP, posterior, dtc, elbo
 
     using KernelFunctions:
         SimpleKernel,
@@ -32,7 +32,8 @@ module TemporalGPs
         RegularSpacing,
         checkpointed,
         posterior,
-        logpdf_and_rand
+        logpdf_and_rand,
+        Separable
 
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "harmonise.jl"))

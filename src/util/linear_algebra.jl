@@ -1,7 +1,7 @@
 @inline symmetric(X::AbstractMatrix) = Symmetric(X)
 @inline symmetric(X::Diagonal) = X
 
-diag_Xt_invA_X(A::Cholesky, X::AbstractVecOrMat) = diag_At_A(A.U' \ X)
+diag_Xt_invA_X(A::Cholesky, X::AbstractVecOrMat) = AbstractGPs.diag_At_A(A.U' \ X)
 
 Xt_invA_X(A::Cholesky, x::AbstractVector) = sum(abs2, A.U' \ x)
 
