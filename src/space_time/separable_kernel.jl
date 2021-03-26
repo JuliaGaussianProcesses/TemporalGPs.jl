@@ -12,10 +12,10 @@ struct Separable{Tl<:Kernel, Tr<:Kernel} <: Kernel
 end
 
 # Unary methods.
-function KernelFunctions.kerneldiagmatrix(
+function KernelFunctions.kernelmatrix_diag(
     k::Separable, x::AbstractVector{<:Tuple{Any, Any}},
 )
-    return kerneldiagmatrix(k.l, first.(x)) .* kerneldiagmatrix(k.r, last.(x))
+    return kernelmatrix_diag(k.l, first.(x)) .* kernelmatrix_diag(k.r, last.(x))
 end
 function KernelFunctions.kernelmatrix(
     k::Separable, x::AbstractVector{<:Tuple{Any, Any}},
@@ -24,13 +24,13 @@ function KernelFunctions.kernelmatrix(
 end
 
 # Binary methods.
-function KernelFunctions.kerneldiagmatrix(
+function KernelFunctions.kernelmatrix_diag(
     k::Separable,
     x::AbstractVector{<:Tuple{Any, Any}},
     y::AbstractVector{<:Tuple{Any, Any}},
 )
-    return kerneldiagmatrix(k.l, first.(x), first.(y)) .*
-        kerneldiagmatrix(k.r, last.(x), last.(y))
+    return kernelmatrix_diag(k.l, first.(x), first.(y)) .*
+        kernelmatrix_diag(k.r, last.(x), last.(y))
 end
 function KernelFunctions.kernelmatrix(
     k::Separable,

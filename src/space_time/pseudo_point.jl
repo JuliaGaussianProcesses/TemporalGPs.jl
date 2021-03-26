@@ -96,17 +96,17 @@ Zygote.accum(x::NamedTuple{(:diag, )}, y::Diagonal) = Zygote.accum(x, (diag=y.di
 function kernel_diagonals(k::DTCSeparable, x::RectilinearGrid)
     space_kernel = k.k.l
     time_kernel = k.k.r
-    Cr_rpred_diag = kerneldiagmatrix(space_kernel, get_space(x))
-    time_vars = kerneldiagmatrix(time_kernel, get_time(x))
+    Cr_rpred_diag = kernelmatrix_diag(space_kernel, get_space(x))
+    time_vars = kernelmatrix_diag(time_kernel, get_time(x))
     return map(s_t -> Diagonal(Cr_rpred_diag * s_t), time_vars)
 end
 
 function kernel_diagonals(k::DTCSeparable, x::RegularInTime)
     space_kernel = k.k.l
     time_kernel = k.k.r
-    time_vars = kerneldiagmatrix(time_kernel, get_time(x))
+    time_vars = kernelmatrix_diag(time_kernel, get_time(x))
     return map(
-        (s_t, x_r) -> Diagonal(kerneldiagmatrix(space_kernel, x_r) * s_t),
+        (s_t, x_r) -> Diagonal(kernelmatrix_diag(space_kernel, x_r) * s_t),
         time_vars,
         x.vs,
     )
@@ -356,11 +356,11 @@ function build_emission_covs(k::DTCSeparable, x_new::RectilinearGrid)
     z_r = k.z
     C_fp_u = kernelmatrix(space_kernel, get_space(x_new), z_r)
     C_u = cholesky(Symmetric(kernelmatrix(space_kernel, z_r) + ident_eps(z_r, 1e-9)))
-    Cr_rpred_diag = kerneldiagmatrix(space_kernel, get_space(x_new))
+    Cr_rpred_diag = kernelmatrix_diag(space_kernel, get_space(x_new))
     spatial_Q_diag = Cr_rpred_diag - diag_Xt_invA_X(C_u, C_fp_u')
 
     time_kernel = k.k.r
-    time_vars = kerneldiagmatrix(time_kernel, get_time(x_new))
+    time_vars = kernelmatrix_diag(time_kernel, get_time(x_new))
     return map(s_t -> Diagonal(spatial_Q_diag * s_t), time_vars)
 end
 
@@ -370,10 +370,10 @@ function build_emission_covs(k::DTCSeparable, x_new::RegularInTime)
     C_u = cholesky(Symmetric(kernelmatrix(space_kernel, z_r) + ident_eps(z_r, 1e-9)))
 
     time_kernel = k.k.r
-    time_vars = kerneldiagmatrix(time_kernel, get_time(x_new))
+    time_vars = kernelmatrix_diag(time_kernel, get_time(x_new))
     return map(zip(time_vars, x_new.vs)) do ((time_var, x_r))
         C_fp_u = kernelmatrix(space_kernel, x_r, z_r)
-        Cr_rpred_diag = kerneldiagmatrix(space_kernel, x_r)
+        Cr_rpred_diag = kernelmatrix_diag(space_kernel, x_r)
         spatial_Q_diag = Cr_rpred_diag - diag_Xt_invA_X(C_u, C_fp_u')
         return Diagonal(spatial_Q_diag * time_var)
     end
