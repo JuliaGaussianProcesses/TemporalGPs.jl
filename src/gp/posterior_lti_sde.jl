@@ -3,9 +3,11 @@ struct PosteriorLTISDE{Tprior<:LTISDE, Tdata} <: AbstractGP
     data::Tdata
 end
 
-function posterior(fx::FiniteLTISDE, y::AbstractVector)
-    return PosteriorLTISDE(fx.f, (y=y, x=fx.x, Σy=fx.Σy))
-end
+# Avoids method ambiguity.
+posterior(fx::FiniteLTISDE, y::AbstractVector) = _posterior(fx, y)
+posterior(fx::FiniteLTISDE, y::AbstractVector{<:Real}) = _posterior(fx, y)
+
+_posterior(fx, y) = PosteriorLTISDE(fx.f, (y=y, x=fx.x, Σy=fx.Σy))
 
 const FinitePosteriorLTISDE = FiniteGP{<:PosteriorLTISDE}
 
