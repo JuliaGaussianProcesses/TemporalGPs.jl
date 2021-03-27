@@ -49,7 +49,7 @@ end
 function block_diagonal_dynamics_constructor(rng, N_space, N_time, N_blocks)
 
     # Construct kernel.
-    k = Separable(EQ(), Matern52())
+    k = Separable(SEKernel(), Matern52Kernel())
     for n in 1:(N_blocks - 1)
         k += k
     end
@@ -309,7 +309,7 @@ using Profile, ProfileView
 rng = MersenneTwister(123456);
 T = 1_000_000;
 x = range(0.0; step=0.3, length=T);
-f = GP(Matern52() + Matern52() + Matern52() + Matern52(), GPC());
+f = GP(Matern52Kernel() + Matern52Kernel() + Matern52Kernel() + Matern52Kernel(), GPC());
 fx_sde_dense = to_sde(f)(x);
 fx_sde_static = to_sde(f, SArrayStorage(Float64))(x);
 

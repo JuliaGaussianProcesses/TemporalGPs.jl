@@ -8,7 +8,6 @@ using TemporalGPs:
     storage_type,
     is_of_storage_type
 
-using Stheno: GP, GPC
 using Zygote, StaticArrays
 
 println("lgssm:")

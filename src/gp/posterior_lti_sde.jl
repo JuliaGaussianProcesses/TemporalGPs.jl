@@ -3,19 +3,21 @@ struct PosteriorLTISDE{Tprior<:LTISDE, Tdata} <: AbstractGP
     data::Tdata
 end
 
-function posterior(fx::FiniteLTISDE, y::AbstractVector)
-    return PosteriorLTISDE(fx.f, (y=y, x=fx.x, Σy=fx.Σy))
-end
+# Avoids method ambiguity.
+posterior(fx::FiniteLTISDE, y::AbstractVector) = _posterior(fx, y)
+posterior(fx::FiniteLTISDE, y::AbstractVector{<:Real}) = _posterior(fx, y)
+
+_posterior(fx, y) = PosteriorLTISDE(fx.f, (y=y, x=fx.x, Σy=fx.Σy))
 
 const FinitePosteriorLTISDE = FiniteGP{<:PosteriorLTISDE}
 
-Stheno.mean(fx::FinitePosteriorLTISDE) = mean.(marginals(fx))
+AbstractGPs.mean(fx::FinitePosteriorLTISDE) = mean.(marginals(fx))
 
-function Stheno.cov(fx::FinitePosteriorLTISDE)
+function AbstractGPs.cov(fx::FinitePosteriorLTISDE)
     @error "Intentionally not implemented. Please don't try to explicitly compute this cov. matrix."
 end
 
-function Stheno.marginals(fx::FinitePosteriorLTISDE)
+function AbstractGPs.marginals(fx::FinitePosteriorLTISDE)
     x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x)
 
     model = build_lgssm(fx.f.prior(x, σ²s))
@@ -24,7 +26,7 @@ function Stheno.marginals(fx::FinitePosteriorLTISDE)
     return map(marginals, marginals(model_post)[pr_indices])
 end
 
-function Stheno.rand(rng::AbstractRNG, fx::FinitePosteriorLTISDE)
+function AbstractGPs.rand(rng::AbstractRNG, fx::FinitePosteriorLTISDE)
     x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x)
 
     model = build_lgssm(fx.f.prior(x, σ²s))
@@ -33,9 +35,9 @@ function Stheno.rand(rng::AbstractRNG, fx::FinitePosteriorLTISDE)
     return rand(rng, model_post)[pr_indices]
 end
 
-Stheno.rand(fx::FinitePosteriorLTISDE) = rand(Random.GLOBAL_RNG, fx)
+AbstractGPs.rand(fx::FinitePosteriorLTISDE) = rand(Random.GLOBAL_RNG, fx)
 
-function Stheno.logpdf(fx::FinitePosteriorLTISDE, y_pr::AbstractVector{<:Real})
+function AbstractGPs.logpdf(fx::FinitePosteriorLTISDE, y_pr::AbstractVector{<:Real})
     x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x, fx.Σy.diag, y_pr)
 
     σ²s_pr_full = build_prediction_obs_vars(pr_indices, x, fx.Σy.diag)

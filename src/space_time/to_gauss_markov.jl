@@ -7,7 +7,7 @@ function lgssm_components(k::Separable, x::SpaceTimeGrid, storage)
     # Compute spatial covariance, and temporal GaussMarkovModel.
     r, t = x.xl, x.xr
     kr, kt = k.l, k.r
-    Kr = pw(kr, r)
+    Kr = kernelmatrix(kr, r)
     As_t, as_t, Qs_t, emission_proj_t, x0_t = lgssm_components(kt, t, storage)
 
     # Compute components of complete LGSSM.

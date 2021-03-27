@@ -1,13 +1,14 @@
 module TemporalGPs
 
+    using AbstractGPs
     using BlockDiagonals
     using ChainRulesCore
     using Distributions
     using FillArrays
     using LinearAlgebra
+    using KernelFunctions
     using Random
     using StaticArrays
-    using Stheno
     using StructArrays
     using Zygote
     using ZygoteRules
@@ -15,15 +16,14 @@ module TemporalGPs
     using FillArrays: AbstractFill
     using Zygote: _pullback
 
-    import Stheno:
-        mean,
-        cov,
-        pairwise,
-        logpdf,
-        AV,
-        AM,
-        FiniteGP,
-        AbstractGP
+    import AbstractGPs: mean, cov, logpdf, FiniteGP, AbstractGP, posterior, dtc, elbo
+
+    using KernelFunctions:
+        SimpleKernel,
+        KernelSum,
+        ScaleTransform,
+        ScaledKernel,
+        TransformedKernel
 
     export
         to_sde,
@@ -32,10 +32,12 @@ module TemporalGPs
         RegularSpacing,
         checkpointed,
         posterior,
-        logpdf_and_rand
+        logpdf_and_rand,
+        Separable
 
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "harmonise.jl"))
+    include(joinpath("util", "linear_algebra.jl"))
     include(joinpath("util", "scan.jl"))
     include(joinpath("util", "zygote_friendly_map.jl"))
     include(joinpath("util", "zygote_rules.jl"))

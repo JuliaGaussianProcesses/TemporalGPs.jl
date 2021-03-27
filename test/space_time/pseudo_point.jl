@@ -15,16 +15,16 @@ using TemporalGPs:
 
     @testset "dtcify" begin
         z = randn(rng, 3)
-        k_sep = Separable(EQ(), Matern32())
+        k_sep = Separable(SEKernel(), Matern32Kernel())
         @test dtcify(z, k_sep) isa DTCSeparable
-        @test dtcify(z, 0.5 * k_sep) isa Stheno.Scaled{<:Any, <:DTCSeparable}
-        @test dtcify(z, stretch(k_sep, 0.5)) isa Stheno.Stretched{<:Any, <:DTCSeparable}
-        @test dtcify(z, k_sep + k_sep) isa Stheno.Sum{<:DTCSeparable, <:DTCSeparable}
+        @test dtcify(z, 0.5 * k_sep) isa ScaledKernel{<:DTCSeparable}
+        @test dtcify(z, transform(k_sep, 0.5)) isa TransformedKernel{<:DTCSeparable}
+        @test dtcify(z, k_sep + k_sep) isa KernelSum{<:Tuple{DTCSeparable, DTCSeparable}}
     end
 
     # A couple of "base" kernels used as components in more complicated kernels below.
-    separable_1 = Separable(EQ(), Matern12())
-    separable_2 = Separable(EQ(), Matern52())
+    separable_1 = Separable(SEKernel(), Matern12Kernel())
+    separable_2 = Separable(SEKernel(), Matern52Kernel())
 
     # The various spatio-temporal kernels to try out.
     kernels = [
@@ -32,11 +32,14 @@ using TemporalGPs:
         (name="separable-1", val=separable_1),
         (name="separable-2", val=separable_2),
 
-        (name="scaled-separable", val=0.5 * Separable(Matern52(), Matern32())),
-        (name="stretched-separable", val=Separable(EQ(), stretch(Matern12(), 1.3))),
+        (name="scaled-separable", val=0.5 * Separable(Matern52Kernel(), Matern32Kernel())),
+        (
+            name="stretched-separable",
+            val=Separable(SEKernel(), transform(Matern12Kernel(), 1.3)),
+        ),
 
         (name="sum-separable-1", val=separable_1 + separable_2),
-        (name="sum-separable-2", val=1.3 * separable_1 + separable_2 * 0.95),
+        (name="sum-separable-2", val=1.3 * separable_1 + 0.95 * separable_2),
     ]
 
     # Input locations.
@@ -69,7 +72,7 @@ using TemporalGPs:
         z_naive = collect(z)
 
         # Construct naive GP.
-        f_naive = GP(k.val, GPC())
+        f_naive = GP(k.val)
         fx_naive = f_naive(collect(x.val), 0.1)
         y = rand(rng, fx_naive)
 
@@ -101,7 +104,7 @@ using TemporalGPs:
         )
 
         # Compute approximate posterior marginals naively.
-        f_approx_post_naive = f_naive | Stheno.PseudoObs(fx_naive ← y, f_naive(z_naive))
+        f_approx_post_naive = approx_posterior(VFE(), fx_naive, y, f_naive(z_naive))
         x_pr = RectilinearGrid(x_pr_r, get_time(x.val))
         naive_approx_post_marginals = marginals(f_approx_post_naive(collect(x_pr)))
 
@@ -154,8 +157,8 @@ using TemporalGPs:
             @test elbo_naive ≈ elbo_sde rtol=1e-7 atol=1e-7
 
             # Compute approximate posterior marginals naively with missings.
-            f_approx_post_naive = |(
-                f_naive, Stheno.PseudoObs(fx_naive ← naive_y_missings, f_naive(z_naive)),
+            f_approx_post_naive = approx_posterior(
+                VFE(), fx_naive, naive_y_missings, f_naive(z_naive),
             )
             naive_approx_post_marginals = marginals(f_approx_post_naive(collect(x_pr)))
 

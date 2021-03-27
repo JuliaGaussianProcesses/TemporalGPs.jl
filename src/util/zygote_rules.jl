@@ -241,6 +241,23 @@ function Base.:(-)(
     return UpperTriangular(A.data - B)   
 end
 
+function _symmetric_back(Δ, uplo)
+    L, U, D = LowerTriangular(Δ), UpperTriangular(Δ), Diagonal(Δ)
+    return collect(uplo == Symbol(:U) ? U .+ transpose(L) - D : L .+ transpose(U) - D)
+end
+_symmetric_back(Δ::Diagonal, uplo) = Δ
+_symmetric_back(Δ::UpperTriangular, uplo) = collect(uplo == Symbol('U') ? Δ : transpose(Δ))
+_symmetric_back(Δ::LowerTriangular, uplo) = collect(uplo == Symbol('U') ? transpose(Δ) : Δ)
+
+function Zygote._pullback(
+    ctx::AContext, ::Type{Symmetric}, X::StridedMatrix{<:Real}, uplo=:U,
+)
+    function Symmetric_pullback(Δ)
+        return nothing, _symmetric_back(Δ, uplo), nothing
+    end
+    return Symmetric(X, uplo), Symmetric_pullback
+end
+
 # function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}) where i
 #   y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
 #   back(::Nothing) = nothing

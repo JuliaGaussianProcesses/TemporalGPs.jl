@@ -1,5 +1,3 @@
-using Stheno: Xt_invA_X
-
 """
     abstract type AbstractLGC end
 
@@ -42,7 +40,7 @@ function predict(x::Gaussian, f::AbstractLGC)
     A, a, Q = get_fields(f)
     m, P = get_fields(x)
     # Symmetric wrapper needed for numerical stability. Do not unwrap.
-    return Gaussian(A * m + a, A * Symmetric(P) * A' + Q)
+    return Gaussian(A * m + a, A * symmetric(P) * A' + Q)
 end
 
 """
@@ -57,7 +55,7 @@ Equivalent to
 function predict_marginals(x::Gaussian, f::AbstractLGC)
     return Gaussian(
         f.A * x.m + f.a,
-        Diagonal(Stheno.diag_At_B(f.A', x.P * f.A') + diag(f.Q)),
+        Diagonal(diag_At_B(f.A', x.P * f.A') + diag(f.Q)),
     )
 end
 
@@ -77,7 +75,7 @@ end
 
 function conditional_rand(ε::AbstractVector, f::AbstractLGC, x::AbstractVector)
     A, a, Q = get_fields(f)
-    return (A * x + a) + cholesky(Symmetric(Q + UniformScaling(1e-9))).U' * ε
+    return (A * x + a) + cholesky(symmetric(Q + UniformScaling(1e-9))).U' * ε
 end
 
 """
@@ -133,7 +131,7 @@ function posterior_and_lml(x::Gaussian, f::SmallOutputLGC, y::AbstractVector{<:R
 
     V = A * P
 
-    S = cholesky(Symmetric(V * A' + Q))
+    S = cholesky(symmetric(V * A' + Q))
     B = S.U' \ V
     α = S.U' \ (y - (A * m + a))
 
@@ -210,12 +208,12 @@ end
 function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y::AbstractVector{<:Real})
     m, _P = get_fields(x)
     A, a, _Q = get_fields(f)
-    Q = cholesky(Symmetric(_Q))
-    P = cholesky(Symmetric(_P + ident_eps(1e-10)))
+    Q = cholesky(symmetric(_Q))
+    P = cholesky(symmetric(_P + ident_eps(1e-10)))
 
     # Compute posterior covariance matrix.
     Bt = Q.U' \ A * P.U'
-    F = cholesky(Symmetric(Bt' * Bt + UniformScaling(1.0)))
+    F = cholesky(symmetric(Bt' * Bt + UniformScaling(1.0)))
     G = F.U' \ P.U
     P_post = G'G
 
@@ -371,7 +369,7 @@ function posterior_and_lml(x::Gaussian, f::BottleneckLGC, y::AbstractVector)
     # Compute the posterior `x | y` by integrating `x | z` against `z | y`.
     zm, zP = get_fields(z)
     z_postm, z_postP = get_fields(z_post)
-    U = cholesky(Symmetric(zP + ident_eps(z, 1e-12))).U
+    U = cholesky(symmetric(zP + ident_eps(z, 1e-12))).U
     Gt = U \ (U' \ (H * xP))
     return Gaussian(xm + Gt' * (z_postm - zm), xP + Gt' * (z_postP - zP) * Gt), lml
 end

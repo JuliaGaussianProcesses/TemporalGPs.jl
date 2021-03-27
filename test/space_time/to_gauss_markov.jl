@@ -16,7 +16,7 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
         )
     end
 
-    k_sep = 1.5 * Separable(stretch(EQ(), 1.4), stretch(Matern32(), 1.3))
+    k_sep = 1.5 * Separable(transform(SEKernel(), 1.4), transform(Matern32Kernel(), 1.3))
 
     σ²s = [
         (name="scalar", val=(0.1,)),
@@ -51,7 +51,7 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
             )
         end
 
-        f = GP(k.val, GPC())
+        f = GP(k.val)
         ft = f(collect(x), σ².val...)
 
         f_sde = to_sde(f)
@@ -74,7 +74,7 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
         @test logpdf(ft, y) ≈ logpdf(ft_sde, y)
 
         # Test that the SDE posterior is close to the naive posterior.
-        f_post_naive = f | (ft ← y)
+        f_post_naive = posterior(ft, y)
         fx_post_naive = f_post_naive(collect(x), 0.1)
 
         @test_broken 1 == 0

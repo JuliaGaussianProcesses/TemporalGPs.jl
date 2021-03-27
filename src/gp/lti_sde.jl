@@ -4,12 +4,12 @@
 A lightweight wrapper around a `GP` `f` that tells this package to handle inference in `f`.
 Can be constructed via the `to_sde` function.
 """
-struct LTISDE{Tf<:GP{<:Stheno.ZeroMean}, Tstorage<:StorageType} <: AbstractGP
+struct LTISDE{Tf<:GP{<:AbstractGPs.ZeroMean}, Tstorage<:StorageType} <: AbstractGP
     f::Tf
     storage::Tstorage
 end
 
-function to_sde(f::GP{<:Stheno.ZeroMean}, storage_type=ArrayStorage(Float64))
+function to_sde(f::GP{<:AbstractGPs.ZeroMean}, storage_type=ArrayStorage(Float64))
     return LTISDE(f, storage_type)
 end
 
@@ -25,35 +25,38 @@ opposed to any other `AbstractGP`.
 """
 const FiniteLTISDE = FiniteGP{<:LTISDE}
 
-# Deal with a bug in Stheno.
+# Deal with a bug in AbstractGPs.
 function FiniteGP(f::LTISDE, x::AbstractVector{<:Real})
     return FiniteGP(f, x, convert(eltype(storage_type(f)), 1e-12))
 end
 
-# Implement Stheno's version of the FiniteGP API. This will eventually become AbstractGPs
-# API, but Stheno is still on a slightly different API because I've yet to update it.
+# Implement the AbstractGP API.
 
-Stheno.mean(ft::FiniteLTISDE) = mean.(marginals(build_lgssm(ft)))
+AbstractGPs.mean(ft::FiniteLTISDE) = mean.(marginals(build_lgssm(ft)))
 
-Stheno.cov(ft::FiniteLTISDE) = cov(FiniteGP(ft.f.f, ft.x, ft.Σy))
+AbstractGPs.cov(ft::FiniteLTISDE) = cov(FiniteGP(ft.f.f, ft.x, ft.Σy))
 
-Stheno.marginals(ft::FiniteLTISDE) = vcat(map(marginals, marginals(build_lgssm(ft)))...)
+function AbstractGPs.marginals(ft::FiniteLTISDE)
+    return vcat(map(marginals, marginals(build_lgssm(ft)))...)
+end
 
-function Stheno.rand(rng::AbstractRNG, ft::FiniteLTISDE)
+function AbstractGPs.rand(rng::AbstractRNG, ft::FiniteLTISDE)
     return destructure(rand(rng, build_lgssm(ft)))
 end
 
-Stheno.rand(ft::FiniteLTISDE) = rand(Random.GLOBAL_RNG, ft)
+AbstractGPs.rand(ft::FiniteLTISDE) = rand(Random.GLOBAL_RNG, ft)
 
-function Stheno.rand(rng::AbstractRNG, ft::FiniteLTISDE, N::Int)
+function AbstractGPs.rand(rng::AbstractRNG, ft::FiniteLTISDE, N::Int)
     return hcat([rand(rng, ft) for _ in 1:N]...)
 end
 
-Stheno.rand(ft::FiniteLTISDE, N::Int) = rand(Random.GLOBAL_RNG, ft, N)
+AbstractGPs.rand(ft::FiniteLTISDE, N::Int) = rand(Random.GLOBAL_RNG, ft, N)
 
-Stheno.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Real}) = _logpdf(ft, y)
+AbstractGPs.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Real}) = _logpdf(ft, y)
 
-Stheno.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}}) = _logpdf(ft, y)
+function AbstractGPs.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
+    return _logpdf(ft, y)
+end
 
 function _logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
     model = build_lgssm(ft)
@@ -66,10 +69,8 @@ destructure(y::AbstractVector{<:Real}) = y
 
 # Converting GPs into LGSSMs.
 
-using Stheno: MeanFunction, ConstMean, ZeroMean, BaseKernel, Sum, Stretched, Scaled
-
 function build_lgssm(ft::FiniteLTISDE)
-    As, as, Qs, emission_proj, x0 = lgssm_components(ft.f.f.k, ft.x, ft.f.storage)
+    As, as, Qs, emission_proj, x0 = lgssm_components(ft.f.f.kernel, ft.x, ft.f.storage)
     return LGSSM(
         GaussMarkovModel(Forward(), As, as, Qs, x0),
         build_emissions(emission_proj, build_Σs(ft)),
@@ -112,7 +113,7 @@ end
 # Generic constructors for base kernels.
 
 function lgssm_components(
-    k::BaseKernel, t::AbstractVector, storage::StorageType{T},
+    k::SimpleKernel, t::AbstractVector, storage::StorageType{T},
 ) where {T<:Real}
 
     # Compute stationary distribution and sde.
@@ -133,7 +134,7 @@ function lgssm_components(
 end
 
 function lgssm_components(
-    k::BaseKernel, t::Union{StepRangeLen, RegularSpacing}, storage_type::StorageType{T},
+    k::SimpleKernel, t::Union{StepRangeLen, RegularSpacing}, storage_type::StorageType{T},
 ) where {T<:Real}
 
     # Compute stationary distribution and sde.
@@ -155,12 +156,12 @@ function lgssm_components(
 end
 
 # Fallback definitions for most base kernels.
-function to_sde(k::BaseKernel, ::ArrayStorage{T}) where {T<:Real}
+function to_sde(k::SimpleKernel, ::ArrayStorage{T}) where {T<:Real}
     F, q, H = to_sde(k, SArrayStorage(T))
     return collect(F), q, collect(H)
 end
 
-function stationary_distribution(k::BaseKernel, ::ArrayStorage{T}) where {T<:Real}
+function stationary_distribution(k::SimpleKernel, ::ArrayStorage{T}) where {T<:Real}
     x = stationary_distribution(k, SArrayStorage(T))
     return Gaussian(collect(x.m), collect(x.P))
 end
@@ -169,25 +170,25 @@ end
 
 # Matern-1/2
 
-function to_sde(k::Matern12, s::SArrayStorage{T}) where {T<:Real}
+function to_sde(k::Matern12Kernel, s::SArrayStorage{T}) where {T<:Real}
     F = SMatrix{1, 1, T}(-1)
     q = convert(T, 2)
     H = SVector{1, T}(1)
     return F, q, H
 end
 
-function stationary_distribution(k::Matern12, s::SArrayStorage{T}) where {T<:Real}
+function stationary_distribution(k::Matern12Kernel, s::SArrayStorage{T}) where {T<:Real}
     return Gaussian(
         SVector{1, T}(0),
         SMatrix{1, 1, T}(1),
     )
 end
 
-Zygote.@adjoint function to_sde(k::Matern12, storage_type)
+Zygote.@adjoint function to_sde(k::Matern12Kernel, storage_type)
     return to_sde(k, storage_type), Δ->(nothing, nothing)
 end
 
-Zygote.@adjoint function stationary_distribution(k::Matern12, storage_type)
+Zygote.@adjoint function stationary_distribution(k::Matern12Kernel, storage_type)
     return stationary_distribution(k, storage_type), Δ->(nothing, nothing)
 end
 
@@ -195,7 +196,7 @@ end
 
 # Matern - 3/2
 
-function to_sde(k::Matern32, ::SArrayStorage{T}) where {T<:Real}
+function to_sde(k::Matern32Kernel, ::SArrayStorage{T}) where {T<:Real}
     λ = sqrt(3)
     F = SMatrix{2, 2, T}(0, -3, 1, -2λ)
     q = convert(T, 4 * λ^3)
@@ -203,18 +204,18 @@ function to_sde(k::Matern32, ::SArrayStorage{T}) where {T<:Real}
     return F, q, H
 end
 
-function stationary_distribution(k::Matern32, ::SArrayStorage{T}) where {T<:Real}
+function stationary_distribution(k::Matern32Kernel, ::SArrayStorage{T}) where {T<:Real}
     return Gaussian(
         SVector{2, T}(0, 0),
         SMatrix{2, 2, T}(1, 0, 0, 3),
     )
 end
 
-Zygote.@adjoint function to_sde(k::Matern32, storage_type)
+Zygote.@adjoint function to_sde(k::Matern32Kernel, storage_type)
     return to_sde(k, storage_type), Δ->(nothing, nothing)
 end
 
-Zygote.@adjoint function stationary_distribution(k::Matern32, storage_type)
+Zygote.@adjoint function stationary_distribution(k::Matern32Kernel, storage_type)
     return stationary_distribution(k, storage_type), Δ->(nothing, nothing)
 end
 
@@ -222,7 +223,7 @@ end
 
 # Matern - 5/2
 
-function to_sde(k::Matern52, ::SArrayStorage{T}) where {T<:Real}
+function to_sde(k::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
     λ = sqrt(5)
     F = SMatrix{3, 3, T}(0, 0, -λ^3, 1, 0, -3λ^2, 0, 1, -3λ)
     q = convert(T, 8 * λ^5 / 3)
@@ -230,18 +231,18 @@ function to_sde(k::Matern52, ::SArrayStorage{T}) where {T<:Real}
     return F, q, H
 end
 
-function stationary_distribution(k::Matern52, ::SArrayStorage{T}) where {T<:Real}
+function stationary_distribution(k::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
     κ = 5 / 3
     m = SVector{3, T}(0, 0, 0)
     P = SMatrix{3, 3, T}(1, 0, -κ, 0, κ, 0, -κ, 0, 25)
     return Gaussian(m, P)
 end
 
-Zygote.@adjoint function to_sde(k::Matern52, storage_type)
+Zygote.@adjoint function to_sde(k::Matern52Kernel, storage_type)
     return to_sde(k, storage_type), Δ->(nothing, nothing)
 end
 
-Zygote.@adjoint function stationary_distribution(k::Matern52, storage_type)
+Zygote.@adjoint function stationary_distribution(k::Matern52Kernel, storage_type)
     return stationary_distribution(k, storage_type), Δ->(nothing, nothing)
 end
 
@@ -249,8 +250,8 @@ end
 
 # Scaled
 
-function lgssm_components(k::Scaled, ts::AbstractVector, storage_type::StorageType)
-    As, as, Qs, emission_proj, x0 = lgssm_components(k.k, ts, storage_type)
+function lgssm_components(k::ScaledKernel, ts::AbstractVector, storage_type::StorageType)
+    As, as, Qs, emission_proj, x0 = lgssm_components(k.kernel, ts, storage_type)
     σ = sqrt(convert(eltype(storage_type), only(k.σ²)))
     return As, as, Qs, _scale_emission_projections(emission_proj, σ), x0
 end
@@ -267,8 +268,12 @@ end
 
 # Stretched
 
-function lgssm_components(k::Stretched, ts::AbstractVector, storage_type::StorageType)
-    return lgssm_components(k.k, apply_stretch(only(k.a), ts), storage_type)
+function lgssm_components(
+    k::TransformedKernel{<:Kernel, <:ScaleTransform},
+    ts::AbstractVector,
+    storage_type::StorageType,
+)
+    return lgssm_components(k.kernel, apply_stretch(only(k.transform.s), ts), storage_type)
 end
 
 apply_stretch(a, ts::AbstractVector{<:Real}) = a * ts
@@ -281,9 +286,9 @@ apply_stretch(a, ts::RegularSpacing) = RegularSpacing(a * ts.t0, a * ts.Δt, ts.
 
 # Sum
 
-function lgssm_components(k::Sum, ts::AbstractVector, storage_type::StorageType)
-    As_l, as_l, Qs_l, emission_proj_l, x0_l = lgssm_components(k.kl, ts, storage_type)
-    As_r, as_r, Qs_r, emission_proj_r, x0_r = lgssm_components(k.kr, ts, storage_type)
+function lgssm_components(k::KernelSum, ts::AbstractVector, storage_type::StorageType)
+    As_l, as_l, Qs_l, emission_proj_l, x0_l = lgssm_components(k.kernels[1], ts, storage_type)
+    As_r, as_r, Qs_r, emission_proj_r, x0_r = lgssm_components(k.kernels[2], ts, storage_type)
 
     As = map(blk_diag, As_l, As_r)
     as = map(vcat, as_l, as_r)
