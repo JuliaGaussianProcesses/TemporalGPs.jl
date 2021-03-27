@@ -253,7 +253,8 @@ function Zygote._pullback(
     ctx::AContext, ::Type{Symmetric}, X::StridedMatrix{<:Real}, uplo=:U,
 )
     function Symmetric_pullback(Δ)
-        return nothing, _symmetric_back(Δ, uplo), nothing
+        ΔX = Δ === nothing ? nothing : _symmetric_back(Δ, uplo)
+        return nothing, ΔX, nothing
     end
     return Symmetric(X, uplo), Symmetric_pullback
 end
