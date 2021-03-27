@@ -52,6 +52,77 @@ rand(f_post(x))
 logpdf(f_post(x), y)
 ```
 
+## Learning kernel parameters with [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl), [ParameterHandling.jl](https://github.com/invenia/ParameterHandling.jl), and [Zygote.jl](https://github.com/FluxML/Zygote.jl/)
+
+TemporalGPs.jl doesn't provide scikit-learn-like functionality to train your model (find good kernel parameter settings).
+Instead, we offer the functionality needed to easily implement your own training functionality using standard tools from the Julia ecosystem, as shown below.
+```julia
+# Load our GP-related packages.
+using AbstractGPs
+using KernelFunctions
+using TemporalGPs
+
+# Load standard packages from the Julia ecosystem
+using Optim # Standard optimisation algorithms.
+using ParameterHandling # Helper functionality for dealing with model parameters.
+using Zygote # Algorithmic Differentiation
+
+using ParameterHandling: value, flatten
+
+# Declare model parameters using `ParameterHandling.jl` types.
+params = (
+    var_kernel = positive(0.6),
+    λ = positive(2.5),
+    var_noise = positive(0.1),
+)
+
+function build_gp(params)
+    f_naive = GP(params.var_kernel * transform(Matern52Kernel(), params.λ))
+    return to_sde(f_naive, SArrayStorage(Float64))
+end
+
+# Generate some synthetic data from the prior.
+const x = RegularSpacing(0.0, 0.1, 10_000)
+const y = rand(build_gp(value(params))(x, value(params.var_noise)))
+
+# Construct mapping between structured and Vector representation of parameters.
+flat_initial_params, unflatten = flatten(params)
+
+# Specify an objective function for Optim to minimise in terms of x and y.
+# We choose the usual negative log marginal likelihood (NLML).
+function objective(flat_params)
+    params = value(unflatten(flat_params))
+    f = build_gp(params)
+    return -logpdf(f(x, params.var_noise), y)
+end
+
+# Check that the objective function works:
+objective(flat_initial_params)
+
+# Optimise using Optim. This optimiser often works fairly well in practice,
+# but it's not going to be the best choice in all situations. Consult
+# Optim.jl for more info on available optimisers and their properties.
+training_results = Optim.optimize(
+    objective,
+    θ -> only(Zygote.gradient(objective, θ)),
+    flat_initial_params + randn(3), # Add some noise to make learning non-trivial
+    BFGS(
+        alphaguess = Optim.LineSearches.InitialStatic(scaled=true),
+        linesearch = Optim.LineSearches.BackTracking(),
+    ),
+    Optim.Options(show_trace = true);
+    inplace=false,
+)
+
+# Extracting the final values of the parameters.
+# Should be close to truth.
+flat_final_params = value(unflatten(training_results.minimizer))
+```
+Once you've learned the parameters, you can use `posterior`, `marginals`, and `rand` to make posterior-predictions with the optimal parameters.
+
+In the above example we optimised the parameters, but we could just as easily have utilised e.g. [AdvancedHMC.jl](https://github.com/TuringLang/AdvancedHMC.jl) in conjunction with a prior over the parameters to perform approximate Bayesian inference in them -- indeed, [this is often a very good idea](http://proceedings.mlr.press/v118/lalchand20a/lalchand20a.pdf). We leave this as an exercise for the interested user (see e.g. the examples in [Stheno.jl](https://github.com/willtebbutt/Stheno.jl/) for inspiration).
+
+Moreover, it should be possible to plug this into probabilistic programming framework such as `Turing` and `Soss` with minimal effort, since `f(x, params.var_noise)` is a plain old `Distributions.MultivariateDistribution`.
 
 
 # Performance Optimisations
@@ -81,6 +152,7 @@ Gradient computations use Zygote. Custom adjoints have been implemented to achie
     + input data types for posterior inference - the `RegularSpacing` type is great for expressing that the inputs are regularly spaced. A carefully constructed data type to let the user build regularly-spaced data when working with posteriors would also be very beneficial.
 - Interfacing with other packages
     + When [Stheno.jl](https://github.com/willtebbutt/Stheno.jl/) moves over to the AbstractGPs interface, it should be possible to get some interesting process decomposition functionality in this package.
+- Approximate inference under non-Gaussian observation models
 
 If you're interested in helping out with this stuff, please get in touch by opening an issue, commenting on an open one, or messaging me on the Julia Slack.
 
