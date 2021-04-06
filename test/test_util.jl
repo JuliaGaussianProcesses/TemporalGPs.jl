@@ -420,16 +420,16 @@ function test_interface(
 
     @testset "rand" begin
         @test length(y) == dim_out(conditional)
-        args = (conditional, x_val)
-        check_infers && @inferred conditional_rand(rng, args...)
+        args = (TemporalGPs.ε_randn(rng, conditional), conditional, x_val)
+        check_infers && @inferred conditional_rand(args...)
         if check_adjoints
             adjoint_test(
-                (f, x) -> conditional_rand(MersenneTwister(123456), f, x), args;
+                conditional_rand, args;
                 check_infers=check_infers, kwargs...,
             )
         end
         if check_allocs
-            check_adjoint_allocations(conditional_rand, (rng, args...); kwargs...)
+            check_adjoint_allocations(conditional_rand, args; kwargs...)
         end
     end
 
