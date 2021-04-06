@@ -30,9 +30,6 @@ Random.rand(rng::AbstractRNG, x::Gaussian) = vec(rand(rng, x, 1))
 
 function Random.rand(rng::AbstractRNG, x::Gaussian, S::Int)
     P = cov(x) + UniformScaling(1e-12)
-    println("P is")
-    display(P)
-    println()
     return mean(x) .+ cholesky(Symmetric(P)).U' * randn(rng, length(mean(x)), S)
 end
 
