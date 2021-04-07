@@ -26,7 +26,7 @@ println("lti_sde:")
             # (name="static storage Float32", val=SArrayStorage(Float32)),
         )
 
-        kernels = [Matern12Kernel(), Matern32Kernel(), Matern52Kernel()]
+        kernels = [Matern12Kernel(), Matern32Kernel(), Matern52Kernel(), ConstantKernel()]
 
         @testset "$kernel, $(storage.name)" for kernel in kernels, storage in storages
             F, q, H = TemporalGPs.to_sde(kernel, storage.val)
