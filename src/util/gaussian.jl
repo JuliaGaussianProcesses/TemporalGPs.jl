@@ -28,7 +28,10 @@ get_fields(x::Gaussian) = mean(x), cov(x)
 
 Random.rand(rng::AbstractRNG, x::Gaussian) = vec(rand(rng, x, 1))
 
-Random.rand(rng::AbstractRNG, x::Gaussian{<:SVector}) = randn(rng, typeof(mean(x)))
+function Random.rand(rng::AbstractRNG, x::Gaussian{Tm}) where {Tm<:SVector}
+    ε = randn(rng, Tm)
+    return mean(x) + cholesky(Symmetric(cov(x) + UniformScaling(1e-12))).U' * ε
+end
 
 function Random.rand(rng::AbstractRNG, x::Gaussian, S::Int)
     P = cov(x) + UniformScaling(1e-12)
