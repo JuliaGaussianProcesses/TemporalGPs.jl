@@ -266,8 +266,6 @@ Zygote.@adjoint function to_sde(k::ConstantKernel, storage_type)
     return to_sde(k, storage_type), Δ->(nothing, nothing)
 end
 
-Zygote.@adjoint SMatrix{S,S,T}(args...) where {S,T} = SMatrix{S,S,T}(args...), Δ -> nothing
-
 # Scaled
 
 function lgssm_components(k::ScaledKernel, ts::AbstractVector, storage_type::StorageType)
