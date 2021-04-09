@@ -246,7 +246,25 @@ Zygote.@adjoint function stationary_distribution(k::Matern52Kernel, storage_type
     return stationary_distribution(k, storage_type), Δ->(nothing, nothing)
 end
 
+# Constant
 
+function TemporalGPs.to_sde(k::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
+    F = SMatrix{1, 1, T}(0)
+    q = convert(T, 0)
+    H = SVector{1, T}(1)
+    return F, q, H
+end
+
+function TemporalGPs.stationary_distribution(k::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
+    return TemporalGPs.Gaussian(
+        SVector{1, T}(0),
+        SMatrix{1, 1, T}( T(only(k.c)) ),
+    )
+end
+
+Zygote.@adjoint function to_sde(k::ConstantKernel, storage_type)
+    return to_sde(k, storage_type), Δ->(nothing, nothing)
+end
 
 # Scaled
 
