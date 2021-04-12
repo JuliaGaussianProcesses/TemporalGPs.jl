@@ -26,6 +26,15 @@ function AbstractGPs.marginals(fx::FinitePosteriorLTISDE)
     return map(marginals, marginals(model_post)[pr_indices])
 end
 
+function AbstractGPs.mean_and_var(fx::FinitePosteriorLTISDE)
+    ms = marginals(fx)
+    return mean.(ms), var.(ms)
+end
+
+AbstractGPs.mean(fx::FinitePosteriorLTISDE) = mean_and_var(fx)[1]
+
+AbstractGPs.var(fx::FinitePosteriorLTISDE) = mean_and_var(fx)[2]
+
 function AbstractGPs.rand(rng::AbstractRNG, fx::FinitePosteriorLTISDE)
     x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x)
 
