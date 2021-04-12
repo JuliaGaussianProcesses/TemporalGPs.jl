@@ -79,6 +79,11 @@
 
         @test mean.(marginals(fx_post_naive)) ≈ mean.(marginals(fx_post)) rtol=1e-5
         @test std.(marginals(fx_post_naive)) ≈ std.(marginals(fx_post)) rtol=1e-5
+        m_and_v = mean_and_var(fx_post)
+        @test m_and_v[1] ≈ mean.(marginals(fx_post))
+        @test m_and_v[2] ≈ var.(marginals(fx_post))
+        @test mean(fx_post) ≈ m_and_v[1] rtol=1e-5
+        @test var(fx_post) ≈ m_and_v[2] rtol=1e-5
         @test logpdf(fx_post_naive, y_post) ≈ logpdf(fx_post, y_post) rtol=1e-5
     end
 end
