@@ -113,6 +113,9 @@ println("lti_sde:")
                 @test cov(fx) ≈ cov(fx_naive)
                 @test mean.(marginals(fx)) ≈ mean.(marginals(fx_naive))
                 @test std.(marginals(fx)) ≈ std.(marginals(fx_naive))
+                m_and_v = mean_and_var(fx)
+                @test first(m_and_v) ≈ mean(fx)
+                @test last(m_and_v) ≈ var(fx)
                 @test logpdf(fx, y) ≈ logpdf(fx_naive, y)
             end
 

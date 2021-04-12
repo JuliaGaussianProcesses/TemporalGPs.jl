@@ -32,10 +32,6 @@ end
 
 # Implement the AbstractGP API.
 
-AbstractGPs.mean(ft::FiniteLTISDE) = mean.(marginals(build_lgssm(ft)))
-
-AbstractGPs.cov(ft::FiniteLTISDE) = cov(FiniteGP(ft.f.f, ft.x, ft.Σy))
-
 function AbstractGPs.marginals(ft::FiniteLTISDE)
     return vcat(map(marginals, marginals(build_lgssm(ft)))...)
 end
@@ -44,6 +40,12 @@ function AbstractGPs.mean_and_var(ft::FiniteLTISDE)
     ms = marginals(ft)
     return mean.(ms), var.(ms)
 end
+
+AbstractGPs.mean(ft::FiniteLTISDE) = mean_and_var(ft)[1]
+
+AbstractGPs.var(ft::FiniteLTISDE) = mean_and_var(ft)[2]
+
+AbstractGPs.cov(ft::FiniteLTISDE) = cov(FiniteGP(ft.f.f, ft.x, ft.Σy))
 
 function AbstractGPs.rand(rng::AbstractRNG, ft::FiniteLTISDE)
     return destructure(rand(rng, build_lgssm(ft)))
