@@ -116,7 +116,7 @@ training_results = Optim.optimize(
 
 # Extracting the final values of the parameters.
 # Should be close to truth.
-flat_final_params = value(unflatten(training_results.minimizer))
+final_params = value(unflatten(training_results.minimizer))
 ```
 Once you've learned the parameters, you can use `posterior`, `marginals`, and `rand` to make posterior-predictions with the optimal parameters.
 

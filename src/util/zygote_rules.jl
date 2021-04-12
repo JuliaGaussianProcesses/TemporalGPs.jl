@@ -38,11 +38,11 @@ end
     return SMatrix{D1, D2}(X), SMatrix_pullback
 end
 
-@adjoint function SMatrix{1, 1}(a)
-    SMatrix_pullback(Δ::AbstractMatrix) = (first(Δ), )
+function Zygote._pullback(::AContext, ::Type{<:SMatrix{1, 1}}, a)
+    SMatrix_pullback(::Nothing) = nothing
+    SMatrix_pullback(Δ::AbstractMatrix) = (nothing, first(Δ), )
     return SMatrix{1, 1}(a), SMatrix_pullback
 end
-
 # Implementation of the matrix exponential that assumes one doesn't require access to the
 # gradient w.r.t. `A`, only `t`. The former is a bit compute-intensive to get at, while the
 # latter is very cheap.
