@@ -40,6 +40,11 @@ function AbstractGPs.marginals(ft::FiniteLTISDE)
     return vcat(map(marginals, marginals(build_lgssm(ft)))...)
 end
 
+function AbstractGPs.mean_and_var(ft::FiniteLTISDE)
+    ms = marginals(ft)
+    return mean.(ms), var.(ms)
+end
+
 function AbstractGPs.rand(rng::AbstractRNG, ft::FiniteLTISDE)
     return destructure(rand(rng, build_lgssm(ft)))
 end
