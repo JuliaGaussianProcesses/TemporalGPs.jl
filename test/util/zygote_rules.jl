@@ -2,11 +2,15 @@ using StaticArrays
 using TemporalGPs: time_exp, logdet_pullback
 
 @testset "zygote_rules" begin
+    @testset "SArray" begin
+        adjoint_test(SArray{Tuple{3, 2, 1}}, (ntuple(i -> 2.5i, 6), ))
+    end
     @testset "SVector" begin
-        adjoint_test(SVector{5}, (randn(5), ))
+        adjoint_test(SVector{5}, (ntuple(i -> 2.5i, 5), ))
+        adjoint_test(SVector{2}, (2.0, 1.0))
     end
     @testset "SMatrix" begin
-        adjoint_test(SMatrix{5, 4}, (randn(5, 4), ))
+        adjoint_test(SMatrix{5, 4}, (ntuple(i -> 2.5i, 20), ))
     end
     @testset "SMatrix{1, 1} from scalar" begin
         adjoint_test(SMatrix{1, 1}, (randn(), ))
