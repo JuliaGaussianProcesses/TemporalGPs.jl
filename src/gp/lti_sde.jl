@@ -191,14 +191,6 @@ function stationary_distribution(k::Matern12Kernel, s::SArrayStorage{T}) where {
     )
 end
 
-Zygote.@adjoint function to_sde(k::Matern12Kernel, storage_type)
-    return to_sde(k, storage_type), Δ->(nothing, nothing)
-end
-
-Zygote.@adjoint function stationary_distribution(k::Matern12Kernel, storage_type)
-    return stationary_distribution(k, storage_type), Δ->(nothing, nothing)
-end
-
 
 
 # Matern - 3/2
@@ -216,14 +208,6 @@ function stationary_distribution(k::Matern32Kernel, ::SArrayStorage{T}) where {T
         SVector{2, T}(0, 0),
         SMatrix{2, 2, T}(1, 0, 0, 3),
     )
-end
-
-Zygote.@adjoint function to_sde(k::Matern32Kernel, storage_type)
-    return to_sde(k, storage_type), Δ->(nothing, nothing)
-end
-
-Zygote.@adjoint function stationary_distribution(k::Matern32Kernel, storage_type)
-    return stationary_distribution(k, storage_type), Δ->(nothing, nothing)
 end
 
 
@@ -245,13 +229,7 @@ function stationary_distribution(k::Matern52Kernel, ::SArrayStorage{T}) where {T
     return Gaussian(m, P)
 end
 
-Zygote.@adjoint function to_sde(k::Matern52Kernel, storage_type)
-    return to_sde(k, storage_type), Δ->(nothing, nothing)
-end
 
-Zygote.@adjoint function stationary_distribution(k::Matern52Kernel, storage_type)
-    return stationary_distribution(k, storage_type), Δ->(nothing, nothing)
-end
 
 # Constant
 
@@ -269,9 +247,7 @@ function TemporalGPs.stationary_distribution(k::ConstantKernel, ::SArrayStorage{
     )
 end
 
-Zygote.@adjoint function to_sde(k::ConstantKernel, storage_type)
-    return to_sde(k, storage_type), Δ->(nothing, nothing)
-end
+
 
 # Scaled
 
@@ -351,17 +327,28 @@ function blk_diag(A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T}
     )
 end
 
+Zygote.@adjoint function blk_diag(A, B)
+    function blk_diag_adjoint(Δ)
+        ΔA = Δ[1:size(A, 1), 1:size(A, 2)]
+        ΔB = Δ[size(A, 1)+1:end, size(A, 2)+1:end]
+        return (ΔA, ΔB)
+    end
+    return blk_diag(A, B), blk_diag_adjoint
+end
+
 function blk_diag(A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T}
     zero_AB = zeros(SMatrix{DA, DB, T})
     zero_BA = zeros(SMatrix{DB, DA, T})
     return [[A zero_AB]; [zero_BA B]]
 end
 
-Zygote.@adjoint function blk_diag(A, B)
-    function blk_diag_adjoint(Δ)
-        ΔA = Δ[1:size(A, 1), 1:size(A, 2)]
-        ΔB = Δ[size(A, 1)+1:end, size(A, 2)+1:end]
-        return (ΔA, ΔB)
+Zygote.@adjoint function blk_diag(
+    A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T},
+) where {DA, DB, T}
+    function blk_diag_adjoint(Δ::SMatrix)
+        ΔA = Δ[SVector{DA}(1:DA), SVector{DA}(1:DA)]
+        ΔB = Δ[SVector{DB}((DA+1):(DA+DB)), SVector{DB}((DA+1):(DA+DB))]
+        return ΔA, ΔB
     end
     return blk_diag(A, B), blk_diag_adjoint
 end
