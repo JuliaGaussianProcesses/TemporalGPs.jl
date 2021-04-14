@@ -11,8 +11,6 @@ _posterior(fx, y) = PosteriorLTISDE(fx.f, (y=y, x=fx.x, Σy=fx.Σy))
 
 const FinitePosteriorLTISDE = FiniteGP{<:PosteriorLTISDE}
 
-AbstractGPs.mean(fx::FinitePosteriorLTISDE) = mean.(marginals(fx))
-
 function AbstractGPs.cov(fx::FinitePosteriorLTISDE)
     @error "Intentionally not implemented. Please don't try to explicitly compute this cov. matrix."
 end
