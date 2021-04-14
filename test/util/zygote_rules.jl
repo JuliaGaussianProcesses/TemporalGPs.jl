@@ -21,6 +21,15 @@ using TemporalGPs: time_exp, logdet_pullback
         A = randn(3, 3)
         adjoint_test(t->time_exp(A, t), (0.1, ))
     end
+    @testset "collect(::SArray)" begin
+        A = SArray{Tuple{3, 1, 2}}(ntuple(i -> 3i, 6))
+        adjoint_test(collect, (A, ))
+    end
+    @testset "vcat(::SVector, ::SVector)" begin
+        a = SVector{3}(randn(3))
+        b = SVector{2}(randn(2))
+        adjoint_test(vcat, (a, b))
+    end
     @testset "collect(::Fill)" begin
         P = 11
         Q = 3
