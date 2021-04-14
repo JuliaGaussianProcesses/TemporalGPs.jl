@@ -4,6 +4,8 @@ using TemporalGPs: time_exp, logdet_pullback
 @testset "zygote_rules" begin
     @testset "SArray" begin
         adjoint_test(SArray{Tuple{3, 2, 1}}, (ntuple(i -> 2.5i, 6), ))
+        _, pb = Zygote._pullback(SArray{Tuple{3, 2, 1}}, ntuple(i -> 2.5i, 6))
+        pb(nothing) === (nothing, nothing)
     end
     @testset "SVector" begin
         adjoint_test(SVector{5}, (ntuple(i -> 2.5i, 5), ))

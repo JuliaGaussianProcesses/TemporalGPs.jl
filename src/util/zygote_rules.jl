@@ -27,6 +27,7 @@ Zygote.accum(a::Tuple, b::Tuple, c::Tuple) = map(Zygote.accum, a, b, c)
 function Zygote._pullback(
     ::AContext, ::Type{SArray{S, T, N, L}}, x::NTuple{L, T},
 ) where {S, T, N, L}
+    SArray_pullback(Δ::Nothing) = nothing
     SArray_pullback(Δ::NamedTuple{(:data,)}) = nothing, Δ.data
     SArray_pullback(Δ::SArray{S}) = nothing, Δ.data
     return SArray{S, T, N, L}(x), SArray_pullback
