@@ -33,12 +33,6 @@ using TemporalGPs: time_exp, logdet_pullback
             adjoint_test(collect, (Fill(x, P, Q), ))
         end
     end
-    # @testset "reinterpret" begin
-    #     P = 11
-    #     T = SVector{1, Float64}
-    #     adjoint_test(y->reinterpret(T, y), (randn(11), ); check_infers=false)
-    #     adjoint_test(α->reinterpret(Float64, α), (T.(randn(5)), ))
-    # end
     @testset "getindex(::Fill, ::Int)" begin
         adjoint_test(x -> getindex(x, 3), (Fill(randn(5, 3), 10),))
     end
