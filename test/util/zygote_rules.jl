@@ -22,7 +22,7 @@ using TemporalGPs: time_exp, logdet_pullback
         adjoint_test(t->time_exp(A, t), (0.1, ))
     end
     @testset "collect(::SArray)" begin
-        A = SArray{Tuple{3, 1, 2}}(ntuple(i -> 3i, 6))
+        A = SArray{Tuple{3, 1, 2}}(ntuple(i -> 3.5i, 6))
         adjoint_test(collect, (A, ))
     end
     @testset "vcat(::SVector, ::SVector)" begin
