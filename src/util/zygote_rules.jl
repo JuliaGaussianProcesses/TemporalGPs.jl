@@ -1,3 +1,6 @@
+# This is all AD-related stuff. If you're looking to understand TemporalGPs, this can be
+# safely ignored.
+
 using Zygote: @adjoint, accum, AContext
 
 
@@ -23,26 +26,44 @@ Zygote.accum(a::SArray{size, T}, b::SArray{size, T}) where {size, T<:Real} = a +
 
 Zygote.accum(a::Tuple, b::Tuple, c::Tuple) = map(Zygote.accum, a, b, c)
 
-@adjoint function SVector{D}(x::AbstractVector) where {D}
-    SVector_pullback(Δ) = (convert(typeof(x), Δ),)
-    return SVector{D}(x), SVector_pullback
+function Zygote._pullback(
+    ::AContext, ::Type{SArray{S, T, N, L}}, x::NTuple{L, T},
+) where {S, T, N, L}
+    SArray_pullback(Δ::Nothing) = nothing
+    SArray_pullback(Δ::NamedTuple{(:data,)}) = nothing, Δ.data
+    SArray_pullback(Δ::SArray{S}) = nothing, Δ.data
+    return SArray{S, T, N, L}(x), SArray_pullback
 end
 
-function Zygote._pullback(::AContext, ::Type{<:SVector{1}}, x::Real)
-    SVector_pullback(Δ::AbstractVector) = (nothing, only(Δ))
-    return SVector{1}(x), SVector_pullback
+function Zygote._pullback(
+    ctx::AContext, ::Type{SArray{S, T, N, L}}, x::NTuple{L, Any},
+) where {S, T, N, L}
+    new_x, convert_pb = Zygote._pullback(ctx, StaticArrays.convert_ntuple, T, x)
+    out, pb = Zygote._pullback(ctx, SArray{S, T, N, L}, new_x)
+    SArray_pullback(Δ::Nothing) = nothing
+    SArray_pullback(Δ::SArray{S}) = SArray_pullback((data=Δ.data,))
+    function SArray_pullback(Δ::NamedTuple{(:data,)})
+        _, Δnew_x = pb(Δ)
+        _, ΔT, Δx = convert_pb(Δnew_x)
+        return nothing, ΔT, Δx
+    end
+    return SArray{S, T, N, L}(x), SArray_pullback
 end
 
-@adjoint function SMatrix{D1, D2}(X::AbstractMatrix) where {D1, D2}
-    SMatrix_pullback(Δ::AbstractMatrix) = (convert(typeof(X), Δ), )
-    return SMatrix{D1, D2}(X), SMatrix_pullback
+Zygote.@adjoint function collect(x::SArray{S, T, N, L}) where {S, T, N, L}
+    collect_pullback(Δ::Array) = ((data = ntuple(i -> Δ[i], Val(L)), ), )
+    return collect(x), collect_pullback
 end
 
-function Zygote._pullback(::AContext, ::Type{<:SMatrix{1, 1}}, a)
-    SMatrix_pullback(::Nothing) = nothing
-    SMatrix_pullback(Δ::AbstractMatrix) = (nothing, first(Δ), )
-    return SMatrix{1, 1}(a), SMatrix_pullback
+Zygote.@adjoint function vcat(A::SVector{DA}, B::SVector{DB}) where {DA, DB}
+    function vcat_pullback(Δ::SVector)
+        ΔA = Δ[SVector{DA}(1:DA)]
+        ΔB = Δ[SVector{DB}((DA+1):(DA+DB))]
+        return ΔA, ΔB
+    end
+    return vcat(A, B), vcat_pullback
 end
+
 # Implementation of the matrix exponential that assumes one doesn't require access to the
 # gradient w.r.t. `A`, only `t`. The former is a bit compute-intensive to get at, while the
 # latter is very cheap.

@@ -14,7 +14,10 @@ println("lti_sde:")
 @testset "lti_sde" begin
 
     @testset "blk_diag" begin
-        adjoint_test(TemporalGPs.blk_diag, (randn(2, 2), randn(3, 3)))
+        A = randn(2, 2)
+        B = randn(3, 3)
+        adjoint_test(TemporalGPs.blk_diag, (A, B))
+        adjoint_test(TemporalGPs.blk_diag, (SMatrix{2, 2}(A), SMatrix{3, 3}(B)))
     end
 
     @testset "SimpleKernel parameter types" begin
@@ -72,8 +75,6 @@ println("lti_sde:")
         storages = (
             (name="dense storage Float64", val=ArrayStorage(Float64)),
             (name="static storage Float64", val=SArrayStorage(Float64)),
-            # (name="dense storage Float32", val=ArrayStorage(Float32)),
-            # (name="static storage Float32", val=SArrayStorage(Float32)),
         )
 
         # Either regular spacing or irregular spacing in time.

@@ -2,11 +2,17 @@ using StaticArrays
 using TemporalGPs: time_exp, logdet_pullback
 
 @testset "zygote_rules" begin
+    @testset "SArray" begin
+        adjoint_test(SArray{Tuple{3, 2, 1}}, (ntuple(i -> 2.5i, 6), ))
+        _, pb = Zygote._pullback(SArray{Tuple{3, 2, 1}}, ntuple(i -> 2.5i, 6))
+        pb(nothing) === (nothing, nothing)
+    end
     @testset "SVector" begin
-        adjoint_test(SVector{5}, (randn(5), ))
+        adjoint_test(SVector{5}, (ntuple(i -> 2.5i, 5), ))
+        adjoint_test(SVector{2}, (2.0, 1.0))
     end
     @testset "SMatrix" begin
-        adjoint_test(SMatrix{5, 4}, (randn(5, 4), ))
+        adjoint_test(SMatrix{5, 4}, (ntuple(i -> 2.5i, 20), ))
     end
     @testset "SMatrix{1, 1} from scalar" begin
         adjoint_test(SMatrix{1, 1}, (randn(), ))
@@ -14,6 +20,15 @@ using TemporalGPs: time_exp, logdet_pullback
     @testset "time_exp" begin
         A = randn(3, 3)
         adjoint_test(t->time_exp(A, t), (0.1, ))
+    end
+    @testset "collect(::SArray)" begin
+        A = SArray{Tuple{3, 1, 2}}(ntuple(i -> 3.5i, 6))
+        adjoint_test(collect, (A, ))
+    end
+    @testset "vcat(::SVector, ::SVector)" begin
+        a = SVector{3}(randn(3))
+        b = SVector{2}(randn(2))
+        adjoint_test(vcat, (a, b))
     end
     @testset "collect(::Fill)" begin
         P = 11
@@ -27,12 +42,6 @@ using TemporalGPs: time_exp, logdet_pullback
             adjoint_test(collect, (Fill(x, P, Q), ))
         end
     end
-    # @testset "reinterpret" begin
-    #     P = 11
-    #     T = SVector{1, Float64}
-    #     adjoint_test(y->reinterpret(T, y), (randn(11), ); check_infers=false)
-    #     adjoint_test(α->reinterpret(Float64, α), (T.(randn(5)), ))
-    # end
     @testset "getindex(::Fill, ::Int)" begin
         adjoint_test(x -> getindex(x, 3), (Fill(randn(5, 3), 10),))
     end
