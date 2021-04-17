@@ -13,7 +13,7 @@ improved performance when used in conjunction with `Zygote`.
 """
 zygote_friendly_map(f, x) = dense_zygote_friendly_map(f, x)
 
-function dense_zygote_friendly_map(f, x)
+function dense_zygote_friendly_map(f::Tf, x) where {Tf}
 
     # Perform first iteration.
     y_1 = f(_getindex(x, 1))
@@ -30,7 +30,9 @@ function dense_zygote_friendly_map(f, x)
     return ys
 end
 
-function Zygote._pullback(::AContext, ::typeof(dense_zygote_friendly_map), f, x)
+function Zygote._pullback(
+    ::AContext, ::typeof(dense_zygote_friendly_map), f::Tf, x,
+) where {Tf}
 
     # Perform first iteration.
     y_1, pb_1 = Zygote._pullback(NoContext(), f, _getindex(x, 1))
@@ -71,6 +73,8 @@ end
 
 zygote_friendly_map(f, x::Fill) = map(f, x)
 
-function zygote_friendly_map(f, x::Base.Iterators.Zip{<:Tuple{Vararg{Fill, N}}}) where {N}
+function zygote_friendly_map(
+    f, x::Base.Iterators.Zip{<:Tuple{Vararg{Fill, N}}},
+) where {N}
     return zygote_friendly_map(f, Fill(map(first, x.is), length(x)))
 end
