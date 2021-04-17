@@ -206,10 +206,11 @@ end
 
 function posterior(prior::LGSSM, y::AbstractVector)
     new_trans, xf = _a_bit_of_posterior(prior, y)
-    A = map(x -> x.A, new_trans)
-    a = map(x -> x.a, new_trans)
-    Q = map(x -> x.Q, new_trans)
-    return LGSSM(GaussMarkovModel(reverse(ordering(prior)), A, a, Q, xf), prior.emissions)
+    A = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:A)), new_trans)
+    a = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:a)), new_trans)
+    Q = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:Q)), new_trans)
+    ems = Zygote.literal_getfield(prior, Val(:emissions))
+    return LGSSM(GaussMarkovModel(reverse(ordering(prior)), A, a, Q, xf), ems)
 end
 
 function _a_bit_of_posterior(prior, y)
