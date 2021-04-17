@@ -1,5 +1,3 @@
-using Zygote: AContext, _pullback
-
 # We force specialisation on all arguments to `scan_emit`, otherwise performance can drop
 # off to an unacceptable degree when lots of compiler-intensive things like StaticArrays are
 # used.
@@ -14,7 +12,7 @@ using Zygote: AContext, _pullback
     can achieve good performance. In particular, `f` must not involve any globals, and
     the output of `f` should not change type for different elements of `x`.
 """
-function scan_emit(f::Tf, xs::Txs, state::Tstate, idx::Tidx) where {Tf, Txs, Tstate, Tidx}
+function scan_emit(f, xs, state, idx)
 
     # Heuristic Warning: assume all ys have the same type as the 1st.
     (y, state) = f(state, _getindex(xs, idx[1]))
@@ -29,9 +27,7 @@ function scan_emit(f::Tf, xs::Txs, state::Tstate, idx::Tidx) where {Tf, Txs, Tst
     return (ys, state)
 end
 
-function Zygote._pullback(
-    ::AContext, ::typeof(scan_emit), f::Tf, xs::Txs, init_state::Tinit_state, idx::Tidx,
-) where {Tf, Txs, Tinit_state, Tidx}
+function Zygote._pullback(::AContext, ::typeof(scan_emit), f, xs, init_state, idx)
 
     state = init_state
     (y, state) = f(state, _getindex(xs, idx[1]))
@@ -103,7 +99,15 @@ end
 # Helper functionality for constructing appropriate differentials.
 
 _getindex(x, idx::Int) = getindex(x, idx)
-_getindex(x::Base.Iterators.Zip, idx::Int) = map(x -> _getindex(x, idx), x.is)
+
+# This really ought to infer, but it doesn't for some unknown reason.
+# _getindex(x::Base.Iterators.Zip, idx::Int) = map(x -> _getindex(x, idx), x.is)
+
+# This is a work around for `map` not inferring properly.
+_getindex(x::Base.Iterators.Zip, idx::Int) = __getindex(x.is, idx)
+__getindex(x::Tuple{Any}, idx::Int) = (_getindex(x[1], idx), )
+__getindex(x::Tuple, idx::Int) = (_getindex(x[1], idx), __getindex(Base.tail(x), idx)...)
+
 
 _get_zero_adjoint(::Any) = nothing
 _get_zero_adjoint(x::AbstractArray) = zero(x)
@@ -150,18 +154,30 @@ end
 
 _accum_at(Δxs::Nothing, n::Int, Δx::Nothing) = nothing
 
-
-
 # Zip
 
 function get_adjoint_storage(x::Base.Iterators.Zip, n::Int, Δx::Tuple)
     return (is=map((x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), x.is, Δx),)
 end
 
-function _accum_at(Δxs::NamedTuple{(:is,)}, n::Int, Δx::Tuple)
-    return (is=map((Δxs_, Δx_) -> _accum_at(Δxs_, n, Δx_), Δxs.is, Δx), )
-end
+# function _accum_at(Δxs::NamedTuple{(:is,)}, n::Int, Δx::Tuple)
+#     return (is=map((Δxs_, Δx_) -> _accum_at(Δxs_, n, Δx_), Δxs.is, Δx), )
+# end
 
+# function _accum_at(Δxs::NamedTuple{(:is,)}, n::Int, Δx::Tuple{Any, Any})
+#     return (is=(_accum_at(Δxs[1], n, Δx[1]), _accum_at(Δxs[2], n, Δx[2])), )
+#     # return (is=map((Δxs_, Δx_) -> _accum_at(Δxs_, n, Δx_), Δxs.is, Δx), )
+# end
+
+
+# This is a work-around for `map` not inferring for some unknown reason. Very odd...
+function _accum_at(Δxs::NamedTuple{(:is, )}, n::Int, Δx::Tuple)
+    return (is=__accum_at(Δxs.is, n, Δx), )
+end
+__accum_at(Δxs::Tuple{Any}, n::Int, Δx::Tuple{Any}) = (_accum_at(Δxs[1], n, Δx[1]), )
+function __accum_at(Δxs::Tuple, n::Int, Δx::Tuple)
+    return (_accum_at(Δxs[1], n, Δx[1]), __accum_at(Base.tail(Δxs), n, Base.tail(Δx))...)
+end
 
 
 # Fill

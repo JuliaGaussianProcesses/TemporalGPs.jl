@@ -14,7 +14,7 @@ module TemporalGPs
     using ZygoteRules
 
     using FillArrays: AbstractFill
-    using Zygote: _pullback
+    using Zygote: _pullback, AContext
 
     import AbstractGPs: mean, cov, logpdf, FiniteGP, AbstractGP, posterior, dtc, elbo
 
@@ -62,5 +62,4 @@ module TemporalGPs
     include(joinpath("space_time", "separable_kernel.jl"))
     include(joinpath("space_time", "to_gauss_markov.jl"))
     include(joinpath("space_time", "pseudo_point.jl"))
-
 end # module
