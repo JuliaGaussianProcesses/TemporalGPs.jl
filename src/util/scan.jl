@@ -1,5 +1,11 @@
 using Zygote: AContext, _pullback
 
+# We force specialisation on all arguments to `scan_emit`, otherwise performance can drop
+# off to an unacceptable degree when lots of compiler-intensive things like StaticArrays are
+# used.
+# See https://docs.julialang.org/en/v1/manual/performance-tips/#Be-aware-of-when-Julia-avoids-specializing
+# for more info.
+
 """
     Like Transducers.ScanEmit, but `f` isn't allowed to have internal state, and slightly
     faster in some cases that I care about for this package.
@@ -8,7 +14,7 @@ using Zygote: AContext, _pullback
     can achieve good performance. In particular, `f` must not involve any globals, and
     the output of `f` should not change type for different elements of `x`.
 """
-function scan_emit(f, xs, state, idx)
+function scan_emit(f::Tf, xs::Txs, state::Tstate, idx::Tidx) where {Tf, Txs, Tstate, Tidx}
 
     # Heuristic Warning: assume all ys have the same type as the 1st.
     (y, state) = f(state, _getindex(xs, idx[1]))
@@ -23,7 +29,9 @@ function scan_emit(f, xs, state, idx)
     return (ys, state)
 end
 
-function Zygote._pullback(::AContext, ::typeof(scan_emit), f, xs, init_state, idx)
+function Zygote._pullback(
+    ::AContext, ::typeof(scan_emit), f::Tf, xs::Txs, init_state::Tinit_state, idx::Tidx,
+) where {Tf, Txs, Tinit_state, Tidx}
 
     state = init_state
     (y, state) = f(state, _getindex(xs, idx[1]))
@@ -87,7 +95,7 @@ function Zygote._pullback(::AContext, ::typeof(scan_emit), f, xs, init_state, id
     return (ys, state), scan_emit_pullback
 end
 
-@inline function step_pb(f, state, x, Δy, Δstate)
+@inline function step_pb(f::Tf, state, x, Δy, Δstate) where {Tf}
     _, pb = _pullback(NoContext(), f, state, x)
     return pb((Δy, Δstate))
 end
