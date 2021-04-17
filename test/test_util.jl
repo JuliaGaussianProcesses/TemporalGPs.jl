@@ -370,14 +370,20 @@ function check_adjoint_allocations(
     kwargs...,
 )
     _, pb = _pullback(context, f, input...)
-    # @code_warntype f(input...)
-    # @code_warntype _pullback(context, f, input...)
-    # @code_warntype pb(Δoutput)
-    @test allocs(@benchmark($f($input...); samples=1, evals=1)) <= max_primal_allocs
-    @test allocs(
+
+    primal_allocs = allocs(@benchmark($f($input...); samples=1, evals=1))
+    forward_allocs = allocs(
         @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
-    ) <= max_forward_allocs
-    @test allocs(@benchmark $pb($Δoutput) samples=1 evals=1) <= max_backward_allocs
+    )
+    backward_allocs = allocs(@benchmark $pb($Δoutput) samples=1 evals=1)
+
+    # @show primal_allocs
+    # @show forward_allocs
+    # @show backward_allocs
+
+    @test primal_allocs <= max_primal_allocs
+    @test forward_allocs <= max_forward_allocs
+    @test backward_allocs <= max_backward_allocs
 end
 
 function check_adjoint_allocations(f, input::Tuple; kwargs...)
@@ -497,6 +503,9 @@ function test_interface(
                 ssm -> rand(MersenneTwister(123456), ssm), (ssm, );
                 check_infers=check_infers, kwargs...,
             )
+        end
+        if check_allocs
+            check_adjoint_allocations(rand, (rng, ssm); kwargs...)
         end
     end
 
