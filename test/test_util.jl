@@ -371,11 +371,17 @@ function check_adjoint_allocations(
 )
     _, pb = _pullback(context, f, input...)
 
-    primal_allocs = allocs(@benchmark($f($input...); samples=1, evals=1))
+    # primal_allocs = allocs(@benchmark($f($input...); samples=1, evals=1))
+    # forward_allocs = allocs(
+    #     @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
+    # )
+    # backward_allocs = allocs(@benchmark $pb($Δoutput) samples=1 evals=1)
+
+    primal_allocs = allocs(@benchmark($f($input...)))
     forward_allocs = allocs(
-        @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
+        @benchmark(_pullback($context, $f, $input...)),
     )
-    backward_allocs = allocs(@benchmark $pb($Δoutput) samples=1 evals=1)
+    backward_allocs = allocs(@benchmark $pb($Δoutput))
 
     # @show primal_allocs
     # @show forward_allocs
@@ -559,12 +565,12 @@ function test_interface(
         @testset "adjoints" for _ in (check_adjoints ? [1] : [])
             adjoint_test(logpdf, (ssm, y); check_infers=_check_infers, kwargs...)
             adjoint_test(_filter, (ssm, y); check_infers=_check_infers, kwargs...)
-            adjoint_test(posterior, (ssm, y); check_infers=false, kwargs...)
+            adjoint_test(posterior, (ssm, y); check_infers=_check_infers, kwargs...)
 
             if check_allocs
                 check_adjoint_allocations(logpdf, (ssm, y); kwargs...)
                 check_adjoint_allocations(_filter, (ssm, y); kwargs...)
-                # check_adjoint_allocations(posterior, (ssm, y); kwargs...)
+                check_adjoint_allocations(posterior, (ssm, y); kwargs...)
             end
         end
     end
