@@ -83,9 +83,11 @@ end
 
 Generate the vector of random numbers needed inside `conditional_rand`.
 """
-ε_randn(rng::AbstractRNG, f::AbstractLGC) = ε_randn(rng, f.a)
-ε_randn(rng::AbstractRNG, a::AbstractVector{T}) where {T<:Real} = randn(rng, T, length(a))
-ε_randn(rng::AbstractRNG, a::T) where {T<:SVector{<:Any, <:Real}} = randn(rng, T)
+ε_randn(rng::AbstractRNG, f::AbstractLGC) = ε_randn(rng, f.A)
+ε_randn(rng::AbstractRNG, A::AbstractMatrix{T}) where {T<:Real} = randn(rng, T, size(A, 1))
+function ε_randn(rng::AbstractRNG, A::SMatrix{Dout, Din, T}) where {Dout, Din, T<:Real}
+    return randn(rng, SVector{Dout, T})
+end
 
 Zygote._pullback(::AContext, ::typeof(ε_randn), args...) = ε_randn(args...), nograd_pullback
 

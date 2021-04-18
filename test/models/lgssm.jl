@@ -120,9 +120,9 @@ println("lgssm:")
             rtol=1e-5,
             atol=1e-5,
             context=NoContext(),
-            max_primal_allocs=10,
-            max_forward_allocs=35,
-            max_backward_allocs=50,
+            max_primal_allocs=25,
+            max_forward_allocs=25,
+            max_backward_allocs=25,
             check_allocs=storage.val isa SArrayStorage,
         )
     end

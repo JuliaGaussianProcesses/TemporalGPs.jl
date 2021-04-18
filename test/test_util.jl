@@ -370,14 +370,26 @@ function check_adjoint_allocations(
     kwargs...,
 )
     _, pb = _pullback(context, f, input...)
-    # @code_warntype f(input...)
-    # @code_warntype _pullback(context, f, input...)
-    # @code_warntype pb(Δoutput)
-    @test allocs(@benchmark($f($input...); samples=1, evals=1)) <= max_primal_allocs
-    @test allocs(
-        @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
-    ) <= max_forward_allocs
-    @test allocs(@benchmark $pb($Δoutput) samples=1 evals=1) <= max_backward_allocs
+
+    # primal_allocs = allocs(@benchmark($f($input...); samples=1, evals=1))
+    # forward_allocs = allocs(
+    #     @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
+    # )
+    # backward_allocs = allocs(@benchmark $pb($Δoutput) samples=1 evals=1)
+
+    primal_allocs = allocs(@benchmark($f($input...)))
+    forward_allocs = allocs(
+        @benchmark(_pullback($context, $f, $input...)),
+    )
+    backward_allocs = allocs(@benchmark $pb($Δoutput))
+
+    # @show primal_allocs
+    # @show forward_allocs
+    # @show backward_allocs
+
+    @test primal_allocs <= max_primal_allocs
+    @test forward_allocs <= max_forward_allocs
+    @test backward_allocs <= max_backward_allocs
 end
 
 function check_adjoint_allocations(f, input::Tuple; kwargs...)
@@ -498,6 +510,9 @@ function test_interface(
                 check_infers=check_infers, kwargs...,
             )
         end
+        if check_allocs
+            check_adjoint_allocations(rand, (rng, ssm); kwargs...)
+        end
     end
 
     @testset "basics" begin
@@ -550,12 +565,12 @@ function test_interface(
         @testset "adjoints" for _ in (check_adjoints ? [1] : [])
             adjoint_test(logpdf, (ssm, y); check_infers=_check_infers, kwargs...)
             adjoint_test(_filter, (ssm, y); check_infers=_check_infers, kwargs...)
-            adjoint_test(posterior, (ssm, y); check_infers=false, kwargs...)
+            adjoint_test(posterior, (ssm, y); check_infers=_check_infers, kwargs...)
 
             if check_allocs
                 check_adjoint_allocations(logpdf, (ssm, y); kwargs...)
                 check_adjoint_allocations(_filter, (ssm, y); kwargs...)
-                # check_adjoint_allocations(posterior, (ssm, y); kwargs...)
+                check_adjoint_allocations(posterior, (ssm, y); kwargs...)
             end
         end
     end
