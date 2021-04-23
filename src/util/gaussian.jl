@@ -24,6 +24,10 @@ AbstractGPs.mean(x::Gaussian) = Zygote.literal_getfield(x, Val(:m))
 
 AbstractGPs.cov(x::Gaussian) = Zygote.literal_getfield(x, Val(:P))
 
+AbstractGPs.var(x::Gaussian{<:AbstractVector}) = diag(cov(x))
+
+AbstractGPs.var(x::Gaussian{<:Real}) = cov(x)
+
 get_fields(x::Gaussian) = mean(x), cov(x)
 
 Random.rand(rng::AbstractRNG, x::Gaussian) = vec(rand(rng, x, 1))
@@ -54,7 +58,7 @@ function Base.isapprox(x::Gaussian, y::Gaussian; kwargs...)
     return isapprox(mean(x), mean(y); kwargs...) && isapprox(cov(x), cov(y); kwargs...)
 end
 
-AbstractGPs.marginals(x::Gaussian{<:Real, <:Real}) = Normal(mean(x), sqrt(cov(x)))
+AbstractGPs.marginals(x::Gaussian{T, T}) where {T<:Real} = Normal{T}(mean(x), sqrt(cov(x)))
 
 function AbstractGPs.marginals(x::Gaussian{<:AbstractVector, <:AbstractMatrix})
     return Normal.(mean(x), sqrt.(diag(cov(x))))

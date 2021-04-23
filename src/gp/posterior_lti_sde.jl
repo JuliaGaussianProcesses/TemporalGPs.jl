@@ -16,17 +16,34 @@ function AbstractGPs.cov(fx::FinitePosteriorLTISDE)
 end
 
 function AbstractGPs.marginals(fx::FinitePosteriorLTISDE)
-    x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x)
+    if fx.x != fx.f.data.x
+        x, y, σ²s, pr_indices = build_inference_data(fx.f, fx.x)
 
-    model = build_lgssm(fx.f.prior(x, σ²s))
-    σ²s_pr_full = build_prediction_obs_vars(pr_indices, x, fx.Σy.diag)
-    model_post = replace_observation_noise_cov(posterior(model, y), σ²s_pr_full)
-    return map(marginals, marginals(model_post)[pr_indices])
+        model = build_lgssm(fx.f.prior(x, σ²s))
+        σ²s_pr_full = build_prediction_obs_vars(pr_indices, x, fx.Σy.diag)
+        model_post = replace_observation_noise_cov(posterior(model, y), σ²s_pr_full)
+        return map(marginals, marginals(model_post)[pr_indices])
+    else
+        f = Zygote.literal_getfield(fx, Val(:f))
+        prior = Zygote.literal_getfield(f, Val(:prior))
+        x = Zygote.literal_getfield(fx, Val(:x))
+        data = Zygote.literal_getfield(f, Val(:data))
+        Σy = Zygote.literal_getfield(data, Val(:Σy))
+        Σy_diag = Zygote.literal_getfield(Σy, Val(:diag))
+        y = Zygote.literal_getfield(data, Val(:y))
+
+        Σy_new = Zygote.literal_getfield(fx, Val(:Σy))
+        Σy_new_diag = Zygote.literal_getfield(Σy_new, Val(:diag))
+
+        model = build_lgssm(AbstractGPs.FiniteGP(prior, x, Σy))
+        model_post = replace_observation_noise_cov(posterior(model, y), Σy_new_diag)
+        return map(marginals, marginals(model_post))
+    end
 end
 
 function AbstractGPs.mean_and_var(fx::FinitePosteriorLTISDE)
     ms = marginals(fx)
-    return mean.(ms), var.(ms)
+    return map(mean, ms), map(var, ms)
 end
 
 AbstractGPs.mean(fx::FinitePosteriorLTISDE) = mean_and_var(fx)[1]
