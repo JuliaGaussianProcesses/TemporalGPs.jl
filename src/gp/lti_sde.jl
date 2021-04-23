@@ -38,7 +38,7 @@ end
 
 function AbstractGPs.mean_and_var(ft::FiniteLTISDE)
     ms = marginals(ft)
-    return mean.(ms), var.(ms)
+    return map(mean, ms), map(var, ms)
 end
 
 AbstractGPs.mean(ft::FiniteLTISDE) = mean_and_var(ft)[1]
@@ -77,16 +77,34 @@ destructure(y::AbstractVector{<:Real}) = y
 # Converting GPs into LGSSMs.
 
 function build_lgssm(ft::FiniteLTISDE)
-    As, as, Qs, emission_proj, x0 = lgssm_components(ft.f.f.kernel, ft.x, ft.f.storage)
+    k = get_kernel(ft)
+    x = Zygote.literal_getfield(ft, Val(:x))
+    s = Zygote.literal_getfield(Zygote.literal_getfield(ft, Val(:f)), Val(:storage))
+    As, as, Qs, emission_proj, x0 = lgssm_components(k, x, s)
     return LGSSM(
         GaussMarkovModel(Forward(), As, as, Qs, x0),
         build_emissions(emission_proj, build_Σs(ft)),
     )
 end
 
-build_Σs(ft::FiniteLTISDE) = build_Σs(ft.x, ft.Σy)
+function get_kernel(ft::FiniteLTISDE)
+    return Zygote.literal_getfield(
+        Zygote.literal_getfield(
+            Zygote.literal_getfield(ft, Val(:f)), Val(:f),
+        ),
+        Val(:kernel),
+    )
+end
 
-build_Σs(::AbstractVector{<:Real}, Σ::Diagonal{<:Real}) = Σ.diag
+function build_Σs(ft::FiniteLTISDE)
+    x = Zygote.literal_getfield(ft, Val(:x))
+    Σy = Zygote.literal_getfield(ft, Val(:Σy))
+    return build_Σs(x, Σy)
+end
+
+function build_Σs(::AbstractVector{<:Real}, Σ::Diagonal{<:Real})
+    return Zygote.literal_getfield(Σ, Val(:diag))
+end
 
 function build_emissions(
     (Hs, hs)::Tuple{AbstractVector, AbstractVector}, Σs::AbstractVector,
@@ -252,8 +270,10 @@ end
 # Scaled
 
 function lgssm_components(k::ScaledKernel, ts::AbstractVector, storage_type::StorageType)
-    As, as, Qs, emission_proj, x0 = lgssm_components(k.kernel, ts, storage_type)
-    σ = sqrt(convert(eltype(storage_type), only(k.σ²)))
+    _k = Zygote.literal_getfield(k, Val(:kernel))
+    σ² = Zygote.literal_getfield(k, Val(:σ²))
+    As, as, Qs, emission_proj, x0 = lgssm_components(_k, ts, storage_type)
+    σ = sqrt(convert(eltype(storage_type), only(σ²)))
     return As, as, Qs, _scale_emission_projections(emission_proj, σ), x0
 end
 
@@ -274,14 +294,21 @@ function lgssm_components(
     ts::AbstractVector,
     storage_type::StorageType,
 )
-    return lgssm_components(k.kernel, apply_stretch(only(k.transform.s), ts), storage_type)
+    _k = Zygote.literal_getfield(k, Val(:kernel))
+    s = Zygote.literal_getfield(Zygote.literal_getfield(k, Val(:transform)), Val(:s))
+    return lgssm_components(_k, apply_stretch(s[1], ts), storage_type)
 end
 
 apply_stretch(a, ts::AbstractVector{<:Real}) = a * ts
 
 apply_stretch(a, ts::StepRangeLen) = a * ts
 
-apply_stretch(a, ts::RegularSpacing) = RegularSpacing(a * ts.t0, a * ts.Δt, ts.N)
+function apply_stretch(a, ts::RegularSpacing)
+    t0 = Zygote.literal_getfield(ts, Val(:t0))
+    Δt = Zygote.literal_getfield(ts, Val(:Δt))
+    N = Zygote.literal_getfield(ts, Val(:N))
+    return RegularSpacing(a * t0, a * Δt, N)
+end
 
 
 
