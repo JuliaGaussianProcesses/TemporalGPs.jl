@@ -3,7 +3,6 @@ module TemporalGPs
     using AbstractGPs
     using BlockDiagonals
     using ChainRulesCore
-    using Distributions
     using FillArrays
     using LinearAlgebra
     using KernelFunctions
