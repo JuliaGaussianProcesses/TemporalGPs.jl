@@ -58,10 +58,12 @@ function Base.isapprox(x::Gaussian, y::Gaussian; kwargs...)
     return isapprox(mean(x), mean(y); kwargs...) && isapprox(cov(x), cov(y); kwargs...)
 end
 
-AbstractGPs.marginals(x::Gaussian{T, T}) where {T<:Real} = Normal{T}(mean(x), sqrt(cov(x)))
+function AbstractGPs.marginals(x::Gaussian{T, T}) where {T<:Real}
+    return AbstractGPs.Normal{T}(mean(x), sqrt(cov(x)))
+end
 
 function AbstractGPs.marginals(x::Gaussian{<:AbstractVector, <:AbstractMatrix})
-    return Normal.(mean(x), sqrt.(diag(cov(x))))
+    return AbstractGPs.Normal.(mean(x), sqrt.(diag(cov(x))))
 end
 
 storage_type(x::Gaussian{<:SVector{D, T}}) where {D, T<:Real} = SArrayStorage(T)

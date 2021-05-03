@@ -23,7 +23,7 @@ struct GaussMarkovModel{
     Tas<:AbstractVector{<:AbstractVector{<:Real}},
     TQs<:AbstractVector{<:AbstractMatrix{<:Real}},
     Tx0<:Gaussian,
-} <: AbstractMvNormal
+} <: AbstractGPs.AbstractMvNormal
     ordering::Tordering
     As::TAs
     as::Tas

@@ -1,13 +1,12 @@
 name = "TemporalGPs"
 uuid = "e155a3c4-0841-43e1-8b83-a0e4f03cc18f"
 authors = ["willtebbutt <wt0881@my.bristol.ac.uk>"]
-version = "0.5.7"
+version = "0.5.8"
 
 [deps]
 AbstractGPs = "99985d1d-32ba-4be9-9821-2ec096f28918"
 BlockDiagonals = "0a1fb500-61f7-11e9-3c65-f5ef3456f9f0"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
 KernelFunctions = "ec8451be-7e33-11e9-00cf-bbf324bd1392"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -21,7 +20,6 @@ ZygoteRules = "700de1a5-db45-46bc-99cf-38207098b444"
 AbstractGPs = "0.2, 0.3"
 BlockDiagonals = "0.1.7"
 ChainRulesCore = "0.9"
-Distributions = "0.24"
 FillArrays = "0.10, 0.11"
 KernelFunctions = "0.9"
 StaticArrays = "1"
