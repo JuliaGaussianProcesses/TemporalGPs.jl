@@ -26,7 +26,7 @@ const data_dir = joinpath(datadir(), exp_dir_name)
 
 
 
-build_gp(k_base, σ², l) = GP(σ² * transform(k_base, 1 / l), GPC())
+build_gp(k_base, σ², l) = GP(σ² * k_base ∘ ScaleTransform(1 / l), GPC())
 
 # Naive implementation.
 function build(::Val{:naive}, k_base, σ², l, x, σ²_n)

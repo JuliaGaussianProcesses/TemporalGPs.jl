@@ -18,13 +18,14 @@
 
         # Stretched kernels.
         map([1e-2, 0.1, 1.0, 10.0, 100.0]) do λ
-            (name="stretched-λ=$λ", val=transform(Matern32Kernel(), λ))
+            (name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ))
         end,
 
         # Summed kernels.
         (
             name="sum-Matern12Kernel-Matern32Kernel",
-            val=1.5 * transform(Matern12Kernel(), 0.1) + 0.3 * transform(Matern32Kernel(), 1.1),
+            val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) +
+                0.3 * Matern32Kernel() ∘ ScaleTransform(1.1),
         ),
     )
 
