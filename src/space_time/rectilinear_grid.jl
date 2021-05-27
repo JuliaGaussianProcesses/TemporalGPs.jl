@@ -26,6 +26,10 @@ function Base.collect(X::RectilinearGrid{Tl, Tr}) where{Tl, Tr}
     )
 end
 
+function Base.getindex(X::RectilinearGrid, n::Integer)
+    return (X.xl[mod(n - 1, length(X.xl)) + 1], X.xr[div(n - 1, length(X.xl)) + 1])
+end
+
 Base.show(io::IO, x::RectilinearGrid) = Base.show(io::IO, collect(x))
 
 """
