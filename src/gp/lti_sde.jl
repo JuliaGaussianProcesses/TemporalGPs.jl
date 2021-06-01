@@ -66,8 +66,7 @@ function AbstractGPs.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing,
 end
 
 function _logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
-    model = build_lgssm(ft)
-    return logpdf(model, observations_to_time_form(ft.x, y))
+    return logpdf(build_lgssm(ft), observations_to_time_form(ft.x, y))
 end
 
 
