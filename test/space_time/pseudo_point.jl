@@ -4,7 +4,7 @@ using TemporalGPs:
     DTCSeparable,
     RectilinearGrid,
     RegularInTime,
-    get_time,
+    get_times,
     get_space,
     Separable,
     approx_posterior_marginals
@@ -67,7 +67,7 @@ using TemporalGPs:
 
 
         # Compute pseudo-input locations. These have to share time points with `x`.
-        t = get_time(x.val)
+        t = get_times(x.val)
         z = RectilinearGrid(z_r, t)
         z_naive = collect(z)
 
@@ -105,7 +105,7 @@ using TemporalGPs:
 
         # Compute approximate posterior marginals naively.
         f_approx_post_naive = approx_posterior(VFE(), fx_naive, y, f_naive(z_naive))
-        x_pr = RectilinearGrid(x_pr_r, get_time(x.val))
+        x_pr = RectilinearGrid(x_pr_r, get_times(x.val))
         naive_approx_post_marginals = marginals(f_approx_post_naive(collect(x_pr)))
 
         # This is a horrible interface, but it's the best that I can do on short notice.
@@ -113,7 +113,6 @@ using TemporalGPs:
 
         @test mean.(naive_approx_post_marginals) ≈ mean.(approx_post_marginals) rtol=1e-7
         @test std.(naive_approx_post_marginals) ≈ std.(approx_post_marginals) rtol=1e-7
-        @show norm(std.(naive_approx_post_marginals) - std.(approx_post_marginals))
 
         # Similarly awful interface, make predictions for each point separately.
         approx_post_marginals_individual = map(eachindex(t)) do t
@@ -126,7 +125,7 @@ using TemporalGPs:
         @test std.(approx_post_marginals) ≈ std.(approx_post_marginals_vec) rtol=1e-7
 
         # Do the RegularInTime one and compare it against RectilinearGrid.
-        x_pr_rit = RegularInTime(get_time(x_pr), [get_space(x_pr) for _ in get_time(x.val)])
+        x_pr_rit = RegularInTime(get_times(x_pr), [get_space(x_pr) for _ in get_times(x.val)])
         approx_post_marginals_rit = approx_posterior_marginals(dtc, fx, y, z_r, x_pr_rit)
 
         @test mean.(approx_post_marginals) ≈ mean.(approx_post_marginals_rit) rtol=1e-7
