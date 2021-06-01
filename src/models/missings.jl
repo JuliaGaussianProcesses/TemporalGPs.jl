@@ -27,7 +27,9 @@ end
 function transform_model_and_obs(
     model::LGSSM, y::AbstractVector{<:Union{Missing, T}},
 ) where {T<:Union{<:AbstractVector, <:Real}}
-    Σs_filled_in, y_filled_in = fill_in_missings(emissions(model).Q, y)
+    Σs_filled_in, y_filled_in = fill_in_missings(
+        zygote_friendly_map(noise_cov, emissions(model)), y,
+    )
     model_with_missings = replace_observation_noise_cov(model, Σs_filled_in)
     return model_with_missings, y_filled_in
 end
