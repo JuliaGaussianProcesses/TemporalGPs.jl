@@ -66,20 +66,20 @@ Compute the ELBO (Evidence Lower BOund) in state-space form [insert reference].
 """
 function AbstractGPs.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
 
-    fx_dtc = time_ad(Val(:disabled), "fx_dtc", dtcify, z_r, fx)
+    fx_dtc = dtcify(z_r, fx)
 
     # Compute diagonals over prior marginals.
-    lgssm = time_ad(Val(:disabled), "lgssm", build_lgssm, fx_dtc)
+    lgssm = build_lgssm(fx_dtc)
     Σs = lgssm.emissions.fan_out.Q
-    marg_diags = time_ad(Val(:disabled), "marg_diags", marginals_diag, lgssm)
+    marg_diags = marginals_diag(lgssm)
 
     k = fx_dtc.f.f.kernel
-    Cf_diags = time_ad(Val(:disabled), "Cf_diags", kernel_diagonals, k, fx_dtc.x)
+    Cf_diags = kernel_diagonals(k, fx_dtc.x)
 
     # Transform a vector into a vector-of-vectors.
-    y_vecs = time_ad(Val(:disabled), "y_vecs", restructure, y, lgssm.emissions)
+    y_vecs = restructure(y, lgssm.emissions)
 
-    tmp = time_ad(Val(:disabled), "tmp", zygote_friendly_map,
+    tmp = zygote_friendly_map(
         ((Σ, Cf_diag, marg_diag, yn), ) -> begin
             Σ_, _ = fill_in_missings(Σ, yn)
             return sum(diag(Σ_ \ (Cf_diag - marg_diag.P))) -
@@ -88,7 +88,7 @@ function AbstractGPs.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVect
         zip(Σs, Cf_diags, marg_diags, y_vecs),
     )
 
-    return time_ad(Val(:disabled), "logpdf", logpdf, lgssm, y_vecs) - sum(tmp) / 2
+    return logpdf(lgssm, y_vecs) - sum(tmp) / 2
 end
 
 Zygote.accum(x::NamedTuple{(:diag, )}, y::Diagonal) = Zygote.accum(x, (diag=y.diag, ))
@@ -97,14 +97,14 @@ function kernel_diagonals(k::DTCSeparable, x::RectilinearGrid)
     space_kernel = k.k.l
     time_kernel = k.k.r
     Cr_rpred_diag = kernelmatrix_diag(space_kernel, get_space(x))
-    time_vars = kernelmatrix_diag(time_kernel, get_time(x))
+    time_vars = kernelmatrix_diag(time_kernel, get_times(x))
     return map(s_t -> Diagonal(Cr_rpred_diag * s_t), time_vars)
 end
 
 function kernel_diagonals(k::DTCSeparable, x::RegularInTime)
     space_kernel = k.k.l
     time_kernel = k.k.r
-    time_vars = kernelmatrix_diag(time_kernel, get_time(x))
+    time_vars = kernelmatrix_diag(time_kernel, get_times(x))
     return map(
         (s_t, x_r) -> Diagonal(kernelmatrix_diag(space_kernel, x_r) * s_t),
         time_vars,
@@ -124,7 +124,7 @@ function lgssm_components(k_dtc::DTCSeparable, x::SpaceTimeGrid, storage::Storag
 
     # Construct temporal model.
     k = k_dtc.k
-    ts = get_time(x)
+    ts = get_times(x)
     time_kernel = k.r
     As_t, as_t, Qs_t, emission_proj, x0_t = lgssm_components(time_kernel, ts, storage)
     Hs_t, hs_t = _extract_emission_proj(emission_proj)
@@ -162,7 +162,7 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
 
     # Construct temporal model.
     k = k_dtc.k
-    ts = get_time(x)
+    ts = get_times(x)
     time_kernel = k.r
     As_t, as_t, Qs_t, emission_proj, x0_t = lgssm_components(time_kernel, ts, storage)
     Hs_t, hs_t = _extract_emission_proj(emission_proj)
@@ -188,10 +188,10 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
         ((K_space_z, Q), ) -> kron(K_space_z, Q),
         zip(Fill(K_space_z, N), Qs_t),
     )
-    x_big = time_ad(Val(:disabled), "x_big", _reduce, vcat, x.vs)
-    C__ = time_ad(Val(:disabled), "C__", kernelmatrix, space_kernel, z_space, x_big)
-    C = time_ad(Val(:disabled), "C", \, K_space_z_chol, C__)
-    Cs = time_ad(Val(:disabled), "Cs", partition, Zygote.dropgrad(map(length, x.vs)), C)
+    x_big = _reduce(vcat, x.vs)
+    C__ = kernelmatrix(space_kernel, z_space, x_big)
+    C = \(K_space_z_chol, C__)
+    Cs = partition(Zygote.dropgrad(map(length, x.vs)), C)
 
     cs = map((h, v) -> fill(h, length(v)), hs_t, x.vs) # This should currently be zero.
     Hs = zygote_friendly_map(
@@ -270,13 +270,13 @@ function approx_posterior_marginals(
     fx_post = posterior(lgssm, restructure(y, lgssm.emissions))
 
     # Compute the new emission distributions + approx posterior model.
-    x_pr = RectilinearGrid(x_r, get_time(fx.x))
+    x_pr = RectilinearGrid(x_r, get_times(fx.x))
     k_dtc = dtcify(z_r, fx.f.f.kernel)
     new_proj, Σs = dtc_post_emissions(k_dtc, x_pr, fx.f.storage)
     new_fx_post = LGSSM(fx_post.transitions, build_emissions(new_proj, Σs))
 
     # Compute marginals under modified posterior.
-    return vcat(map(marginals, marginals_diag(new_fx_post))...)
+    return reduce(vcat, map(marginals, marginals_diag(new_fx_post)))
 end
 
 """
@@ -302,7 +302,7 @@ function approx_posterior_marginals(
     x_r::AbstractVector,
     t::Int,
 )
-    ts = get_time(fx.x)
+    ts = get_times(fx.x)
     if t < 1 || t > length(ts)
         throw(error("t = $t must be between 1 and length(ts) = $(length(ts))."))
     end
@@ -333,8 +333,8 @@ function approx_posterior_marginals(
     z_r::AbstractVector,
     x_pr::RegularInTime,
 )
-    ts = get_time(fx.x)
-    if ts != get_time(x_pr)
+    ts = get_times(fx.x)
+    if ts != get_times(x_pr)
         throw(error("Times don't match."))
     end
 
@@ -348,7 +348,7 @@ function approx_posterior_marginals(
     new_fx_post = LGSSM(fx_post.transitions, build_emissions(new_proj, Σs))
 
     # Compute marginals under modified posterior.
-    return vcat(map(marginals, marginals_diag(new_fx_post))...)
+    return reduce(vcat, map(marginals, marginals_diag(new_fx_post)))
 end
 
 function build_emission_covs(k::DTCSeparable, x_new::RectilinearGrid)
@@ -360,7 +360,7 @@ function build_emission_covs(k::DTCSeparable, x_new::RectilinearGrid)
     spatial_Q_diag = Cr_rpred_diag - diag_Xt_invA_X(C_u, C_fp_u')
 
     time_kernel = k.k.r
-    time_vars = kernelmatrix_diag(time_kernel, get_time(x_new))
+    time_vars = kernelmatrix_diag(time_kernel, get_times(x_new))
     return map(s_t -> Diagonal(spatial_Q_diag * s_t), time_vars)
 end
 
@@ -370,7 +370,7 @@ function build_emission_covs(k::DTCSeparable, x_new::RegularInTime)
     C_u = cholesky(Symmetric(kernelmatrix(space_kernel, z_r) + ident_eps(z_r, 1e-9)))
 
     time_kernel = k.k.r
-    time_vars = kernelmatrix_diag(time_kernel, get_time(x_new))
+    time_vars = kernelmatrix_diag(time_kernel, get_times(x_new))
     return map(zip(time_vars, x_new.vs)) do ((time_var, x_r))
         C_fp_u = kernelmatrix(space_kernel, x_r, z_r)
         Cr_rpred_diag = kernelmatrix_diag(space_kernel, x_r)
