@@ -1,30 +1,32 @@
 """
     RegularInTime{
-        T, Tts<:AbstactVector{<:Real}, Tvs<:AbstractVector{<:AbstractVector{T}},
-    } <: AbstractVector{T}
+        Tt, Tv, Tts<:AbstractVector{Tt}, Tvs<:AbstractVector{<:AbstractVector{Tv}},
+    } <: AbstractVector{Tuple{Tt, Tv}}
 
 Represents data that has multiple observations at each of a given collection of time slices.
 """
 struct RegularInTime{
-    T, Tts<:AbstractVector{<:Real}, Tvs<:AbstractVector{<:AbstractVector{T}},
-} <: AbstractVector{T}
+    Tt, Tv, Tts<:AbstractVector{Tt}, Tvs<:AbstractVector{<:AbstractVector{Tv}},
+} <: AbstractVector{Tuple{Tt, Tv}}
     ts::Tts
     vs::Tvs
 end
 
+get_space(x::RegularInTime) = Zygote.literal_getfield(x, Val(:vs))
+
+get_times(x::RegularInTime) = Zygote.literal_getfield(x, Val(:ts))
+
 Base.size(x::RegularInTime) = (sum(length, x.vs), )
 
 function Base.collect(x::RegularInTime)
-    time_inputs = vcat([fill(t, length(x)) for (t, x) in zip(x.ts, x.vs)]...)
-    space_inputs = vcat(x.vs...)
+    time_inputs = reduce(vcat, [fill(t, length(x)) for (t, x) in zip(x.ts, x.vs)])
+    space_inputs = reduce(vcat, x.vs)
     return [(x, t) for (x, t) in zip(space_inputs, time_inputs)]
 end
 
+Base.getindex(x::RegularInTime, n::Int) = collect(x)[n]
+
 Base.show(io::IO, x::RegularInTime) = Base.show(io::IO, collect(x))
-
-get_time(x::RegularInTime) = x.ts
-
-get_space(x::RegularInTime) = x.vs
 
 
 
@@ -36,19 +38,16 @@ get_space(x::RegularInTime) = x.vs
 #
 
 # See docstring elsewhere for context.
-times_from_inputs(x::RegularInTime{<:Real}) = get_time(x)
-
-# See docstring elsewhere for context.
 inputs_to_time_form(x::RegularInTime{<:Real}) = get_space(x)
 
 # See docstring elsewhere for context.
-function observations_to_time_form(x::RegularInTime, y::AbstractVector{<:Real})
+function observations_to_time_form(x::RegularInTime, y::AbstractVector)
     return restructure(y, length.(get_space(x)))
 end
 
 # See docstring elsewhere for context.
 function noise_var_to_time_form(x::RegularInTime, S::Diagonal{<:Real})
-    vs = restructure(Σ.diag, length.(get_space(x)))
+    vs = restructure(S.diag, length.(get_space(x)))
     return Diagonal.(collect.(vs))
 end
 
@@ -73,7 +72,7 @@ end
 function Zygote._pullback(
     ::AContext, ::typeof(restructure), y::Vector, lengths::AbstractVector{<:Integer},
 )
-    restructure_pullback(Δ::Vector) = nothing, vcat(Δ...), nothing
+    restructure_pullback(Δ::Vector) = nothing, reduce(vcat, Δ), nothing
     return restructure(y, lengths), restructure_pullback
 end
 

@@ -15,6 +15,10 @@ struct RectilinearGrid{
     xr::Txr
 end
 
+get_space(x::RectilinearGrid) = Zygote.literal_getfield(x, Val(:xl))
+
+get_times(x::RectilinearGrid) = Zygote.literal_getfield(x, Val(:xr))
+
 Base.size(X::RectilinearGrid) = (length(X.xl) * length(X.xr),)
 
 function Base.collect(X::RectilinearGrid{Tl, Tr}) where{Tl, Tr}
@@ -42,10 +46,6 @@ const SpaceTimeGrid{Tr, Tt<:Real} = RectilinearGrid{
     Tr, Tt, <:AbstractVector{Tr}, <:AbstractVector{Tt},
 }
 
-get_space(x::RectilinearGrid) = x.xl
-
-get_time(x::RectilinearGrid) = x.xr
-
 
 
 
@@ -56,11 +56,8 @@ get_time(x::RectilinearGrid) = x.xr
 #
 
 # See docstring elsewhere for context.
-times_from_inputs(x::SpaceTimeGrid) = get_time(x)
-
-# See docstring elsewhere for context.
 function inputs_to_time_form(x::SpaceTimeGrid)
-    return Fill(get_space(x), length(get_time(x)))
+    return Fill(get_space(x), length(get_times(x)))
 end
 
 # See docstring elsewhere for context.
@@ -68,32 +65,32 @@ function merge_inputs(x1::SpaceTimeGrid, x2::SpaceTimeGrid)
     if get_space(x1) != get_space(x2)
         throw(error("Space coords of inputs not compatible, cannot merge."))
     end
-    return RectilinearGrid(get_space(x1), vcat(get_time(x1), get_time(x2)))
+    return RectilinearGrid(get_space(x1), vcat(get_times(x1), get_times(x2)))
 end
 
 # See docstring elsewhere for context.
 function sort_in_time(x::SpaceTimeGrid)
-    idx = sortperm(get_time(x))
-    return idx, RectilinearGrid(get_space(x), get_time(x)[idx])
+    idx = sortperm(get_times(x))
+    return idx, RectilinearGrid(get_space(x), get_times(x)[idx])
 end
 
 # See docstring elsewhere for context.
 function observations_to_time_form(x::SpaceTimeGrid, y::AbstractVector{<:Union{Real, Missing}})
-    return restructure(y, Fill(length(get_space(x)), length(get_time(x))))
+    return restructure(y, Fill(length(get_space(x)), length(get_times(x))))
 end
 
 function observations_to_time_form(x::SpaceTimeGrid, ::AbstractVector{Missing})
-    return fill(missing, length(times_from_inputs(x)))
+    return fill(missing, length(get_times(x)))
 end
 
 
 function get_zeros(x::SpaceTimeGrid{T}) where {T<:Real}
-    return fill(Diagonal(zeros(T, length(get_space(x)))), length(get_time(x)))
+    return fill(Diagonal(zeros(T, length(get_space(x)))), length(get_times(x)))
 end
 
 # See docstring elsewhere for context.
 function noise_var_to_time_form(x::RectilinearGrid, S::Diagonal{<:Real})
-    vs = restructure(S.diag, Fill(length(get_space(x)), length(get_time(x))))
+    vs = restructure(S.diag, Fill(length(get_space(x)), length(get_times(x))))
     return Diagonal.(collect.(vs))
 end
 
