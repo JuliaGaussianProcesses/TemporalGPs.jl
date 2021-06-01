@@ -158,7 +158,7 @@ function build_prediction_obs(
     x_full::AbstractVector,
     y_pr::AbstractVector{T},
 ) where {T}
-    y_pr_full = Vector{Union{Missing, T}}(undef, length(times_from_inputs(x_full)))
+    y_pr_full = Vector{Union{Missing, T}}(undef, length(get_times(x_full)))
     y_pr_full[tr_indices] .= missing
     y_pr_full[pr_indices] .= y_pr
     return y_pr_full

@@ -1,15 +1,15 @@
 """
-    times_from_inputs(x::AbstractVector{<:Real})
+    get_times(x::AbstractVector{<:Real})
 
 Get the times associated with the inputs.
 """
-times_from_inputs(x::AbstractVector{<:Real}) = x
+get_times(x::AbstractVector{<:Real}) = x
 
 """
     inputs_to_time_form(x::AbstractVector)
 
 Get the time-form representation of a vector of inputs.
-Outputs an `AbstractVector` whose length is `length(times_from_inputs(x))`,
+Outputs an `AbstractVector` whose length is `length(get_times(x))`,
 and whose elements comprise all of those associated with each time point.
 
 For single-output time series problems, `x` is usually returned as-is, however, for

@@ -5,7 +5,7 @@ Zygote._pullback(::AContext, ::typeof(my_I), args...) = my_I(args...), nograd_pu
 function lgssm_components(k::Separable, x::SpaceTimeGrid, storage)
 
     # Compute spatial covariance, and temporal GaussMarkovModel.
-    t = get_time(x)
+    t = get_times(x)
     r = get_space(x)
 
     kr, kt = k.l, k.r
