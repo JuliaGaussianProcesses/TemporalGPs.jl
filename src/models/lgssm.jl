@@ -205,6 +205,11 @@ end
 # Construct the posterior model.
 
 function posterior(prior::LGSSM, y::AbstractVector)
+    if length(prior) != length(y)
+        lp = length(prior)
+        ly = length(y)
+        throw(error("Dimension mismatch. length(prior) is $lp, but length(y) is $ly"))
+    end
     new_trans, xf = _a_bit_of_posterior(prior, y)
     A = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:A)), new_trans)
     a = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:a)), new_trans)

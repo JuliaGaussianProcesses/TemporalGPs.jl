@@ -137,6 +137,8 @@ build_large_var(S::T) where {T<:Matrix} = T(_large_var_const() * I, size(S))
 
 build_large_var(::T) where {T<:SMatrix} = T(_large_var_const() * I)
 
+build_large_var(S::T) where {T<:Diagonal} = T(fill(_large_var_const(), length(diag(S))))
+
 build_large_var(::T) where {T<:Real} = T(_large_var_const())
 
 ChainRulesCore.@non_differentiable build_large_var(::Any)
