@@ -120,6 +120,8 @@ dim_out(f::SmallOutputLGC) = size(f.A, 1)
 
 dim_in(f::SmallOutputLGC) = size(f.A, 2)
 
+noise_cov(f::SmallOutputLGC) = Zygote.literal_getfield(f, Val(:Q))
+
 function get_fields(f::SmallOutputLGC)
     A = Zygote.literal_getfield(f, Val(:A))
     a = Zygote.literal_getfield(f, Val(:a))
@@ -200,6 +202,8 @@ dim_out(f::LargeOutputLGC) = size(f.A, 1)
 
 dim_in(f::LargeOutputLGC) = size(f.A, 2)
 
+noise_cov(f::LargeOutputLGC) = Zygote.literal_getfield(f, Val(:Q))
+
 function get_fields(f::LargeOutputLGC)
     A = Zygote.literal_getfield(f, Val(:A))
     a = Zygote.literal_getfield(f, Val(:a))
@@ -272,6 +276,8 @@ function get_fields(f::ScalarOutputLGC)
     return A, a, Q
 end
 
+noise_cov(f::ScalarOutputLGC) = Zygote.literal_getfield(f, Val(:Q))
+
 function conditional_rand(ε::Real, f::ScalarOutputLGC, x::AbstractVector)
     A, a, Q = get_fields(f)
     return (A * x + a) + sqrt(Q) * ε
@@ -327,6 +333,8 @@ Base.eltype(f::BottleneckLGC) = eltype(f.fan_out)
 dim_out(f::BottleneckLGC) = dim_out(f.fan_out)
 
 dim_in(f::BottleneckLGC) = size(f.H, 2)
+
+noise_cov(f::BottleneckLGC) = noise_cov(Zygote.literal_getfield(f, Val(:fan_out)))
 
 function get_fields(f::BottleneckLGC)
     H = Zygote.literal_getfield(f, Val(:H))
