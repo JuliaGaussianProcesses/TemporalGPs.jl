@@ -107,8 +107,8 @@ end
 
 @adjoint function Base.map(f::Tf, x::Fill) where {Tf}
     y_el, back = Zygote._pullback(__context__, f, x.value)
-    function map_Fill_pullback(Δ::Union{NamedTuple, Composite})
-        if Δ isa Composite
+    function map_Fill_pullback(Δ::Union{NamedTuple, Tangent})
+        if Δ isa Tangent
             Δ_ = (value=Δ.value, axes=Δ.axes)
         else
             Δ_ = Δ
@@ -250,11 +250,11 @@ function Zygote.accum(B::SMatrix{P, P}, A::UpperTriangular{<:Any, <:SMatrix{P}})
     return Zygote.accum(B, SMatrix{P, P}(A))
 end
 
-function Zygote.accum(a::Composite{T}, b::NamedTuple) where {T}
-    return Zygote.accum(a, Composite{T}(; b...))
+function Zygote.accum(a::Tangent{T}, b::NamedTuple) where {T}
+    return Zygote.accum(a, Tangent{T}(; b...))
 end
 
-Base.:(+)(::Composite, ::Nothing) = Zero()
+Base.:(+)(::Tangent, ::Nothing) = ZeroTangent()
 
 function Base.:(-)(
     A::UpperTriangular{<:Real, <:SMatrix{N, N}}, B::Diagonal{<:Real, <:SVector{N}},
