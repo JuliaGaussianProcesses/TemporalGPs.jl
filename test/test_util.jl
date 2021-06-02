@@ -262,10 +262,10 @@ function fd_isapprox(x::Gaussian, y::Gaussian, rtol, atol)
     return isapprox(x.m, y.m; rtol=rtol, atol=atol) &&
         isapprox(x.P, y.P; rtol=rtol, atol=atol)
 end
-function fd_isapprox(x::Real, y::Zero, rtol, atol)
+function fd_isapprox(x::Real, y::ZeroTangent, rtol, atol)
     return fd_isapprox(x, zero(x), rtol, atol)
 end
-fd_isapprox(x::Zero, y::Real, rtol, atol) = fd_isapprox(y, x, rtol, atol)
+fd_isapprox(x::ZeroTangent, y::Real, rtol, atol) = fd_isapprox(y, x, rtol, atol)
 
 function fd_isapprox(x_ad::T, x_fd::T, rtol, atol) where {T<:NamedTuple}
     f = (x_ad, x_fd)->fd_isapprox(x_ad, x_fd, rtol, atol)
@@ -284,7 +284,7 @@ function adjoint_test(
     f, ȳ, x::Tuple, ẋ::Tuple;
     rtol=1e-9,
     atol=1e-9,
-    fdm=central_fdm(5, 1),
+    fdm=central_fdm(5, 1; max_range=1e-3),
     test=true,
     check_infers=true,
     context=NoContext(),
@@ -307,15 +307,16 @@ function adjoint_test(
 
     x̄ = pb(ȳ)[2:end]
 
-    # @show x̄
-    # @show harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)[1]
-    inner_ad = dot(harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)...)
+    x̄_ad, ẋ_ad = harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)
+    inner_ad = dot(x̄_ad, ẋ_ad)
 
     # Approximate <ȳ, J ẋ> = <ȳ, ẏ> using FiniteDifferences.
     # @show harmonise(j′vp(fdm, f, ȳ, x...), ẋ)[1]
-    # @show typeof(j′vp(fdm, f, ȳ, x...))
+    # x̄_fd = j′vp(fdm, f, ȳ, x...)
     ẏ = jvp(fdm, f, zip(x, ẋ)...)
-    inner_fd = dot(harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)...)
+
+    ȳ_fd, ẏ_fd = harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)
+    inner_fd = dot(ȳ_fd, ẏ_fd)
 
     @show inner_fd - inner_ad
 
@@ -583,7 +584,7 @@ function FiniteDifferences.rand_tangent(rng::AbstractRNG, A::StaticArray)
     return map(x -> rand_tangent(rng, x), A)
 end
 
-FiniteDifferences.rand_tangent(::AbstractRNG, ::Base.OneTo) = Zero()
+FiniteDifferences.rand_tangent(::AbstractRNG, ::Base.OneTo) = ZeroTangent()
 
 # Hacks to make rand_tangent play nicely with Zygote.
 rand_zygote_tangent(A) = Zygote.wrap_chainrules_output(FiniteDifferences.rand_tangent(A))
@@ -594,7 +595,7 @@ function Zygote.wrap_chainrules_input(x::Array)
     return map(Zygote.wrap_chainrules_input, x)
 end
 
-function LinearAlgebra.dot(A::Composite, B::Composite)
+function LinearAlgebra.dot(A::Tangent, B::Tangent)
     mutual_names = intersect(propertynames(A), propertynames(B))
     if length(mutual_names) == 0
         return 0
