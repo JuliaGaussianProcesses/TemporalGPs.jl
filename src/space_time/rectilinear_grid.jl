@@ -90,20 +90,13 @@ end
 
 # See docstring elsewhere for context.
 function noise_var_to_time_form(x::RectilinearGrid, S::Diagonal{<:Real})
-    vs = restructure(S.diag, Fill(length(get_space(x)), length(get_times(x))))
-    return Diagonal.(collect.(vs))
+    vs = restructure(
+        diag(S),
+        Zygote.ignore() do
+            Fill(length(get_space(x)), length(get_times(x)))
+        end,
+    )
+    return zygote_friendly_map(v -> Diagonal(collect(v)), vs)
 end
 
 destructure(::RectilinearGrid, y::AbstractVector) = reduce(vcat, y)
-
-function build_Σs(x::RectilinearGrid, S::Diagonal{<:Real})
-    S_matrix = reshape(S.diag, :, length(x.xr))
-    return Diagonal.(collect.(eachcol(S_matrix)))
-end
-
-function Zygote._pullback(
-    ::AContext, ::typeof(noise_var_to_time_form), x::RectilinearGrid, S::Diagonal{<:Real},
-)
-    build_Σs_pullback(Δ) = nothing, nothing, (diag=reduce(vcat, getfield.(Δ, :diag)), )
-    return build_Σs(x, S), build_Σs_pullback
-end

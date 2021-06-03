@@ -46,14 +46,6 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
         r = randn(rng, Nr)
         x = RectilinearGrid(r, t.val)
 
-        @testset "build_Σs" begin
-            adjoint_test(
-                d -> TemporalGPs.build_Σs(x, Diagonal(d)),
-                (rand(length(x)) .+ 0.1, );
-                check_infers=false,
-            )
-        end
-
         f = GP(k.val)
         ft = f(collect(x), σ².val...)
 

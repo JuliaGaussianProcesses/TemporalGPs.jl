@@ -73,17 +73,6 @@ end
 
 # Converting GPs into LGSSMs.
 
-function build_lgssm(ft::FiniteLTISDE)
-    k = get_kernel(ft)
-    x = Zygote.literal_getfield(ft, Val(:x))
-    s = Zygote.literal_getfield(Zygote.literal_getfield(ft, Val(:f)), Val(:storage))
-    As, as, Qs, emission_proj, x0 = lgssm_components(k, x, s)
-    return LGSSM(
-        GaussMarkovModel(Forward(), As, as, Qs, x0),
-        build_emissions(emission_proj, build_Σs(ft)),
-    )
-end
-
 function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)
     k = get_kernel(f)
     s = Zygote.literal_getfield(f, Val(:storage))
@@ -93,15 +82,15 @@ function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)
     )
 end
 
-get_kernel(ft::FiniteLTISDE) = get_kernel(Zygote.literal_getfield(ft, Val(:f)))
+function build_lgssm(ft::FiniteLTISDE)
+    f = Zygote.literal_getfield(ft, Val(:f))
+    x = Zygote.literal_getfield(ft, Val(:x))
+    Σys = noise_var_to_time_form(x, Zygote.literal_getfield(ft, Val(:Σy)))
+    return build_lgssm(f, x, Σys)
+end
+
 get_kernel(f::LTISDE) = get_kernel(Zygote.literal_getfield(f, Val(:f)))
 get_kernel(f::GP) = Zygote.literal_getfield(f, Val(:kernel))
-
-function build_Σs(ft::FiniteLTISDE)
-    x = Zygote.literal_getfield(ft, Val(:x))
-    Σy = Zygote.literal_getfield(ft, Val(:Σy))
-    return noise_var_to_time_form(x, Σy)
-end
 
 function build_emissions(
     (Hs, hs)::Tuple{AbstractVector, AbstractVector}, Σs::AbstractVector,
