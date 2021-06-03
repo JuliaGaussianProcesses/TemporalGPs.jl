@@ -71,8 +71,6 @@ end
 
 
 
-
-
 # Converting GPs into LGSSMs.
 
 function build_lgssm(ft::FiniteLTISDE)
