@@ -84,26 +84,3 @@ end
 function restructure(y::AbstractVector, emissions::StructArray)
     return restructure(y, Zygote.dropgrad(map(dim_out, emissions)))
 end
-
-
-
-
-
-# # Old functionality that is potentially redundant.
-
-# """
-#     match_to(y::AbstractVector, x::RegularInTime)
-
-# Convert `y` into a vector length `length(x.ts)`, each element containing the number of
-# elements in the corresponding element of `x.vs`.
-# """
-# function match_to(y::AbstractVector{T}, x::RegularInTime) where {T}
-#     y_vec = Vector{Vector{T}}(undef, length(x.ts))
-#     pos = 1
-#     for t in eachindex(x.ts)
-#         Nt = length(x.vs[t])
-#         y_vec[t] = y[pos:pos + Nt - 1]
-#         pos += Nt
-#     end
-#     return y_vec
-# end
