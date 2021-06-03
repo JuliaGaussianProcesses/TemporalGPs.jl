@@ -37,11 +37,11 @@ function random_nice_psd_matrix(
 ) where {T}
 
     # Generate random positive definite matrix.
-    S = Symmetric(kernelmatrix(Matern12Kernel(), 5 .* randn(rng, T, N)) + T(1e-3) * I)
+    S = Symmetric(kernelmatrix(Matern12Kernel(), 5 .* randn(rng, T, N)) + T(1e-1) * I)
 
     # Centre (make eigenvals N(0, 2^2)) and bound the eigenvalues between 0 and 1.
     λ, Γ = eigen(S)
-    m_λ = N > 1 ? mean(λ) : mean(λ) + T(0.1)
+    m_λ = N > 1 ? mean(λ) : mean(λ) + T(1.0)
     σ_λ = N > 1 ? std(λ) : T(1.0)
     λ .= 2 .* (λ .- (m_λ + 0.1)) ./ σ_λ
     @. λ = T(1 / (1 + exp(-λ)) * 0.9 + 0.1)
@@ -61,17 +61,17 @@ end
 function random_nice_psd_matrix(
     rng::AbstractRNG, N::Integer, ::Val{:diag}, ::ArrayStorage{T},
 ) where {T}
-    return Diagonal(rand(T, N) .+ T(0.1))
+    return Diagonal(rand(T, N) .+ T(1.0))
 end
 
 function random_nice_psd_matrix(
     rng::AbstractRNG, N::Integer, ::Val{:diag}, ::SArrayStorage{T},
 ) where {T}
-    return Diagonal(rand(SVector{N, T}) .+ T(0.1))
+    return Diagonal(rand(SVector{N, T}) .+ T(1.0))
 end
 
 function random_nice_psd_matrix(rng::AbstractRNG, ::Integer, ::ScalarStorage{T}) where {T}
-    return rand(rng, T) + convert(T, 0.1)
+    return rand(rng, T) + convert(T, 1.0)
 end
 
 
@@ -85,7 +85,7 @@ function random_gaussian(rng::AbstractRNG, dim::Int, s::StorageType)
 end
 
 function FiniteDifferences.rand_tangent(rng::AbstractRNG, d::T) where {T<:Gaussian}
-    return Composite{T}(
+    return Tangent{T}(
         m=rand_tangent(rng, d.m),
         P=random_nice_psd_matrix(rng, length(d.m), storage_type(d)),
     )
@@ -178,7 +178,7 @@ function random_ti_gmm(rng::AbstractRNG, ordering, Dlat::Int, N::Int, s::Storage
 end
 
 function FiniteDifferences.rand_tangent(rng::AbstractRNG, gmm::T) where {T<:GaussMarkovModel}
-    return Composite{T}(
+    return Tangent{T}(
         ordering = nothing,
         As = rand_tangent(rng, gmm.As),
         as = rand_tangent(rng, gmm.as),
@@ -197,7 +197,7 @@ function gmm_Qs_tangent(
     rng::AbstractRNG, Qs::T, storage_type::StorageType,
 ) where {T<:Fill{<:AbstractMatrix}}
     Δ = random_nice_psd_matrix(rng, size(first(Qs), 1), storage_type)
-    return Composite{T}(value=Δ)
+    return Tangent{T}(value=Δ)
 end
 
 function gmm_Qs_tangent(
@@ -209,7 +209,7 @@ end
 function gmm_Qs_tangent(
     rng::AbstractRNG, Qs::T, storage_type::StorageType,
 ) where {T<:Fill{<:Real}}
-    return Composite{T}(value=convert(eltype(storage_type), rand(rng) + 0.1))
+    return Tangent{T}(value=convert(eltype(storage_type), rand(rng) + 0.1))
 end
 
 
@@ -298,9 +298,9 @@ function FiniteDifferences.rand_tangent(rng::AbstractRNG, ssm::T) where {T<:LGSS
     Hs = ssm.emissions.A
     hs = ssm.emissions.a
     Σs = ssm.emissions.Q
-    return Composite{T}(
+    return Tangent{T}(
         transitions = rand_tangent(rng, ssm.transitions),
-        emissions = Composite{typeof(ssm.emissions)}(components=(
+        emissions = Tangent{typeof(ssm.emissions)}(components=(
             A=rand_tangent(rng, Hs),
             a=rand_tangent(rng, hs),
             Q=gmm_Qs_tangent(rng, Σs, storage_type(ssm)),

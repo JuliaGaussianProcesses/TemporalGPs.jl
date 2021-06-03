@@ -1,5 +1,6 @@
 using TemporalGPs: posterior_and_lml, predict, predict_marginals
 
+println("linear_gaussian_conditionals:")
 @testset "linear_gaussian_conditionals" begin
     Dlats = [1, 3]
     Dobss = [1, 2]

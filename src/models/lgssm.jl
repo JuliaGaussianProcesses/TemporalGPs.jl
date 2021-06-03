@@ -205,6 +205,7 @@ end
 # Construct the posterior model.
 
 function posterior(prior::LGSSM, y::AbstractVector)
+    _check_inputs(prior, y)
     new_trans, xf = _a_bit_of_posterior(prior, y)
     A = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:A)), new_trans)
     a = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:a)), new_trans)
@@ -212,6 +213,16 @@ function posterior(prior::LGSSM, y::AbstractVector)
     ems = Zygote.literal_getfield(prior, Val(:emissions))
     return LGSSM(GaussMarkovModel(reverse(ordering(prior)), A, a, Q, xf), ems)
 end
+
+function _check_inputs(prior, y)
+    if length(prior) != length(y)
+        lp = length(prior)
+        ly = length(y)
+        throw(error("Dimension mismatch. length(prior) is $lp, but length(y) is $ly"))
+    end
+end
+
+ChainRulesCore.@non_differentiable _check_inputs(::Any, ::Any)
 
 function _a_bit_of_posterior(prior, y)
     return scan_emit(step_posterior, zip(prior, y), x0(prior), eachindex(prior))

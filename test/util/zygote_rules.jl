@@ -144,8 +144,8 @@ using TemporalGPs: time_exp, logdet_pullback
         adjoint_test(xs -> xs.m, (xs_sa, ))
     end
     @testset "\\" begin
-        adjoint_test(\, (Diagonal(randn(10)), randn(10)))
-        adjoint_test(\, (Diagonal(randn(10)), randn(10, 2)))
+        adjoint_test(\, (Diagonal(rand(5) .+ 1.0), randn(5)))
+        adjoint_test(\, (Diagonal(rand(5) .+ 1.0), randn(5, 2)))
     end
     @testset ".\\" begin
         adjoint_test((a, x) -> a .\ x, (randn(10), randn(10)); rtol=1e-7, atol=1e-7)
