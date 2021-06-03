@@ -18,7 +18,7 @@ using TemporalGPs:
         k_sep = Separable(SEKernel(), Matern32Kernel())
         @test dtcify(z, k_sep) isa DTCSeparable
         @test dtcify(z, 0.5 * k_sep) isa ScaledKernel{<:DTCSeparable}
-        @test dtcify(z, transform(k_sep, 0.5)) isa TransformedKernel{<:DTCSeparable}
+        @test dtcify(z, k_sep ∘ ScaleTransform(0.5)) isa TransformedKernel{<:DTCSeparable}
         @test dtcify(z, k_sep + k_sep) isa KernelSum{<:Tuple{DTCSeparable, DTCSeparable}}
     end
 
@@ -35,7 +35,7 @@ using TemporalGPs:
         (name="scaled-separable", val=0.5 * Separable(Matern52Kernel(), Matern32Kernel())),
         (
             name="stretched-separable",
-            val=Separable(SEKernel(), transform(Matern12Kernel(), 1.3)),
+            val=Separable(SEKernel(), Matern12Kernel() ∘ ScaleTransform(1.3)),
         ),
 
         (name="sum-separable-1", val=separable_1 + separable_2),

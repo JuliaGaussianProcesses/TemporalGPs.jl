@@ -17,7 +17,9 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
         )
     end
 
-    k_sep = 1.5 * Separable(transform(SEKernel(), 1.4), transform(Matern32Kernel(), 1.3))
+    k_sep = 1.5 * Separable(
+        SEKernel() ∘ ScaleTransform(1.4), Matern32Kernel() ∘ ScaleTransform(1.3),
+    )
 
     σ²s = [
         (name="scalar", val=(0.1,)),

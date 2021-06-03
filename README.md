@@ -67,44 +67,44 @@ using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
 using Zygote # Algorithmic Differentiation
 
-using ParameterHandling: value, flatten
+using ParameterHandling: flatten
 
 # Declare model parameters using `ParameterHandling.jl` types.
-params = (
+flat_initial_params, unflatten = flatten((
     var_kernel = positive(0.6),
     λ = positive(2.5),
     var_noise = positive(0.1),
-)
+))
+
+# Construct a function to unpack flattened parameters and pull out the raw values.
+unpack = ParameterHandling.value ∘ unflatten
+params = unpack(flat_initial_params)
 
 function build_gp(params)
-    f_naive = GP(params.var_kernel * transform(Matern52Kernel(), params.λ))
+    f_naive = GP(params.var_kernel * Matern52Kernel() ∘ ScaleTransform(params.λ))
     return to_sde(f_naive, SArrayStorage(Float64))
 end
 
 # Generate some synthetic data from the prior.
 const x = RegularSpacing(0.0, 0.1, 10_000)
-const y = rand(build_gp(value(params))(x, value(params.var_noise)))
-
-# Construct mapping between structured and Vector representation of parameters.
-flat_initial_params, unflatten = flatten(params)
+const y = rand(build_gp(params)(x, params.var_noise))
 
 # Specify an objective function for Optim to minimise in terms of x and y.
 # We choose the usual negative log marginal likelihood (NLML).
-function objective(flat_params)
-    params = value(unflatten(flat_params))
+function objective(params)
     f = build_gp(params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
 # Check that the objective function works:
-objective(flat_initial_params)
+objective(params)
 
 # Optimise using Optim. This optimiser often works fairly well in practice,
 # but it's not going to be the best choice in all situations. Consult
 # Optim.jl for more info on available optimisers and their properties.
 training_results = Optim.optimize(
-    objective,
-    θ -> only(Zygote.gradient(objective, θ)),
+    objective ∘ unpack,
+    θ -> only(Zygote.gradient(objective ∘ unpack, θ)),
     flat_initial_params + randn(3), # Add some noise to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),
@@ -116,7 +116,7 @@ training_results = Optim.optimize(
 
 # Extracting the final values of the parameters.
 # Should be close to truth.
-final_params = value(unflatten(training_results.minimizer))
+final_params = unpack(training_results.minimizer)
 ```
 Once you've learned the parameters, you can use `posterior`, `marginals`, and `rand` to make posterior-predictions with the optimal parameters.
 
