@@ -104,13 +104,13 @@ function Zygote._pullback(
         ΔΣs_filled_in = Δ[1]
         Δy_filled_in = Δ[2]
 
-        # The cotangent of a `Missing` doesn't make sense, so should be a `DoesNotExist`.
+        # The cotangent of a `Missing` doesn't make sense, so should be a `NoTangent`.
         Δy = if Δy_filled_in === nothing
             nothing
         else
-            Δy = Vector{Union{eltype(Δy_filled_in), DoesNotExist}}(undef, length(y))
+            Δy = Vector{Union{eltype(Δy_filled_in), NoTangent}}(undef, length(y))
             map!(
-                n -> y[n] === missing ? DoesNotExist() : Δy_filled_in[n],
+                n -> y[n] === missing ? NoTangent() : Δy_filled_in[n],
                 Δy, eachindex(y),
             )
             Δy
