@@ -8,4 +8,6 @@ using TemporalGPs: RegularInTime
     x = RegularInTime(ts, xs)
 
     @test prod(size(x)) == length(collect(x))
+
+    @test all([getindex(x, n) for n in 1:length(x)] .== collect(x))
 end

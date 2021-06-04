@@ -15,6 +15,10 @@ struct RectilinearGrid{
     xr::Txr
 end
 
+get_space(x::RectilinearGrid) = Zygote.literal_getfield(x, Val(:xl))
+
+get_times(x::RectilinearGrid) = Zygote.literal_getfield(x, Val(:xr))
+
 Base.size(X::RectilinearGrid) = (length(X.xl) * length(X.xr),)
 
 function Base.collect(X::RectilinearGrid{Tl, Tr}) where{Tl, Tr}
@@ -24,6 +28,10 @@ function Base.collect(X::RectilinearGrid{Tl, Tr}) where{Tl, Tr}
             product(eachindex(X.xl), eachindex(X.xr)),
         )
     )
+end
+
+function Base.getindex(X::RectilinearGrid, n::Integer)
+    return (X.xl[mod(n - 1, length(X.xl)) + 1], X.xr[div(n - 1, length(X.xl)) + 1])
 end
 
 Base.show(io::IO, x::RectilinearGrid) = Base.show(io::IO, collect(x))
@@ -38,6 +46,57 @@ const SpaceTimeGrid{Tr, Tt<:Real} = RectilinearGrid{
     Tr, Tt, <:AbstractVector{Tr}, <:AbstractVector{Tt},
 }
 
-get_space(x::RectilinearGrid) = x.xl
 
-get_time(x::RectilinearGrid) = x.xr
+
+
+
+#
+# Implement internal API for transforming between "flat" representation, which is useful for
+# GPs, an a time-centric representation, which is useful for state-space models.
+#
+
+# See docstring elsewhere for context.
+function inputs_to_time_form(x::SpaceTimeGrid)
+    return Fill(get_space(x), length(get_times(x)))
+end
+
+# See docstring elsewhere for context.
+function merge_inputs(x1::SpaceTimeGrid, x2::SpaceTimeGrid)
+    if get_space(x1) != get_space(x2)
+        throw(error("Space coords of inputs not compatible, cannot merge."))
+    end
+    return RectilinearGrid(get_space(x1), vcat(get_times(x1), get_times(x2)))
+end
+
+# See docstring elsewhere for context.
+function sort_in_time(x::SpaceTimeGrid)
+    idx = sortperm(get_times(x))
+    return idx, RectilinearGrid(get_space(x), get_times(x)[idx])
+end
+
+# See docstring elsewhere for context.
+function observations_to_time_form(x::SpaceTimeGrid, y::AbstractVector{<:Union{Real, Missing}})
+    return restructure(y, Fill(length(get_space(x)), length(get_times(x))))
+end
+
+function observations_to_time_form(x::SpaceTimeGrid, ::AbstractVector{Missing})
+    return fill(missing, length(get_times(x)))
+end
+
+
+function get_zeros(x::SpaceTimeGrid{T}) where {T<:Real}
+    return fill(Diagonal(zeros(T, length(get_space(x)))), length(get_times(x)))
+end
+
+# See docstring elsewhere for context.
+function noise_var_to_time_form(x::RectilinearGrid, S::Diagonal{<:Real})
+    vs = restructure(
+        diag(S),
+        Zygote.ignore() do
+            Fill(length(get_space(x)), length(get_times(x)))
+        end,
+    )
+    return zygote_friendly_map(v -> Diagonal(collect(v)), vs)
+end
+
+destructure(::RectilinearGrid, y::AbstractVector) = reduce(vcat, y)

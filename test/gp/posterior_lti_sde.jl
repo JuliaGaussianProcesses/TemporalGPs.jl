@@ -3,6 +3,9 @@
     N = 13
     Npr = 15
 
+    N = 3
+    Npr = 2
+
     kernels = vcat(
 
         # Base kernels.
@@ -18,13 +21,14 @@
 
         # Stretched kernels.
         map([1e-2, 0.1, 1.0, 10.0, 100.0]) do λ
-            (name="stretched-λ=$λ", val=transform(Matern32Kernel(), λ))
+            (name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ))
         end,
 
         # Summed kernels.
         (
             name="sum-Matern12Kernel-Matern32Kernel",
-            val=1.5 * transform(Matern12Kernel(), 0.1) + 0.3 * transform(Matern32Kernel(), 1.1),
+            val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) +
+                0.3 * Matern32Kernel() ∘ ScaleTransform(1.1),
         ),
     )
 
@@ -32,8 +36,6 @@
     storages = (
         (name="dense storage Float64", val=ArrayStorage(Float64)),
         (name="static storage Float64", val=SArrayStorage(Float64)),
-        # (name="dense storage Float32", val=ArrayStorage(Float32)),
-        # (name="static storage Float32", val=SArrayStorage(Float32)),
     )
 
     # Either regular spacing or irregular spacing in time.
@@ -72,7 +74,7 @@
         f_post_naive = posterior(fx_naive, y)
         f_post = posterior(fx, y)
 
-        post_obs_var = 0.1
+        post_obs_var = 0.3
         fx_post_naive = f_post_naive(x_pr, post_obs_var)
         fx_post = f_post(x_pr, post_obs_var)
         y_post = rand(fx_post)

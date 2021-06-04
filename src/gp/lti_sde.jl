@@ -33,7 +33,7 @@ end
 # Implement the AbstractGP API.
 
 function AbstractGPs.marginals(ft::FiniteLTISDE)
-    return vcat(map(marginals, marginals(build_lgssm(ft)))...)
+    return reduce(vcat, map(marginals, marginals(build_lgssm(ft))))
 end
 
 function AbstractGPs.mean_and_var(ft::FiniteLTISDE)
@@ -48,7 +48,7 @@ AbstractGPs.var(ft::FiniteLTISDE) = mean_and_var(ft)[2]
 AbstractGPs.cov(ft::FiniteLTISDE) = cov(FiniteGP(ft.f.f, ft.x, ft.Σy))
 
 function AbstractGPs.rand(rng::AbstractRNG, ft::FiniteLTISDE)
-    return destructure(rand(rng, build_lgssm(ft)))
+    return destructure(ft.x, rand(rng, build_lgssm(ft)))
 end
 
 AbstractGPs.rand(ft::FiniteLTISDE) = rand(Random.GLOBAL_RNG, ft)
@@ -66,45 +66,31 @@ function AbstractGPs.logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing,
 end
 
 function _logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
-    model = build_lgssm(ft)
-    return logpdf(model, restructure(y, model.emissions))
+    return logpdf(build_lgssm(ft), observations_to_time_form(ft.x, y))
 end
 
-restructure(y::AbstractVector{<:Real}, ::StructArray{<:ScalarOutputLGC}) = y
 
-destructure(y::AbstractVector{<:Real}) = y
 
 # Converting GPs into LGSSMs.
 
-function build_lgssm(ft::FiniteLTISDE)
-    k = get_kernel(ft)
-    x = Zygote.literal_getfield(ft, Val(:x))
-    s = Zygote.literal_getfield(Zygote.literal_getfield(ft, Val(:f)), Val(:storage))
+function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)
+    k = get_kernel(f)
+    s = Zygote.literal_getfield(f, Val(:storage))
     As, as, Qs, emission_proj, x0 = lgssm_components(k, x, s)
     return LGSSM(
-        GaussMarkovModel(Forward(), As, as, Qs, x0),
-        build_emissions(emission_proj, build_Σs(ft)),
+        GaussMarkovModel(Forward(), As, as, Qs, x0), build_emissions(emission_proj, Σys),
     )
 end
 
-function get_kernel(ft::FiniteLTISDE)
-    return Zygote.literal_getfield(
-        Zygote.literal_getfield(
-            Zygote.literal_getfield(ft, Val(:f)), Val(:f),
-        ),
-        Val(:kernel),
-    )
-end
-
-function build_Σs(ft::FiniteLTISDE)
+function build_lgssm(ft::FiniteLTISDE)
+    f = Zygote.literal_getfield(ft, Val(:f))
     x = Zygote.literal_getfield(ft, Val(:x))
-    Σy = Zygote.literal_getfield(ft, Val(:Σy))
-    return build_Σs(x, Σy)
+    Σys = noise_var_to_time_form(x, Zygote.literal_getfield(ft, Val(:Σy)))
+    return build_lgssm(f, x, Σys)
 end
 
-function build_Σs(::AbstractVector{<:Real}, Σ::Diagonal{<:Real})
-    return Zygote.literal_getfield(Σ, Val(:diag))
-end
+get_kernel(f::LTISDE) = get_kernel(Zygote.literal_getfield(f, Val(:f)))
+get_kernel(f::GP) = Zygote.literal_getfield(f, Val(:kernel))
 
 function build_emissions(
     (Hs, hs)::Tuple{AbstractVector, AbstractVector}, Σs::AbstractVector,
@@ -138,7 +124,7 @@ end
 # Generic constructors for base kernels.
 
 function lgssm_components(
-    k::SimpleKernel, t::AbstractVector, storage::StorageType{T},
+    k::SimpleKernel, t::AbstractVector{<:Real}, storage::StorageType{T},
 ) where {T<:Real}
 
     # Compute stationary distribution and sde.

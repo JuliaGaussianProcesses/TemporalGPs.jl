@@ -4,6 +4,7 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
     rng = MersenneTwister(123456)
     Nr = 3
     Nt = 5
+    Nt_pr = 2
 
     @testset "restructure" begin
         adjoint_test(
@@ -16,11 +17,13 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
         )
     end
 
-    k_sep = 1.5 * Separable(transform(SEKernel(), 1.4), transform(Matern32Kernel(), 1.3))
+    k_sep = 1.5 * Separable(
+        SEKernel() ∘ ScaleTransform(1.4), Matern32Kernel() ∘ ScaleTransform(1.3),
+    )
 
     σ²s = [
         (name="scalar", val=(0.1,)),
-        (name="nothing", val=()),
+        (name="nothing", val=(1e-4, )),
     ]
 
     kernels = [
@@ -42,14 +45,6 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
 
         r = randn(rng, Nr)
         x = RectilinearGrid(r, t.val)
-
-        @testset "build_Σs" begin
-            adjoint_test(
-                d -> TemporalGPs.build_Σs(x, Diagonal(d)),
-                (rand(length(x)) .+ 0.1, );
-                check_infers=false,
-            )
-        end
 
         f = GP(k.val)
         ft = f(collect(x), σ².val...)
@@ -75,17 +70,31 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
 
         # Test that the SDE posterior is close to the naive posterior.
         f_post_naive = posterior(ft, y)
-        fx_post_naive = f_post_naive(collect(x), 0.1)
+        f_post_sde = posterior(f_sde(x, σ².val...), y)
 
-        @test_broken 1 == 0
+        @testset "posterior $(data.name)" for data in [
+            (name="same locations", inputs=x),
+            (name="different locations", inputs=RectilinearGrid(r, randn(rng, Nt_pr))),
+        ]
+            x_pr = data.inputs
+            fx_post_naive = f_post_naive(collect(x_pr), 0.1)
+            fx_post_sde = f_post_sde(x_pr, 0.1)
 
-        # The tests below are broken because posterior inference with spatio-temporal models
-        # is presently broken. It shouldn't be horrible to fix, I've just not done it yet.
-        # f_post_sde = posterior(f_sde(x, σ².val...), y)
-        # fx_post_sde = f_post_sde(x, 0.1)
+            @test mean.(marginals(fx_post_naive)) ≈ mean.(marginals(fx_post_sde))
+            @test std.(marginals(fx_post_naive)) ≈ std.(marginals(fx_post_sde))
 
-        # @test mean.(marginals(fx_post_naive)) ≈ mean.(marginals(fx_post_sde))
-        # @test std.(marginals(fx_post_naive)) ≈ std.(marginals(fx_post_sde))
+            y_post = rand(rng, fx_post_naive)
+            @test logpdf(fx_post_naive, y_post) ≈ logpdf(fx_post_sde, y_post)
+
+            # No statistical tests run on `rand`, which seems somewhat dangerous, but there's
+            # not a lot to be done about it unfortunately.
+            @testset "rand" begin
+                y = rand(rng, fx_post_sde)
+                @test y isa AbstractVector{<:Real}
+                @test length(y) == length(x_pr)
+            end
+
+        end
 
         # # I'm not checking correctness here, just that it runs. No custom adjoints have been
         # # written that are involved in this that aren't tested, so there should be no need
@@ -95,7 +104,6 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
         #     pb(rand_zygote_tangent(out))
         # end
         # # adjoint_test(logpdf, (ft_sde, y); fdm=central_fdm(2, 1), check_infers=false)
-
 
         # if t.val isa RegularSpacing
         #     adjoint_test(

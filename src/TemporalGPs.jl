@@ -52,6 +52,7 @@ module TemporalGPs
     include(joinpath("models", "missings.jl"))
 
     # Converting GPs to Linear-Gaussian SSMs.
+    include(joinpath("gp", "data_representations.jl"))
     include(joinpath("gp", "lti_sde.jl"))
     include(joinpath("gp", "posterior_lti_sde.jl"))
 

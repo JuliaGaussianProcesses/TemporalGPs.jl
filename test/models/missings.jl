@@ -4,6 +4,7 @@ using TemporalGPs:
     replace_observation_noise_cov,
     transform_model_and_obs
 
+println("missings:")
 @testset "missings" begin
 
     rng = MersenneTwister(123456)

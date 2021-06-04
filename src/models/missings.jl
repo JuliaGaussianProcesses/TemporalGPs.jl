@@ -27,7 +27,9 @@ end
 function transform_model_and_obs(
     model::LGSSM, y::AbstractVector{<:Union{Missing, T}},
 ) where {T<:Union{<:AbstractVector, <:Real}}
-    Σs_filled_in, y_filled_in = fill_in_missings(emissions(model).Q, y)
+    Σs_filled_in, y_filled_in = fill_in_missings(
+        zygote_friendly_map(noise_cov, emissions(model)), y,
+    )
     model_with_missings = replace_observation_noise_cov(model, Σs_filled_in)
     return model_with_missings, y_filled_in
 end
@@ -136,6 +138,8 @@ get_zero(::Int, ::Type{T}) where {T<:Real} = zero(T)
 build_large_var(S::T) where {T<:Matrix} = T(_large_var_const() * I, size(S))
 
 build_large_var(::T) where {T<:SMatrix} = T(_large_var_const() * I)
+
+build_large_var(S::T) where {T<:Diagonal} = T(fill(_large_var_const(), length(diag(S))))
 
 build_large_var(::T) where {T<:Real} = T(_large_var_const())
 
