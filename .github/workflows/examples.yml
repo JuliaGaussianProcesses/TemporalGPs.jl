@@ -37,7 +37,6 @@ jobs:
       - uses: codecov/codecov-action@v1
         with:
           file: lcov.info
-        with:
           coverage: false
         env:
           GROUP: EXAMPLES
