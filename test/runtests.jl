@@ -1,8 +1,7 @@
 using Test
 
 ENV["TESTING"] = "TRUE"
-const GROUP = ENV["GROUP"]
-@show GROUP
+const GROUP = get(ENV, "GROUP", "TESTS")
 
 # Run the tests.
 if GROUP == "TESTS"
