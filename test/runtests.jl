@@ -80,6 +80,8 @@ if GROUP == "EXAMPLES"
     Pkg.resolve()
     Pkg.instantiate()
 
+    include(joinpath("..", "examples", "exact_time_inference.jl"))
+    include(joinpath("..", "examples", "exact_time_learning.jl"))
     include(joinpath("..", "examples", "exact_space_time_inference.jl"))
     include(joinpath("..", "examples", "exact_space_time_learning.jl"))
     include(joinpath("..", "examples", "approx_space_time_inference.jl"))

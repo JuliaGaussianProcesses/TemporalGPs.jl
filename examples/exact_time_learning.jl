@@ -1,14 +1,14 @@
-# This is an extended version of exact_space_time_inference.jl. It just combines it with
+# This is an extended version of exact_time_inference.jl. It just combines it with
 # Optim + ParameterHandling + Zygote to learn the kernel parameters.
 # If you understand how to use Optim + ParameterHandling + Zygote for an AbstractGP,
-# e.g. that shown on the README for this package, and how exact_space_time_inference.jl
+# e.g. that shown on the README for this package, and how exact_time_inference.jl
 # works, then you should understand this file.
 
 using AbstractGPs
-using KernelFunctions
 using TemporalGPs
 
-using TemporalGPs: Separable, RectilinearGrid
+# Load up the separable kernel from TemporalGPs.
+using TemporalGPs: RegularSpacing
 
 # Load standard packages from the Julia ecosystem
 using Optim # Standard optimisation algorithms.
@@ -20,8 +20,7 @@ using ParameterHandling: flatten
 # Declare model parameters using `ParameterHandling.jl` types.
 flat_initial_params, unflatten = flatten((
     var_kernel = positive(0.6),
-    λ_space = positive(2.5),
-    λ_time = positive(2.5),
+    λ = positive(0.1),
     var_noise = positive(0.1),
 ));
 
@@ -30,22 +29,16 @@ unpack = ParameterHandling.value ∘ unflatten;
 params = unpack(flat_initial_params);
 
 function build_gp(params)
-    k_space = SEKernel() ∘ ScaleTransform(params.λ_space)
-    k_time = Matern52Kernel() ∘ ScaleTransform(params.λ_time)
-    k = params.var_kernel * Separable(k_space, k_time)
-    return to_sde(GP(k), ArrayStorage(Float64))
+    k = params.var_kernel * Matern52Kernel() ∘ ScaleTransform(params.λ)
+    return to_sde(GP(k), SArrayStorage(Float64))
 end
 
+# Specify a collection of inputs. Must be increasing.
+T = 1_000_000;
+x = RegularSpacing(0.0, 1e-4, T);
 
-# Construct a rectilinear grid of points in space and time.
-# Exact inference only works for such grids.
-# Times must be increasing, points in space can be anywhere.
-N = 50;
-T = 1_000;
-points_in_space = collect(range(-3.0, 3.0; length=N));
-points_in_time = RegularSpacing(0.0, 0.01, T);
-x = RectilinearGrid(points_in_space, points_in_time);
-y = rand(build_gp(params)(x, 1e-4));
+# Generate some synthetic data from the GP.
+y = rand(f(x, params.var_noise));
 
 # Specify an objective function for Optim to minimise in terms of x and y.
 # We choose the usual negative log marginal likelihood (NLML).
@@ -58,7 +51,7 @@ end
 training_results = Optim.optimize(
     objective ∘ unpack,
     θ -> only(Zygote.gradient(objective ∘ unpack, θ)),
-    flat_initial_params + randn(4), # Add some noise to make learning non-trivial
+    flat_initial_params + randn(3), # Add some noise to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),
         linesearch = Optim.LineSearches.BackTracking(),
@@ -75,26 +68,23 @@ final_params = unpack(training_results.minimizer);
 f_post = posterior(build_gp(final_params)(x, final_params.var_noise), y);
 
 # Specify some locations at which to make predictions.
-T_pr = 1200;
-points_in_time_pr = RegularSpacing(0.0, 0.01, T_pr);
-x_pr = RectilinearGrid(points_in_space, points_in_time_pr);
+T_pr = 1_200_000;
+x_pr = RegularSpacing(0.0, 1e-4, T_pr);
 
 # Compute the exact posterior marginals at `x_pr`.
-# This isn't optimised at present, so might take a little while.
 f_post_marginals = marginals(f_post(x_pr));
 m_post_marginals = mean.(f_post_marginals);
 σ_post_marginals = std.(f_post_marginals);
 
-# Visualise the posterior marginals. We don't do this during in CI because it causes
-# problems.
+# Generate a few posterior samples. Not fantastically-well optimised at present.
+f_post_samples = [rand(f_post(x_pr)) for _ in 1:5];
+
+# Visualise the posterior marginals. We don't do this during in CI.
 if get(ENV, "TESTING", "FALSE") == "FALSE"
     using Plots
-    savefig(
-        plot(
-            heatmap(reshape(m_post_marginals, N, T_pr)),
-            heatmap(reshape(σ_post_marginals, N, T_pr));
-            layout=(1, 2),
-        ),
-        "posterior.png",
-    );
+    plt = plot();
+    scatter!(plt, x, y; label="", markersize=0.1, alpha=0.1);
+    plot!(plt, f_post(x_pr); ribbon_scale=3.0, label="");
+    plot!(x_pr, f_post_samples; color=:red, label="");
+    savefig(plt, "posterior.png");
 end

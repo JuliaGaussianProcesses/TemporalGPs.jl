@@ -8,7 +8,7 @@ using TemporalGPs
 # Load up the separable kernel from TemporalGPs. You need to use this to tell TemporalGPs
 # that you're using a separable kernel (it's not enough just to use a kernel which
 # happens to be separable).
-using TemporalGPs: Separable, RectilinearGrid
+using TemporalGPs: Separable, RectilinearGrid, RegularInTime
 
 # Specify a separable kernel.
 # The first argument is always the kernel over space, the second the kernel over time.

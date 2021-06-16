@@ -1,7 +1,7 @@
-# This is an extended version of exact_space_time_inference.jl. It just combines it with
+# This is an extended version of approx_space_time_inference.jl. It just combines it with
 # Optim + ParameterHandling + Zygote to learn the kernel parameters.
 # If you understand how to use Optim + ParameterHandling + Zygote for an AbstractGP,
-# e.g. that shown on the README for this package, and how exact_space_time_inference.jl
+# e.g. that shown on the README for this package, and how approx_space_time_inference.jl
 # works, then you should understand this file.
 
 using AbstractGPs
