@@ -1,8 +1,9 @@
 ENV["TESTING"] = "TRUE"
 const GROUP = get(ENV, "GROUP", "TESTS")
+@show GROUP
 
 # Run the tests.
-if GROUP == "ALL" || GROUP == "TESTS"
+if GROUP == "TESTS"
 
     using AbstractGPs
     using BlockDiagonals
@@ -69,7 +70,7 @@ end
 
 
 # Run the examples.
-if GROUP == "ALL" || GROUP == "EXAMPLES"
+if GROUP == "EXAMPLES"
 
     using Pkg
 
