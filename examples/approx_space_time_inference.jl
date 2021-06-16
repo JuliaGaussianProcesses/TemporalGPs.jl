@@ -21,20 +21,23 @@ k = Separable(SEKernel(), Matern52Kernel());
 # Use `ArrayStorage`, not `SArrayStorage`, for these kinds of GPs.
 f = to_sde(GP(k), ArrayStorage(Float64));
 
-# Construct a rectilinear grid of points in space and time.
+# Construct inputs. Spatial locations change at each point in time.
+# Also works with RectilinearGrids of inputs.
 # Exact inference only works for such grids.
 # Times must be increasing, points in space can be anywhere.
 N = 50;
 T = 1_000;
-points_in_space = collect(range(-3.0, 3.0; length=N));
-points_in_time = RegularSpacing(0.0, 0.01, T);
-x = RectilinearGrid(points_in_space, points_in_time);
+points_in_space = [randn(N) for _ in 1:T];
+points_in_time = RegularSpacing(0.0, 0.1, T);
+x = RegularInTime(points_in_time, points_in_space);
 
-# Generate some synthetic data from the GP under a small amount of observation noise.
-y = rand(f(x, 1e-4));
+# Since it's not straightforward to generate samples from this GP at `x`, use a known
+# function, under a bit of iid noise.
+xs = collect(x);
+y = sin.(first.(xs)) .+ cos.(last.(xs)) + sqrt.(0.1) .* randn(length(xs));
 
 # Spatial pseudo-point locations.
-z_r = range(-3.0, 3.0; length=15);
+z_r = range(-3.0, 3.0; length=5);
 
 # Locations in space at which to make predictions. Assumed to be the same at each point in
 # time, but this assumption could easily be relaxed.
@@ -42,7 +45,7 @@ N_pr = 150;
 x_r_pr = range(-5.0, 5.0; length=N_pr);
 
 # Compute the approximate posterior marginals.
-f_post_marginals = approx_posterior_marginals(dtc, f(x, 1e-4), y, z_r, x_r_pr);
+f_post_marginals = approx_posterior_marginals(dtc, f(x, 0.1), y, z_r, x_r_pr);
 m_post_marginals = mean.(f_post_marginals);
 σ_post_marginals = std.(f_post_marginals);
 
