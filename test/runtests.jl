@@ -1,3 +1,5 @@
+using Test
+
 ENV["TESTING"] = "TRUE"
 const GROUP = get(ENV, "GROUP", "TESTS")
 @show GROUP
@@ -16,7 +18,7 @@ if GROUP == "TESTS"
     using StaticArrays
     using StructArrays
     using TemporalGPs
-    using Test
+
     using Zygote
 
     using FiniteDifferences: rand_tangent
