@@ -1,5 +1,4 @@
 using AbstractGPs
-using Plots
 using TemporalGPs
 
 # Working with spatio-temporal GPs in TemporalGPs.jl mostly looks like working with any
@@ -46,13 +45,16 @@ f_post_marginals = marginals(f_post(x_pr));
 m_post_marginals = mean.(f_post_marginals);
 σ_post_marginals = std.(f_post_marginals);
 
-# Visualise the posterior marginals.
-gr();
-savefig(
-    plot(
-        heatmap(reshape(m_post_marginals, N, T_pr)),
-        heatmap(reshape(σ_post_marginals, N, T_pr));
-        layout=(1, 2),
-    ),
-    "posterior.png",
-);
+# Visualise the posterior marginals. We don't do this during in CI because it causes
+# problems.
+if get(ENV, "TESTING", "FALSE") == "FALSE"
+    using Plots
+    savefig(
+        plot(
+            heatmap(reshape(m_post_marginals, N, T_pr)),
+            heatmap(reshape(σ_post_marginals, N, T_pr));
+            layout=(1, 2),
+        ),
+        "posterior.png",
+    );
+end
