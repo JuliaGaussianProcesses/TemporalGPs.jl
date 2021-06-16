@@ -1,5 +1,5 @@
 ENV["TESTING"] = "TRUE"
-const GROUP = get(ENV, "GROUP", "EXAMPLES")
+const GROUP = get(ENV, "GROUP", "TESTS")
 
 # Run the tests.
 if GROUP == "ALL" || GROUP == "TESTS"
