@@ -40,4 +40,4 @@ jobs:
         with:
           coverage: false
         env:
-          GROUP: PPL
+          GROUP: EXAMPLES
