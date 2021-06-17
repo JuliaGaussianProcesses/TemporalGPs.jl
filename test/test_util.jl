@@ -282,8 +282,8 @@ end
 
 function adjoint_test(
     f, ȳ, x::Tuple, ẋ::Tuple;
-    rtol=1e-9,
-    atol=1e-9,
+    rtol=1e-6,
+    atol=1e-6,
     fdm=central_fdm(5, 1; max_range=1e-3),
     test=true,
     check_infers=true,
@@ -372,17 +372,17 @@ function check_adjoint_allocations(
 )
     _, pb = _pullback(context, f, input...)
 
-    # primal_allocs = allocs(@benchmark($f($input...); samples=1, evals=1))
-    # forward_allocs = allocs(
-    #     @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
-    # )
-    # backward_allocs = allocs(@benchmark $pb($Δoutput) samples=1 evals=1)
-
-    primal_allocs = allocs(@benchmark($f($input...)))
+    primal_allocs = allocs(@benchmark($f($input...); samples=1, evals=1))
     forward_allocs = allocs(
-        @benchmark(_pullback($context, $f, $input...)),
+        @benchmark(_pullback($context, $f, $input...); samples=1, evals=1),
     )
-    backward_allocs = allocs(@benchmark $pb($Δoutput))
+    backward_allocs = allocs(@benchmark $pb($Δoutput) samples=1 evals=1)
+
+    # primal_allocs = allocs(@benchmark($f($input...)))
+    # forward_allocs = allocs(
+    #     @benchmark(_pullback($context, $f, $input...)),
+    # )
+    # backward_allocs = allocs(@benchmark $pb($Δoutput))
 
     # @show primal_allocs
     # @show forward_allocs
