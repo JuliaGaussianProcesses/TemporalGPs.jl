@@ -18,6 +18,8 @@ While you can install TemporalGPs without AbstractGPs and KernelFunctions, in pr
 
 # Example Usage
 
+Most examples can be found in the [examples](https://github.com/JuliaGaussianProcesses/TemporalGPs.jl/tree/master/examples) directory. In particular see the associated [README](https://github.com/JuliaGaussianProcesses/TemporalGPs.jl/tree/master/examples/README.md).
+
 This is a small problem by TemporalGPs' standard. See timing results below for expected performance on larger problems.
 
 ```julia
