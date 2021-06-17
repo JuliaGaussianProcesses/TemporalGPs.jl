@@ -10,7 +10,10 @@ using TemporalGPs
 # Load up the separable kernel from TemporalGPs. You need to use this to tell TemporalGPs
 # that you're using a separable kernel (it's not enough just to use a kernel which
 # happens to be separable).
-using TemporalGPs: Separable, RectilinearGrid, approx_posterior_marginals
+# RegularInTime is a data structure for inputs which allows for different spatial locations
+# at each point in time, and can be used with the approximate inference scheme presented
+# here.
+using TemporalGPs: Separable, RegularInTime, approx_posterior_marginals
 
 # Specify a separable kernel.
 # The first argument is always the kernel over space, the second the kernel over time.
@@ -23,7 +26,6 @@ f = to_sde(GP(k), ArrayStorage(Float64));
 
 # Construct inputs. Spatial locations change at each point in time.
 # Also works with RectilinearGrids of inputs.
-# Exact inference only works for such grids.
 # Times must be increasing, points in space can be anywhere.
 N = 50;
 T = 1_000;

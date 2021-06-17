@@ -7,7 +7,6 @@ using TemporalGPs
 #    work nicely with Zygote.jl. At some point, it will hopefully disappear.
 # 2. Call `to_sde` on your AbstractGP object to say "use TemporalGPs.jl to do inference".
 
-
 # This is an example of a very, very noise regression problem.
 # You would probably be better of using a pseudo-point approximation for this particular
 # data set, but longer time-series tend to lend themselves less well to nice plots.
@@ -15,7 +14,7 @@ using TemporalGPs
 # Load up the separable kernel from TemporalGPs.
 using TemporalGPs: RegularSpacing
 
-# Build a GP, and convert it to an SDE as per usual.
+# Build a GP as per usual, and wrap it inside a TemporalGPs.jl object.
 f_raw = GP(Matern52Kernel());
 f = to_sde(f_raw, SArrayStorage(Float64));
 
@@ -23,7 +22,7 @@ f = to_sde(f_raw, SArrayStorage(Float64));
 T = 1_000_000;
 x = RegularSpacing(0.0, 1e-4, T);
 
-# Generate some synthetic data from the GP under a small amount of observation noise.
+# Generate some noisy synthetic data from the GP.
 σ²_noise = 5.0;
 y = rand(f(x, σ²_noise));
 
@@ -42,7 +41,7 @@ m_post_marginals = mean.(f_post_marginals);
 # Generate a few posterior samples. Not fantastically-well optimised at present.
 f_post_samples = [rand(f_post(x_pr)) for _ in 1:5];
 
-# Visualise the posterior marginals. We don't do this during in CI.
+# Visualise the posterior. The if block is just to prevent it running in CI.
 if get(ENV, "TESTING", "FALSE") == "FALSE"
     using Plots
     plt = plot();

@@ -1,4 +1,4 @@
-# This is an extended version of exact_space_time_inference.jl. It just combines it with
+# This is an extended version of exact_space_time_inference.jl. It combines it with
 # Optim + ParameterHandling + Zygote to learn the kernel parameters.
 # If you understand how to use Optim + ParameterHandling + Zygote for an AbstractGP,
 # e.g. that shown on the README for this package, and how exact_space_time_inference.jl
@@ -15,10 +15,8 @@ using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
 using Zygote # Algorithmic Differentiation
 
-using ParameterHandling: flatten
-
 # Declare model parameters using `ParameterHandling.jl` types.
-flat_initial_params, unflatten = flatten((
+flat_initial_params, unflatten = ParameterHandling.flatten((
     var_kernel = positive(0.6),
     λ_space = positive(2.5),
     λ_time = positive(2.5),

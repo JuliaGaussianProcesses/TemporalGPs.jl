@@ -1,4 +1,4 @@
-# This is an extended version of approx_space_time_inference.jl. It just combines it with
+# This is an extended version of approx_space_time_inference.jl. It combines it with
 # Optim + ParameterHandling + Zygote to learn the kernel parameters.
 # If you understand how to use Optim + ParameterHandling + Zygote for an AbstractGP,
 # e.g. that shown on the README for this package, and how approx_space_time_inference.jl
@@ -39,7 +39,6 @@ end
 
 # Construct inputs. Spatial locations change at each point in time.
 # Also works with RectilinearGrids of inputs.
-# Exact inference only works for such grids.
 # Times must be increasing, points in space can be anywhere.
 N = 50;
 T = 1000;
