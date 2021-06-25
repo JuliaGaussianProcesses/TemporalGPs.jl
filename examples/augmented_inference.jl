@@ -37,7 +37,7 @@ g = 0.5 * y_sign
 β = 0
 
 function compute_optimal_expectation(f, x, g, β, γ; n_iter=5)
-    T = lemgth(x)
+    T = length(x)
     ω̄ = rand(T) # preallocation 
     c = zeros(T) # preallocation 
     for i in 1:n_iter
