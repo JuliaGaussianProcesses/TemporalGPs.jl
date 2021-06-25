@@ -1,19 +1,12 @@
 using AbstractGPs
 using TemporalGPs
 using Distributions
-using StatsFuns
-using LinearAlgebra
-using ProgressMeter
+using StatsFuns: logistic
 
-# Utilising TemporalGPs.jl to work with AbstractGPs requires minimal modification to the
-# GP objects from AbstractGPs that you are used to. The primary differences are
-# 1. RegularSpacing is a useful type. It's basically a `range` that's hacked together to
-#    work nicely with Zygote.jl. At some point, it will hopefully disappear.
-# 2. Call `to_sde` on your AbstractGP object to say "use TemporalGPs.jl to do inference".
-
-# This is an example of a very, very noise regression problem.
-# You would probably be better of using a pseudo-point approximation for this particular
-# data set, but longer time-series tend to lend themselves less well to nice plots.
+# In this example we are showing how to work with non-Gaussian likelihoods,
+# here a binary classification problem with a logistic link,
+# by using variable augmentations as in [Galy-Fajou et al, 2020](https://arxiv.org/abs/2002.114510).
+# We base our example on the "exact_time_inference" example
 
 # Load up the separable kernel from TemporalGPs.
 using TemporalGPs: RegularSpacing
@@ -26,33 +19,37 @@ f = to_sde(f_raw, SArrayStorage(Float64));
 T = 1_000;
 x = RegularSpacing(0.0, 1e-1, T);
 
-# Generate some noisy synthetic data from the GP.
+# Generate some synthetic data from the GP and get a random binary output
 σ²_noise = 0.01;
-f_true = rand(f(x, σ²_noise))
+f_true = rand(f(x, σ²_noise));
 y = rand.(Bernoulli.(logistic.(f_true)));
 y_sign = sign.(y .- 0.5)
 
-plt = plot()
-scatter!(plt, x, y; label="", markersize=1.0, alpha=0.1)
-plot!(plt, x, f_true; label="", lw=2.0)
+# We are using the augmentation trick and look for the optimal
+# expected value of the variable ω
 
-## Construct the posterior as per usual.
-n_iter = 5
-ω̄ = rand(T)
-c = zeros(T)
-γ = 0.5
+η₁_like(ω, g, β) = g .+ β .* ω # The augmented likelihood first natural parameter
+Λ_like(ω, γ) = 2 * γ * ω # The augmented likelihood precision (diagonal)
+
+# These are the values corresponding to our problem
+γ = 0.5 
 g = 0.5 * y_sign
 β = 0
-η₁_like(ω, g, β) = g .+ β .* ω
-Λ_like(ω, γ) = 2 * γ * ω
-@showprogress for i in 1:n_iter
-    global c
-    Λ = Λ_like(ω̄, γ)
-    p_f = marginals(posterior(f(x, inv.(Λ)), inv.(Λ) .* η₁_like(ω̄, g, β))(x))
-    @. c = sqrt(var(p_f) + abs2(mean(p_f))) / 2
-    @. ω̄ = 0.5 * tanh(c) / c
+
+function compute_optimal_expectation(f, x, g, β, γ; n_iter=5)
+    T = lemgth(x)
+    ω̄ = rand(T) # preallocation 
+    c = zeros(T) # preallocation 
+    for i in 1:n_iter
+        Λ = Λ_like(ω̄, γ)
+        p_f = marginals(posterior(f(x, inv.(Λ)), inv.(Λ) .* η₁_like(ω̄, g, β))(x))
+        @. c = sqrt(var(p_f) + abs2(mean(p_f))) / 2
+        @. ω̄ = 0.5 * tanh(c) / c
+    end
+    retu
 end
 
+ω̄ = compute_optimal_expectation(f, x, g, β, γ)
 Λ = Λ_like(ω̄, γ)
 f_post = posterior(f(x, inv.(Λ)), inv.(Λ) .* η₁_like(ω̄, g, β))
 
@@ -69,14 +66,12 @@ m_post_marginals = mean.(f_post_marginals);
 f_post_samples = [rand(f_post(x_pr)) for _ in 1:5];
 
 # Visualise the posterior. The if block is just to prevent it running in CI.
-# if get(ENV, "TESTING", "FALSE") == "FALSE"
-using Plots
-plt = plot()
-# plot!(plt, x, f_true; label="", lw=2.0)
-plot!(plt, f_post(x_pr); ribbon_scale=3.0, label="")
-plot!(plt, x_pr, f_post_samples; color=:red, alpha=0.3, label="")
-plot!(plt, x, f_true; label="", lw=2.0)
-scatter!(plt, x, y; label="", markersize=1.0, alpha=1.0)
-
-savefig(plt, "posterior.png")
-# end
+if get(ENV, "TESTING", "FALSE") == "FALSE"
+    using Plots
+    plt = plot()
+    plot!(plt, f_post(x_pr); ribbon_scale=3.0, label="");
+    plot!(plt, x_pr, f_post_samples; color=:red, alpha=0.3, label="");
+    plot!(plt, x, f_true; label="", lw=2.0, color=:blue); # Plot the true latent GP on top 
+    scatter!(plt, x, y; label="", markersize=1.0, alpha=1.0); # Plot the data
+    savefig(plt, "posterior.png");
+end
