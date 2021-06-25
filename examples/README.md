@@ -12,3 +12,4 @@ The examples in this directory are best worked through in the following order:
 4. exact_space_time_learning.jl
 5. approx_space_time_inference.jl
 6. approx_space_time_learning.jl
+7. augmented_inference.jl
