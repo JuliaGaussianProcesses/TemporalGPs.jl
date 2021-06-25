@@ -86,4 +86,5 @@ if GROUP == "EXAMPLES"
     include(joinpath("..", "examples", "exact_space_time_learning.jl"))
     include(joinpath("..", "examples", "approx_space_time_inference.jl"))
     include(joinpath("..", "examples", "approx_space_time_learning.jl"))
+    include(joinpath("..", "examples", "augmented_inference.jl"))
 end
