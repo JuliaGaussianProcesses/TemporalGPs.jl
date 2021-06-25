@@ -46,7 +46,7 @@ function compute_optimal_expectation(f, x, g, β, γ; n_iter=5)
         @. c = sqrt(var(p_f) + abs2(mean(p_f))) / 2
         @. ω̄ = 0.5 * tanh(c) / c
     end
-    retu
+    return ω̄
 end
 
 ω̄ = compute_optimal_expectation(f, x, g, β, γ)
