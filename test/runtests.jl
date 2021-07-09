@@ -1,7 +1,7 @@
 using Test
 
 ENV["TESTING"] = "TRUE"
-const GROUP = get(ENV, "GROUP", "tests")
+const GROUP = get(ENV, "group", "tests")
 
 OUTER_GROUP = first(split(GROUP, ' '))
 
@@ -9,6 +9,7 @@ OUTER_GROUP = first(split(GROUP, ' '))
 if OUTER_GROUP == "tests" || OUTER_GROUP == "all"
 
     # Determines which group of tests should be run.
+    @show GROUP
     group_info = split(GROUP, ' ')
     TEST_GROUP = length(group_info) == 1 ? "all" : group_info[2]
 

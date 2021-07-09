@@ -41,4 +41,4 @@ jobs:
           file: lcov.info
           coverage: false
         env:
-          GROUP: EXAMPLES
+          group: EXAMPLES
