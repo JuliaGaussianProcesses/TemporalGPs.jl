@@ -1,7 +1,7 @@
 name = "TemporalGPs"
 uuid = "e155a3c4-0841-43e1-8b83-a0e4f03cc18f"
 authors = ["willtebbutt <wt0881@my.bristol.ac.uk>"]
-version = "0.5.12"
+version = "0.5.13"
 
 [deps]
 AbstractGPs = "99985d1d-32ba-4be9-9821-2ec096f28918"
