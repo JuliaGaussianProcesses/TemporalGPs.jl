@@ -10,7 +10,7 @@ if OUTER_GROUP == "tests" || OUTER_GROUP == "all"
 
     # Determines which group of tests should be run.
     group_info = split(GROUP, ' ')
-    GROUP = length(group_info) == 1 ? "all" : group_info[2]
+    TEST_GROUP = length(group_info) == 1 ? "all" : group_info[2]
 
     using AbstractGPs
     using BlockDiagonals
