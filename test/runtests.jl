@@ -1,7 +1,7 @@
 using Test
 
 ENV["TESTING"] = "TRUE"
-const GROUP = get(ENV, "group", "tests")
+const GROUP = get(ENV, "GROUP", "tests")
 
 OUTER_GROUP = first(split(GROUP, ' '))
 
