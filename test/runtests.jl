@@ -5,6 +5,8 @@ const GROUP = get(ENV, "GROUP", "tests")
 
 OUTER_GROUP = first(split(GROUP, ' '))
 
+@show GROUP OUTER_GROUP
+
 # Run the tests.
 if OUTER_GROUP == "tests" || OUTER_GROUP == "all"
 
