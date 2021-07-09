@@ -1,14 +1,14 @@
 using Test
 
 ENV["TESTING"] = "TRUE"
-const GROUP = get(ENV, "GROUP", "tests")
+const GROUP = get(ENV, "GROUP", "test")
 
 OUTER_GROUP = first(split(GROUP, ' '))
 
 @show GROUP OUTER_GROUP
 
 # Run the tests.
-if OUTER_GROUP == "tests" || OUTER_GROUP == "all"
+if OUTER_GROUP == "test" || OUTER_GROUP == "all"
 
     # Determines which group of tests should be run.
     @show GROUP
