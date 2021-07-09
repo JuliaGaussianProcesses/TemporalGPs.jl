@@ -5,13 +5,10 @@ const GROUP = get(ENV, "GROUP", "test")
 
 OUTER_GROUP = first(split(GROUP, ' '))
 
-@show GROUP OUTER_GROUP
-
 # Run the tests.
 if OUTER_GROUP == "test" || OUTER_GROUP == "all"
 
     # Determines which group of tests should be run.
-    @show GROUP
     group_info = split(GROUP, ' ')
     TEST_GROUP = length(group_info) == 1 ? "all" : group_info[2]
 
@@ -54,17 +51,24 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
         end
 
         if TEST_GROUP ∈ ["models", "gp", "space_time"] || GROUP == "all"
-            println("models:")
+
             include(joinpath("models", "model_test_utils.jl"))
             include(joinpath("models", "test_model_test_utils.jl"))
         end
 
         if TEST_GROUP == "models" || GROUP == "all"
+            println("models:")
             @testset "models" begin
                 include(joinpath("models", "linear_gaussian_conditionals.jl"))
                 include(joinpath("models", "gauss_markov_model.jl"))
-                include(joinpath("models", "lgssm.jl"))
                 include(joinpath("models", "missings.jl"))
+            end
+        end
+
+        if TEST_GROUP == "models-lgssm" || GROUP == "all"
+            println("models (lgssm):")
+            @testset "models (lgssm)"
+                include(joinpath("models", "lgssm.jl"))
             end
         end
 
