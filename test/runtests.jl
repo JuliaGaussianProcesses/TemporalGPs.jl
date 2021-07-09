@@ -33,6 +33,8 @@ if OUTER_GROUP == "tests" || OUTER_GROUP == "all"
 
     include("test_util.jl")
 
+    @show TEST_GROUP GROUP
+
     @testset "TemporalGPs.jl" begin
 
         if TEST_GROUP == "util" || GROUP == "all"
