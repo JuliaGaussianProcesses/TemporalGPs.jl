@@ -15,6 +15,11 @@ jobs:
           - ubuntu-latest
         arch:
           - x64
+        group:
+          - 'test util'
+          - 'test models'
+          - 'test gp'
+          - 'test space_time'
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
