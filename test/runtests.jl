@@ -53,10 +53,13 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
             end
         end
 
-        if TEST_GROUP == "models" || GROUP == "all"
+        if TEST_GROUP ∈ ["models", "gp", "space_time"] || GROUP == "all"
             println("models:")
             include(joinpath("models", "model_test_utils.jl"))
             include(joinpath("models", "test_model_test_utils.jl"))
+        end
+
+        if TEST_GROUP == "models" || GROUP == "all"
             @testset "models" begin
                 include(joinpath("models", "linear_gaussian_conditionals.jl"))
                 include(joinpath("models", "gauss_markov_model.jl"))
