@@ -50,7 +50,7 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
             end
         end
 
-        if TEST_GROUP ∈ ["models", "gp", "space_time"] || GROUP == "all"
+        if TEST_GROUP ∈ ["models", "models-lgssm", "gp", "space_time"] || GROUP == "all"
             include(joinpath("models", "model_test_utils.jl"))
             include(joinpath("models", "test_model_test_utils.jl"))
         end
