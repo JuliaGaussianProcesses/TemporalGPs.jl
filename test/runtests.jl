@@ -51,7 +51,6 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
         end
 
         if TEST_GROUP ∈ ["models", "gp", "space_time"] || GROUP == "all"
-
             include(joinpath("models", "model_test_utils.jl"))
             include(joinpath("models", "test_model_test_utils.jl"))
         end
@@ -67,7 +66,7 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
 
         if TEST_GROUP == "models-lgssm" || GROUP == "all"
             println("models (lgssm):")
-            @testset "models (lgssm)"
+            @testset "models (lgssm)" begin
                 include(joinpath("models", "lgssm.jl"))
             end
         end
