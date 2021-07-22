@@ -125,6 +125,12 @@ function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf}
     return Fill(y_el, size(x1))
 end
 
+function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf<:Function}
+    @assert size(x1) == size(x2)
+    y_el = f(x1.value, x2.value)
+    return Fill(y_el, size(x1))
+end
+
 Zygote.@adjoint function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf}
     @assert size(x1) == size(x2)
     y_el, back = Zygote._pullback(__context__, f, x1.value, x2.value)
