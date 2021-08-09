@@ -3,7 +3,6 @@
 using CSV
 using DataDeps
 using DataFrames
-using Plots
 
 register(DataDep(
     "tree-ring",
@@ -12,8 +11,7 @@ register(DataDep(
 ))
 
 raw_data = CSV.read(
-    joinpath(datadep"tree-ring", "TRI2TU-data.csv"), DataFrame;
-    header=[:x, :y],
+    joinpath(datadep"tree-ring", "TRI2TU-data.csv"), DataFrame; header=[:x, :y],
 )
 
 # The data must be binned to work with the Point process. The finer the binning, the closer
@@ -54,7 +52,7 @@ using TemporalGPs
 # RegularInTime is a data structure for inputs which allows for different spatial locations
 # at each point in time, and can be used with the approximate inference scheme presented
 # here.
-using TemporalGPs: Separable, RegularInTime, approx_posterior_marginals
+using TemporalGPs: Separable, RectilinearGrid, approx_posterior_marginals
 
 # Specify a separable kernel.
 # The first argument is always the kernel over space, the second the kernel over time.
@@ -66,10 +64,11 @@ k = Separable(SEKernel(), Matern52Kernel());
 f = to_sde(GP(k), ArrayStorage(Float64));
 
 # Convert data into format suitable for TemporalGPs.
-points_in_space = data.x
-points_in_time = data.y
-N = 50;
-T = 1_000;
-points_in_space = collect(range(-3.0, 3.0; length=N));
-points_in_time = RegularSpacing(0.0, 0.01, T);
+T = size(data, 1);
+N = size(data, 2);
+points_in_space = map(float, collect(1:N));
+points_in_time = RegularSpacing(0.0, 1.0, T);
 x = RectilinearGrid(points_in_space, points_in_time);
+y = map(float, vec(data));
+
+logpdf(f(x, 0.1), y)
