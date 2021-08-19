@@ -143,6 +143,27 @@ end
 
 to_vec(::Nothing) = Bool[], _ -> nothing
 
+function ChainRulesCore.ProjectTo(x::T) where {T<:StructArray}
+    return ProjectTo{T}(map(ProjectTo, getfield(x, :components)))
+end
+
+# function (p::ProjectTo{T})(dx::AbstractArray)
+
+# end
+
+function (p::ChainRulesCore.ProjectTo{T})(dx::Tangent) where {T<:StructArray}
+    @show typeof(getfield(p, :info)), getfield(p, :info)
+    @show typeof(backing(dx)), backing(dx)
+    dx_components = map((p_c, dx_c) -> p_c(dx_c), getfield(p, :info), backing(dx))
+    return StructArray(dx_components...)
+end
+
+# I always want the structural differential for a Fill, because the "natural" is just weird
+# and unintuitive.
+function rand_tangent(rng::AbstractRNG, x::P) where {P<:Fill}
+    return Tangent{P}(value=rand_tangent(rng, x.value), axes=NoTangent())
+end
+
 # Ensure that to_vec works for the types that we care about in this package.
 @testset "custom FiniteDifferences stuff" begin
     @testset "NamedTuple" begin
@@ -580,14 +601,14 @@ end
 _diag(x) = diag(x)
 _diag(x::Real) = x
 
-function FiniteDifferences.rand_tangent(rng::AbstractRNG, A::StaticArray)
+function rand_tangent(rng::AbstractRNG, A::StaticArray)
     return map(x -> rand_tangent(rng, x), A)
 end
 
-FiniteDifferences.rand_tangent(::AbstractRNG, ::Base.OneTo) = ZeroTangent()
+rand_tangent(::AbstractRNG, ::Base.OneTo) = ZeroTangent()
 
 # Hacks to make rand_tangent play nicely with Zygote.
-rand_zygote_tangent(A) = Zygote.wrap_chainrules_output(FiniteDifferences.rand_tangent(A))
+rand_zygote_tangent(A) = Zygote.wrap_chainrules_output(rand_tangent(A))
 
 Zygote.wrap_chainrules_output(x::Array) = map(Zygote.wrap_chainrules_output, x)
 
