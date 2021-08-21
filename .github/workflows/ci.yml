@@ -56,10 +56,10 @@ jobs:
           flag-name: run-${{ matrix.group }}
           parallel: true
   finish:
+    name: Coveralls Finished
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: Send coverage
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.github_token }}
