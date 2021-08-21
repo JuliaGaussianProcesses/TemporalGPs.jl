@@ -117,7 +117,7 @@ println("missings:")
             @test mean.(new_post_marginals) ≈ mean.(post_marginals)[presents_idx]
             @test cov.(new_post_marginals) ≈ cov.(post_marginals)[presents_idx]
 
-            @test logpdf(new_posterior, new_y) ≈ logpdf(post, y_missing)
+            @test logpdf(new_posterior, new_y) ≈ logpdf(post, y_missing) rtol=1e-4
         end
 
         # Only test the bits of AD that we haven't tested before.

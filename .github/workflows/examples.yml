@@ -2,8 +2,10 @@ name: Examples
 on:
   push:
     branches:
-      - master
+    - master
   pull_request:
+    branches:
+    - master
 jobs:
   examples:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
@@ -39,4 +41,4 @@ jobs:
           file: lcov.info
           coverage: false
         env:
-          GROUP: EXAMPLES
+          GROUP: examples
