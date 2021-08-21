@@ -605,7 +605,7 @@ function rand_tangent(rng::AbstractRNG, A::StaticArray)
     return map(x -> rand_tangent(rng, x), A)
 end
 
-rand_tangent(::AbstractRNG, ::Base.OneTo) = ZeroTangent()
+rand_tangent(::AbstractRNG, ::Base.OneTo) = NoTangent()
 
 # Hacks to make rand_tangent play nicely with Zygote.
 rand_zygote_tangent(A) = Zygote.wrap_chainrules_output(rand_tangent(A))
