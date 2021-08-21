@@ -1,10 +1,12 @@
 name: CI
 on:
-  - push
-  - pull_request
+  push:
+    branches:
+      - master
+  pull_request:
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    name: Julia ${{ matrix.version }} - ${{ matrix.group }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -15,6 +17,12 @@ jobs:
           - ubuntu-latest
         arch:
           - x64
+        group:
+          - 'test util'
+          - 'test models'
+          - 'test models-lgssm'
+          - 'test gp'
+          - 'test space_time'
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
@@ -33,24 +41,26 @@ jobs:
             ${{ runner.os }}-
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
-      - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v1
         with:
-          file: lcov.info
-  docs:
-    name: Documentation
+          coverage: ${{ matrix.version == '1' && matrix.os == 'ubuntu-latest' }}
+        env:
+          GROUP: ${{ matrix.group }}
+      - uses: julia-actions/julia-processcoverage@v1
+        if: matrix.version == '1' && matrix.os == 'ubuntu-latest'
+      - name: Coveralls parallel
+        if: matrix.version == '1' && matrix.os == 'ubuntu-latest'
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: ./lcov.info
+          flag-name: run-${{ matrix.group }}
+          parallel: true
+  finish:
+    needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
+      - name: Send coverage
+        uses: coverallsapp/github-action@master
         with:
-          version: '1'
-      - run: |
-          julia --project=docs -e '
-            using Pkg
-            Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.instantiate()'
-      - run: julia --project=docs docs/make.jl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+          github-token: ${{ secrets.github_token }}
+          parallel-finished: true

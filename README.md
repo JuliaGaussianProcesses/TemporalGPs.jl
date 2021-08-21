@@ -1,7 +1,7 @@
 # TemporalGPs
 
 [![Build Status](https://github.com/willtebbutt/TemporalGPs.jl/workflows/CI/badge.svg)](https://github.com/willtebbutt/TemporalGPs.jl/actions)
-[![Codecov](https://codecov.io/gh/JuliaGaussianProcesses/TemporalGPs.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaGaussianProcesses/TemporalGPs.jl)
+[![Coverage Status](https://coveralls.io/repos/github/JuliaGaussianProcesses/TemporalGPs.jl/badge.svg?branch=master)](https://coveralls.io/github/JuliaGaussianProcesses/TemporalGPs.jl?branch=master)
 [![ColPrac: Contributor's Guide on Collaborative Practices for Community Packages](https://img.shields.io/badge/ColPrac-Contributor's%20Guide-blueviolet)](https://github.com/SciML/ColPrac)
 
 TemporalGPs.jl is a tool to make Gaussian processes (GPs) defined using [AbstractGPs.jl](https://github.com/JuliaGaussianProcesses/AbstractGPs.jl/) fast for time-series. It provides a single-function public API that lets you specify that this package should perform inference, rather than AbstractGPs.jl.
