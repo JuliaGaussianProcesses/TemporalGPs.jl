@@ -26,17 +26,6 @@ f_true = rand(f(x, σ²_noise));
 lik = BernoulliLikelihood() # Likelihood with a logistic link
 y = rand(lik(f_true));
 
-# We are using the augmentation trick and look for the optimal
-# expected value of the variable ω
-
-η₁_like(ω, g, β) = g .+ β .* ω # The augmented likelihood first natural parameter
-Λ_like(ω, γ) = 2 * γ * ω # The augmented likelihood precision (diagonal)
-
-# These are the values corresponding to our problem
-γ = 0.5 
-g = 0.5 * y_sign
-β = 0
-
 function compute_optimal_expectation(f, x, g, β, γ; n_iter=5)
     T = length(x)
     qω = init_aux_posterior(lik, y)
