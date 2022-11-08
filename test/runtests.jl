@@ -98,17 +98,17 @@ end
 if GROUP == "examples"
 
     using Pkg
-
-    Pkg.activate(joinpath("..", "examples"))
-    Pkg.develop(path="..")
+    pkgpath = joinpath(@__DIR__, "..")
+    Pkg.activate(joinpath(pkgpath, "examples"))
+    Pkg.develop(path=pkgpath)
     Pkg.resolve()
     Pkg.instantiate()
 
-    include(joinpath("..", "examples", "exact_time_inference.jl"))
-    include(joinpath("..", "examples", "exact_time_learning.jl"))
-    include(joinpath("..", "examples", "exact_space_time_inference.jl"))
-    include(joinpath("..", "examples", "exact_space_time_learning.jl"))
-    include(joinpath("..", "examples", "approx_space_time_inference.jl"))
-    include(joinpath("..", "examples", "approx_space_time_learning.jl"))
-    include(joinpath("..", "examples", "augmented_inference.jl"))
+    include(joinpath(pkgpath, "examples", "exact_time_inference.jl"))
+    include(joinpath(pkgpath, "examples", "exact_time_learning.jl"))
+    include(joinpath(pkgpath, "examples", "exact_space_time_inference.jl"))
+    include(joinpath(pkgpath, "examples", "exact_space_time_learning.jl"))
+    include(joinpath(pkgpath, "examples", "approx_space_time_inference.jl"))
+    include(joinpath(pkgpath, "examples", "approx_space_time_learning.jl"))
+    include(joinpath(pkgpath, "examples", "augmented_inference.jl"))
 end
