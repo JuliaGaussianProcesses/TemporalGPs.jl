@@ -10,7 +10,6 @@ module TemporalGPs
     using StaticArrays
     using StructArrays
     using Zygote
-    using ZygoteRules
 
     using FillArrays: AbstractFill
     using Zygote: _pullback, AContext

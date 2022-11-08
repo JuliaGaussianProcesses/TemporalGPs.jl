@@ -69,9 +69,10 @@ end
 # latter is very cheap.
 
 time_exp(A, t) = exp(A * t)
-ZygoteRules.@adjoint function time_exp(A, t)
+function ChainRulesCore.rrule(::typeof(time_exp), A, t)
     B = exp(A * t)
-    return B, Δ->(nothing, sum(Δ .*  (A * B)))
+    time_exp_pullback(Ω̄) = (NoTangent(), NoTangent(), sum(Ω̄ .*  (A * B)))
+    return B, time_exp_pullback
 end
 
 # THIS IS A TEMPORARY FIX WHILE I WAIT FOR #445 IN ZYGOTE TO BE MERGED.
