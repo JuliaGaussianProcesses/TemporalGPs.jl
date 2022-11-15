@@ -318,8 +318,6 @@ function adjoint_test(
     ȳ_fd, ẏ_fd = harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)
     inner_fd = dot(ȳ_fd, ẏ_fd)
 
-    @show inner_fd - inner_ad
-
     # Check that Zygote didn't modify the forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)
 

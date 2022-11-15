@@ -1,5 +1,5 @@
 """
-    LTISDE
+    LTISDE (Linear Time-Invariant Stochastic Differential Equation)
 
 A lightweight wrapper around a `GP` `f` that tells this package to handle inference in `f`.
 Can be constructed via the `to_sde` function.
@@ -14,8 +14,6 @@ function to_sde(f::GP{<:AbstractGPs.ZeroMean}, storage_type=ArrayStorage(Float64
 end
 
 storage_type(f::LTISDE) = f.storage
-
-
 
 """
     const FiniteLTISDE = FiniteGP{<:LTISDE}
@@ -41,9 +39,9 @@ function AbstractGPs.mean_and_var(ft::FiniteLTISDE)
     return map(mean, ms), map(var, ms)
 end
 
-AbstractGPs.mean(ft::FiniteLTISDE) = mean_and_var(ft)[1]
+AbstractGPs.mean(ft::FiniteLTISDE) = first(mean_and_var(ft))
 
-AbstractGPs.var(ft::FiniteLTISDE) = mean_and_var(ft)[2]
+AbstractGPs.var(ft::FiniteLTISDE) = last(mean_and_var(ft))
 
 AbstractGPs.cov(ft::FiniteLTISDE) = cov(FiniteGP(ft.f.f, ft.x, ft.Σy))
 
@@ -71,7 +69,7 @@ end
 
 
 
-# Converting GPs into LGSSMs.
+# Converting GPs into LGSSMs (Linear Gaussian State-Space Models).
 
 function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)
     k = get_kernel(f)
@@ -188,18 +186,16 @@ function to_sde(k::Matern12Kernel, s::SArrayStorage{T}) where {T<:Real}
     return F, q, H
 end
 
-function stationary_distribution(k::Matern12Kernel, s::SArrayStorage{T}) where {T<:Real}
+function stationary_distribution(::Matern12Kernel, s::SArrayStorage{T}) where {T<:Real}
     return Gaussian(
         SVector{1, T}(0),
         SMatrix{1, 1, T}(1),
     )
 end
 
-
-
 # Matern - 3/2
 
-function to_sde(k::Matern32Kernel, ::SArrayStorage{T}) where {T<:Real}
+function to_sde(::Matern32Kernel, ::SArrayStorage{T}) where {T<:Real}
     λ = sqrt(3)
     F = SMatrix{2, 2, T}(0, -3, 1, -2λ)
     q = convert(T, 4 * λ^3)
@@ -295,8 +291,6 @@ function apply_stretch(a, ts::RegularSpacing)
     N = Zygote.literal_getfield(ts, Val(:N))
     return RegularSpacing(a * t0, a * Δt, N)
 end
-
-
 
 # Sum
 

@@ -3,7 +3,7 @@ abstract type AbstractLGSSM end
 """
     LGSSM{Ttransitions<:GaussMarkovModel, Temissions<:StructArray} <: AbstractLGSSM
 
-A linear-Gaussian state-space model. Represented in terms of a Gauss-Markov model
+A Linear-Gaussian State-Space model. Represented in terms of a Gauss-Markov model
 `transitions` and collection of emission dynamics `emissions`.
 """
 struct LGSSM{Ttransitions<:GaussMarkovModel, Temissions<:StructArray} <: AbstractLGSSM
