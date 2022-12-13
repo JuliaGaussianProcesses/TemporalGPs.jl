@@ -28,6 +28,7 @@ function Base.:(==)(x::LGSSM, y::LGSSM)
 end
 
 Base.length(model::LGSSM) = length(transitions(model))
+Base.size(model::LGSSM) = (length(model),)
 
 Base.eachindex(model::LGSSM) = eachindex(transitions(model))
 
