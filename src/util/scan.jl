@@ -212,3 +212,7 @@ end
 function _accum_at(Δxs::NamedTuple{(:components,)}, n::Int, Δx::NamedTuple)
     return (components = map((Δy, y) -> _accum_at(Δy, n, y), Δxs.components, Δx), )
 end
+
+function _accum_at(Δxs::NamedTuple{(:components,)}, n::Int, Δx::SVector)
+    return (components = map((Δy, y) -> _accum_at(Δy, n, y), Δxs.components, Δx), )
+end

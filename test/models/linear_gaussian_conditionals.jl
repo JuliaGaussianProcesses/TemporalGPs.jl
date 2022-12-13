@@ -169,8 +169,8 @@ println("linear_gaussian_conditionals:")
         test_interface(
             rng, model, x;
             check_adjoints=true,
-            check_infers=true,
-            check_allocs=false,
+            check_infers=TEST_TYPE_INFER,
+            check_allocs=TEST_ALLOC,
         )
 
         @testset "consistency with SmallOutputLGC" begin

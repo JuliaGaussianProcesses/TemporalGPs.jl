@@ -123,7 +123,7 @@ println("lgssm:")
             max_primal_allocs=25,
             max_forward_allocs=25,
             max_backward_allocs=25,
-            check_allocs=false,#storage.val isa SArrayStorage,
+            check_allocs=TEST_ALLOC && storage.val isa SArrayStorage,
         )
     end
 end
