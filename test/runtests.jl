@@ -3,11 +3,14 @@ using Test
 ENV["TESTING"] = "TRUE"
 
 # GROUP is an env variable from CI which can take the following values
-# ["test util", "test models" "test models-lgssm" "test gp" "test spacce_time"]
+# ["test util", "test models" "test models-lgssm" "test gp" "test space_time"]
 # Select any of this to test a particular aspect.
 # To test everything, simply set GROUP to "all"
 const GROUP = get(ENV, "GROUP", "test")
 OUTER_GROUP = first(split(GROUP, ' '))
+
+const TEST_TYPE_INFER = false # Test type stability over the tests
+const TEST_ALLOC = false # Test allocations over the tests
 
 # Run the tests.
 if OUTER_GROUP == "test" || OUTER_GROUP == "all"

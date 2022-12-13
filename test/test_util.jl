@@ -286,7 +286,7 @@ function adjoint_test(
     atol=1e-6,
     fdm=central_fdm(5, 1; max_range=1e-3),
     test=true,
-    check_infers=false,
+    check_infers=TEST_TYPE_INFER,
     context=NoContext(),
     kwargs...,
 )
@@ -424,7 +424,7 @@ end
 
 function test_interface(
     rng::AbstractRNG, conditional::AbstractLGC, x::Gaussian;
-    check_infers=false, check_adjoints=true, check_allocs=true, kwargs...,
+    check_infers=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, kwargs...,
 )
     x_val = rand(rng, x)
     y = conditional_rand(rng, conditional, x_val)
@@ -485,7 +485,7 @@ end
 """
     test_interface(
         rng::AbstractRNG, ssm::AbstractLGSSM;
-        check_infers=false, check_adjoints=true, check_allocs=true, kwargs...
+        check_infers=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, kwargs...
     )
 
 Basic consistency tests that any LGSSM should be able to satisfy. The purpose of these tests
@@ -494,7 +494,7 @@ consistent and implements the required interface.
 """
 function test_interface(
     rng::AbstractRNG, ssm::AbstractLGSSM;
-    check_infers=false, check_adjoints=true, check_allocs=true, kwargs...
+    check_infers=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, kwargs...
 )
     y_no_missing = rand(rng, ssm)
 

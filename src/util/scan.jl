@@ -182,10 +182,11 @@ end
 
 # Fill
 
-get_adjoint_storage(x::Fill, ::Int, init) = (value=init, axes=nothing)
+get_adjoint_storage(::Fill, ::Int, init) = (value=init, axes=nothing)
 
+# T is not parametrized since T can be SMatrix and Δx isa SizedMatrix
 @inline function _accum_at(
-    Δxs::NamedTuple{(:value, :axes), Tuple{T, Nothing}}, ::Int, Δx::T,
+    Δxs::NamedTuple{(:value, :axes), Tuple{T, Nothing}}, ::Int, Δx,
 ) where {T}
     return (value=accum(Δxs.value, Δx), axes=nothing)
 end
@@ -195,6 +196,13 @@ end
 # StructArray
 
 function get_adjoint_storage(x::StructArray, n::Int, Δx::NamedTuple)
+    init_arrays = map(
+        (x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), getfield(x, :components), Δx,
+    )
+    return (components = init_arrays, )
+end
+
+function get_adjoint_storage(x::StructArray, n::Int, Δx::StaticVector)
     init_arrays = map(
         (x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), getfield(x, :components), Δx,
     )

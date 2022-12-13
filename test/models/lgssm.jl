@@ -77,7 +77,7 @@ println("lgssm:")
         @testset "step_marginals" begin
             @inferred step_marginals(x, model[1])
             adjoint_test(step_marginals, (x, model[1]))
-            if storage.val isa SArrayStorage
+            if storage.val isa SArrayStorage && TEST_ALLOC
                 check_adjoint_allocations(step_marginals, (x, model[1]))
             end
         end
@@ -85,7 +85,7 @@ println("lgssm:")
             args = (ordering(model[1]), x, (model[1], y))
             @inferred step_logpdf(args...)
             adjoint_test(step_logpdf, args)
-            if storage.val isa SArrayStorage
+            if storage.val isa SArrayStorage && TEST_ALLOC
                 check_adjoint_allocations(step_logpdf, args)
             end
         end
@@ -93,7 +93,7 @@ println("lgssm:")
             args = (ordering(model[1]), x, (model[1], y))
             @inferred step_filter(args...)
             adjoint_test(step_filter, args)
-            if storage.val isa SArrayStorage
+            if storage.val isa SArrayStorage && TEST_ALLOC
                 check_adjoint_allocations(step_filter, args)
             end
         end
@@ -101,7 +101,7 @@ println("lgssm:")
             args = (x, x, model[1].transition)
             @inferred invert_dynamics(args...)
             adjoint_test(invert_dynamics, args)
-            if storage.val isa SArrayStorage
+            if storage.val isa SArrayStorage && TEST_ALLOC
                 check_adjoint_allocations(invert_dynamics, args)
             end
         end
@@ -109,7 +109,7 @@ println("lgssm:")
             args = (ordering(model[1]), x, (model[1], y))
             @inferred step_posterior(args...)
             adjoint_test(step_posterior, args)
-            if storage.val isa SArrayStorage
+            if storage.val isa SArrayStorage && TEST_ALLOC
                 check_adjoint_allocations(step_posterior, args)
             end
         end
@@ -123,7 +123,7 @@ println("lgssm:")
             max_primal_allocs=25,
             max_forward_allocs=25,
             max_backward_allocs=25,
-            check_allocs=storage.val isa SArrayStorage,
+            check_allocs=false,#storage.val isa SArrayStorage,
         )
     end
 end
