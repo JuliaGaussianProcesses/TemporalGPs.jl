@@ -22,6 +22,7 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
     using AbstractGPs
     using BlockDiagonals
     using ChainRulesCore
+    using ChainRulesTestUtils
     using FillArrays
     using FiniteDifferences
     using LinearAlgebra
@@ -33,7 +34,6 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
 
     using Zygote
 
-    using FiniteDifferences: rand_tangent
     using AbstractGPs: var
     using TemporalGPs: AbstractLGSSM, _filter, NoContext
     using Zygote: Context, _pullback

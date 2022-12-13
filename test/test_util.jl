@@ -1,4 +1,5 @@
 using ChainRulesCore: backing
+using ChainRulesTestUtils: rand_tangent
 using TemporalGPs:
     Gaussian,
     harmonise,

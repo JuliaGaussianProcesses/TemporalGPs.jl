@@ -191,7 +191,7 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
     x_big = _reduce(vcat, x.vs)
     C__ = kernelmatrix(space_kernel, z_space, x_big)
     C = \(K_space_z_chol, C__)
-    Cs = partition(Zygote.dropgrad(map(length, x.vs)), C)
+    Cs = partition(ChainRulesCore.ignore_derivatives(map(length, x.vs)), C)
 
     cs = map((h, v) -> fill(h, length(v)), hs_t, x.vs) # This should currently be zero.
     Hs = zygote_friendly_map(
