@@ -16,26 +16,26 @@ C = randn(rng, Q, Q);
 @benchmark mul!($C, $A, $B, 1.0, 1.0)
 @benchmark mul!($C, $A_dense, $B, 1.0, 1.0)
 
-@benchmark mul!($C, $At', $B, 1.0, 1.0)
-@benchmark mul!($C, $At_dense', $B, 1.0, 1.0)
+@benchmark mul!($C, $(At'), $B, 1.0, 1.0)
+@benchmark mul!($C, $(At_dense'), $B, 1.0, 1.0)
 
-@benchmark mul!($C, $A, $B', 1.0, 1.0)
-@benchmark mul!($C, $A_dense, $B', 1.0, 1.0)
+@benchmark mul!($C, $A, $(B'), 1.0, 1.0)
+@benchmark mul!($C, $A_dense, $(B'), 1.0, 1.0)
 
-@benchmark mul!($C, $At', $B', 1.0, 1.0)
-@benchmark mul!($C, $At_dense', $B', 1.0, 1.0)
+@benchmark mul!($C, $(At'), $(B'), 1.0, 1.0)
+@benchmark mul!($C, $(At_dense'), $(B'), 1.0, 1.0)
 
 @benchmark mul!($C, $B, $A, 1.0, 1.0)
 @benchmark mul!($C, $B, $A_dense, 1.0, 1.0)
 
-@benchmark mul!($C, $B, $At', 1.0, 1.0)
-@benchmark mul!($C, $B, $At_dense', 1.0, 1.0)
+@benchmark mul!($C, $B, $(At'), 1.0, 1.0)
+@benchmark mul!($C, $B, $(At_dense'), 1.0, 1.0)
 
-@benchmark mul!($C, $B', $A, 1.0, 1.0)
-@benchmark mul!($C, $B', $A_dense, 1.0, 1.0)
+@benchmark mul!($C, $(B'), $A, 1.0, 1.0)
+@benchmark mul!($C, $(B'), $A_dense, 1.0, 1.0)
 
-@benchmark mul!($C, $B', $At', 1.0, 1.0)
-@benchmark mul!($C, $B', $At_dense', 1.0, 1.0)
+@benchmark mul!($C, $(B'), $(At'), 1.0, 1.0)
+@benchmark mul!($C, $(B'), $(At_dense'), 1.0, 1.0)
 
 # Matrix-Vector multiplies.
 
