@@ -185,10 +185,11 @@ end
 function cholesky_rrule(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
     C = cholesky(S)
     function cholesky_pullback(Δ::NamedTuple)
-        U, ΔU = C.U, Δ.factors
-        ΔS = U \ (U \ SMatrix{N, N}(Symmetric(ΔU * U')))'
-        ΔS = ΔS - Diagonal(ΔS ./ 2)
-        return ((data=SMatrix{N, N}(UpperTriangular(ΔS)), ),)
+        U, Ū = C.U, Δ.factors
+        Σ̄ = SMatrix{N,N}(Symmetric(Ū * U'))
+        Σ̄ = U \ (U \ Σ̄)'
+        Σ̄ = Σ̄ - Diagonal(Σ̄) / 2
+        return ((data=SMatrix{N, N}(UpperTriangular(Σ̄)), ),)
     end
     return C, cholesky_pullback
 end

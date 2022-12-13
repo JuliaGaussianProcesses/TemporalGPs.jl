@@ -286,7 +286,7 @@ function adjoint_test(
     atol=1e-6,
     fdm=central_fdm(5, 1; max_range=1e-3),
     test=true,
-    check_infers=true,
+    check_infers=false,
     context=NoContext(),
     kwargs...,
 )
