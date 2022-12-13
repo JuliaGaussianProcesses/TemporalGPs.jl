@@ -424,7 +424,7 @@ end
 
 function test_interface(
     rng::AbstractRNG, conditional::AbstractLGC, x::Gaussian;
-    check_infers=true, check_adjoints=true, check_allocs=true, kwargs...,
+    check_infers=false, check_adjoints=true, check_allocs=true, kwargs...,
 )
     x_val = rand(rng, x)
     y = conditional_rand(rng, conditional, x_val)
@@ -436,7 +436,7 @@ function test_interface(
         if check_adjoints
             adjoint_test(
                 conditional_rand, args;
-                check_infers=check_infers, kwargs...,
+                check_infers, kwargs...,
             )
         end
         if check_allocs
@@ -485,7 +485,7 @@ end
 """
     test_interface(
         rng::AbstractRNG, ssm::AbstractLGSSM;
-        check_infers=true, check_adjoints=true, check_allocs=true, kwargs...
+        check_infers=false, check_adjoints=true, check_allocs=true, kwargs...
     )
 
 Basic consistency tests that any LGSSM should be able to satisfy. The purpose of these tests
@@ -494,7 +494,7 @@ consistent and implements the required interface.
 """
 function test_interface(
     rng::AbstractRNG, ssm::AbstractLGSSM;
-    check_infers=true, check_adjoints=true, check_allocs=true, kwargs...
+    check_infers=false, check_adjoints=true, check_allocs=true, kwargs...
 )
     y_no_missing = rand(rng, ssm)
 
@@ -506,7 +506,7 @@ function test_interface(
         if check_adjoints
             adjoint_test(
                 ssm -> rand(MersenneTwister(123456), ssm), (ssm, );
-                check_infers=check_infers, kwargs...,
+                check_infers, kwargs...,
             )
         end
         if check_allocs
@@ -526,7 +526,7 @@ function test_interface(
         @test length(xs) == length(ssm)
         check_infers && @inferred marginals(ssm)
         if check_adjoints
-            adjoint_test(marginals, (ssm, ); check_infers=check_infers, kwargs...)
+            adjoint_test(marginals, (ssm, ); check_infers, kwargs...)
         end
         if check_allocs
             check_adjoint_allocations(marginals, (ssm, ); kwargs...)
