@@ -42,6 +42,7 @@ function Zygote._pullback(
     out, pb = Zygote._pullback(ctx, SArray{S, T, N, L}, new_x)
     SArray_pullback(Δ::Nothing) = nothing
     SArray_pullback(Δ::SArray{S}) = SArray_pullback((data=Δ.data,))
+    SArray_pullback(Δ::Matrix) = SArray_pullback((data=Δ,))
     function SArray_pullback(Δ::NamedTuple{(:data,)})
         _, Δnew_x = pb(Δ)
         _, ΔT, Δx = convert_pb(Δnew_x)

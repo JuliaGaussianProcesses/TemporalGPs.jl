@@ -179,14 +179,14 @@ end
 
 # Matern-1/2
 
-function to_sde(k::Matern12Kernel, s::SArrayStorage{T}) where {T<:Real}
+function to_sde(::Matern12Kernel, ::SArrayStorage{T}) where {T<:Real}
     F = SMatrix{1, 1, T}(-1)
     q = convert(T, 2)
     H = SVector{1, T}(1)
     return F, q, H
 end
 
-function stationary_distribution(::Matern12Kernel, s::SArrayStorage{T}) where {T<:Real}
+function stationary_distribution(::Matern12Kernel, ::SArrayStorage{T}) where {T<:Real}
     return Gaussian(
         SVector{1, T}(0),
         SMatrix{1, 1, T}(1),
@@ -203,7 +203,7 @@ function to_sde(::Matern32Kernel, ::SArrayStorage{T}) where {T<:Real}
     return F, q, H
 end
 
-function stationary_distribution(k::Matern32Kernel, ::SArrayStorage{T}) where {T<:Real}
+function stationary_distribution(::Matern32Kernel, ::SArrayStorage{T}) where {T<:Real}
     return Gaussian(
         SVector{2, T}(0, 0),
         SMatrix{2, 2, T}(1, 0, 0, 3),
@@ -214,7 +214,7 @@ end
 
 # Matern - 5/2
 
-function to_sde(k::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
+function to_sde(::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
     λ = sqrt(5)
     F = SMatrix{3, 3, T}(0, 0, -λ^3, 1, 0, -3λ^2, 0, 1, -3λ)
     q = convert(T, 8 * λ^5 / 3)
@@ -222,7 +222,7 @@ function to_sde(k::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
     return F, q, H
 end
 
-function stationary_distribution(k::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
+function stationary_distribution(::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
     κ = 5 / 3
     m = SVector{3, T}(0, 0, 0)
     P = SMatrix{3, 3, T}(1, 0, -κ, 0, κ, 0, -κ, 0, 25)
@@ -233,7 +233,7 @@ end
 
 # Constant
 
-function TemporalGPs.to_sde(k::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
+function TemporalGPs.to_sde(::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
     F = SMatrix{1, 1, T}(0)
     q = convert(T, 0)
     H = SVector{1, T}(1)
