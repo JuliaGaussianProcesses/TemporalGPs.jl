@@ -15,7 +15,6 @@ Base.haskey(cx::NoContext, x) = false
 
 Zygote.accum_param(::NoContext, x, Δ) = Δ
 
-nograd_pullback(Δ) = nothing
 
 Zygote._pullback(::AContext, ::typeof(eltype), x) = eltype(x), nograd_pullback
 

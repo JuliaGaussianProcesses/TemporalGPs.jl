@@ -39,6 +39,8 @@ module TemporalGPs
     include(joinpath("util", "scan.jl"))
     # include(joinpath("util", "zygote_friendly_map.jl"))
     zygote_friendly_map = map
+    nograd_pullback(Δ) = nothing
+
     # include(joinpath("util", "zygote_rules.jl"))
     include(joinpath("util", "gaussian.jl"))
     include(joinpath("util", "mul.jl"))
