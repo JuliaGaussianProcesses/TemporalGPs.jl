@@ -41,6 +41,17 @@ module TemporalGPs
     zygote_friendly_map = map
     nograd_pullback(Δ) = nothing
 
+    # Implementation of the matrix exponential that assumes one doesn't require access to the
+    # gradient w.r.t. `A`, only `t`. The former is a bit compute-intensive to get at, while the
+    # latter is very cheap.
+
+    time_exp(A, t) = exp(A * t)
+    function ChainRulesCore.rrule(::typeof(time_exp), A, t)
+        B = exp(A * t)
+        time_exp_pullback(Ω̄) = (NoTangent(), NoTangent(), sum(Ω̄ .*  (A * B)))
+        return B, time_exp_pullback
+    end
+
     # include(joinpath("util", "zygote_rules.jl"))
     include(joinpath("util", "gaussian.jl"))
     include(joinpath("util", "mul.jl"))

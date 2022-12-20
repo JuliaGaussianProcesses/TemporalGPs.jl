@@ -27,69 +27,69 @@ function scan_emit(f, xs, state, idx)
     return (ys, state)
 end
 
-# function Zygote._pullback(::AContext, ::typeof(scan_emit), f, xs, init_state, idx)
+function ChainRulesCore.rrule(::typeof(scan_emit), f, xs, init_state, idx)
 
-#     state = init_state
-#     (y, state) = f(state, _getindex(xs, idx[1]))
+    state = init_state
+    (y, state) = f(state, _getindex(xs, idx[1]))
 
-#     # Heuristic Warning: assume all ys and states have the same type as the 1st.
-#     ys = Vector{typeof(y)}(undef, length(xs))
-#     states = Vector{typeof(state)}(undef, length(xs))
+    # Heuristic Warning: assume all ys and states have the same type as the 1st.
+    ys = Vector{typeof(y)}(undef, length(xs))
+    states = Vector{typeof(state)}(undef, length(xs))
 
-#     ys[idx[1]] = y
-#     states[idx[1]] = state
+    ys[idx[1]] = y
+    states[idx[1]] = state
 
-#     for t in idx[2:end]
-#         (y, state) = f(state, _getindex(xs, t))
-#         ys[t] = y
-#         states[t] = state
-#     end
+    for t in idx[2:end]
+        (y, state) = f(state, _getindex(xs, t))
+        ys[t] = y
+        states[t] = state
+    end
 
-#     function scan_emit_pullback(Δ)
+    function scan_emit_pullback(Δ)
 
-#         Δ === nothing && return nothing
-#         Δys = Δ[1]
-#         Δstate = Δ[2]
+        Δ === nothing && return nothing
+        Δys = Δ[1]
+        Δstate = Δ[2]
 
-#         # This is a hack to handle the case that Δstate=nothing, and the "look at the
-#         # type of the first thing" heuristic breaks down.
-#         Δstate = Δ[2] === nothing ? _get_zero_adjoint(states[idx[end]]) : Δ[2]
+        # This is a hack to handle the case that Δstate=nothing, and the "look at the
+        # type of the first thing" heuristic breaks down.
+        Δstate = Δ[2] === nothing ? _get_zero_adjoint(states[idx[end]]) : Δ[2]
 
-#         T = length(idx)
-#         if T > 1
-#             _, Δstate, Δx = step_pb(
-#                 f, states[idx[T-1]], _getindex(xs, idx[T]), Δys[idx[T]], Δstate,
-#             )
-#             Δxs = get_adjoint_storage(xs, idx[T], Δx)
+        T = length(idx)
+        if T > 1
+            _, Δstate, Δx = step_pb(
+                f, states[idx[T-1]], _getindex(xs, idx[T]), Δys[idx[T]], Δstate,
+            )
+            Δxs = get_adjoint_storage(xs, idx[T], Δx)
 
-#             for t in reverse(2:(T - 1))
-#                 a = _getindex(xs, idx[t])
-#                 b = Δys[idx[t]]
-#                 c = states[idx[t-1]]
-#                 _, Δstate, Δx = step_pb(
-#                     f, c, a, b, Δstate,
-#                 )
-#                 Δxs = _accum_at(Δxs, idx[t], Δx)
-#             end
+            for t in reverse(2:(T - 1))
+                a = _getindex(xs, idx[t])
+                b = Δys[idx[t]]
+                c = states[idx[t-1]]
+                _, Δstate, Δx = step_pb(
+                    f, c, a, b, Δstate,
+                )
+                Δxs = _accum_at(Δxs, idx[t], Δx)
+            end
 
-#             _, Δstate, Δx = step_pb(
-#                 f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
-#             )
-#             Δxs = _accum_at(Δxs, idx[1], Δx)
+            _, Δstate, Δx = step_pb(
+                f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
+            )
+            Δxs = _accum_at(Δxs, idx[1], Δx)
 
-#             return (nothing, nothing, Δxs, Δstate, nothing)
-#         else
-#             _, Δstate, Δx = step_pb(
-#                 f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
-#             )
-#             Δxs = get_adjoint_storage(xs, idx[1], Δx)
+            return NoTangent(), NoTangent(), Δxs, Δstate, NoTangent()
+        else
+            _, Δstate, Δx = step_pb(
+                f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
+            )
+            Δxs = get_adjoint_storage(xs, idx[1], Δx)
 
-#             return (nothing, nothing, Δxs, Δstate, nothing)
-#         end
-#     end
+            return NoTangent(), NoTangent(), Δxs, Δstate, NoTangent()
+        end
+    end
 
-#     return (ys, state), scan_emit_pullback
-# end
+    return (ys, state), scan_emit_pullback
+end
 
 @inline function step_pb(f::Tf, state, x, Δy, Δstate) where {Tf}
     _, pb = _pullback(NoContext(), f, state, x)

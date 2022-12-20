@@ -64,17 +64,6 @@ Zygote.@adjoint function vcat(A::SVector{DA}, B::SVector{DB}) where {DA, DB}
     return vcat(A, B), vcat_pullback
 end
 
-# Implementation of the matrix exponential that assumes one doesn't require access to the
-# gradient w.r.t. `A`, only `t`. The former is a bit compute-intensive to get at, while the
-# latter is very cheap.
-
-time_exp(A, t) = exp(A * t)
-function ChainRulesCore.rrule(::typeof(time_exp), A, t)
-    B = exp(A * t)
-    time_exp_pullback(Ω̄) = (NoTangent(), NoTangent(), sum(Ω̄ .*  (A * B)))
-    return B, time_exp_pullback
-end
-
 # THIS IS A TEMPORARY FIX WHILE I WAIT FOR #445 IN ZYGOTE TO BE MERGED.
 # FOR SOME REASON THIS REALLY HELPS...
 @adjoint function (::Type{T})(x, sz) where {T <: Fill}
