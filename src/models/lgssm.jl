@@ -265,9 +265,9 @@ ident_eps(ε::Real) = UniformScaling(ε)
 
 ident_eps(x::ColVecs, ε::Real) = UniformScaling(convert(eltype(x.X), ε))
 
-function Zygote._pullback(::NoContext, ::typeof(ident_eps), args...)
-    return ident_eps(args...), nograd_pullback
-end
+# function Zygote._pullback(::NoContext, ::typeof(ident_eps), args...)
+#     return ident_eps(args...), nograd_pullback
+# end
 
 _collect(U::Adjoint{<:Any, <:Matrix}) = collect(U)
 _collect(U::SMatrix) = U
