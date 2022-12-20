@@ -89,12 +89,12 @@ function ε_randn(rng::AbstractRNG, A::SMatrix{Dout, Din, T}) where {Dout, Din, 
     return randn(rng, SVector{Dout, T})
 end
 
-Zygote._pullback(::AContext, ::typeof(ε_randn), args...) = ε_randn(args...), nograd_pullback
+ChainRulesCore.rrule(::typeof(ε_randn), args...) = ε_randn(args...), nograd_pullback
 
 scalar_type(x::AbstractVector{T}) where {T} = T
 scalar_type(x::T) where {T<:Real} = T
 
-Zygote._pullback(::AContext, ::typeof(scalar_type), x) = scalar_type(x), nograd_pullback
+ChainRulesCore.rrule(::typeof(scalar_type), x) = scalar_type(x), nograd_pullback
 
 
 
@@ -187,14 +187,13 @@ struct LargeOutputLGC{
     Q::TQ
 end
 
-function Zygote._pullback(
-    ::AContext,
+function ChainRulesCore.rrule(
     ::Type{<:LargeOutputLGC},
     A::AbstractMatrix,
     a::AbstractVector,
     Q::AbstractMatrix,
 )
-    LargeOutputLGC_pullback(Δ) = nothing, Δ.A, Δ.a, Δ.Q
+    LargeOutputLGC_pullback(Δ) = NoTangent(), Δ.A, Δ.a, Δ.Q
     return LargeOutputLGC(A, a, Q), LargeOutputLGC_pullback
 end
 

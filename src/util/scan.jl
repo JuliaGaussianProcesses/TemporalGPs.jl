@@ -28,7 +28,6 @@ function scan_emit(f, xs, state, idx)
 end
 
 function ChainRulesCore.rrule(::typeof(scan_emit), f, xs, init_state, idx)
-
     state = init_state
     (y, state) = f(state, _getindex(xs, idx[1]))
 
@@ -92,7 +91,7 @@ function ChainRulesCore.rrule(::typeof(scan_emit), f, xs, init_state, idx)
 end
 
 @inline function step_pb(f::Tf, state, x, Δy, Δstate) where {Tf}
-    _, pb = _pullback(NoContext(), f, state, x)
+    _, pb = _pullback(f, state, x)
     return pb((Δy, Δstate))
 end
 

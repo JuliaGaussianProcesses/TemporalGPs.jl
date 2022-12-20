@@ -32,9 +32,9 @@ struct GaussMarkovModel{
 end
 
 # Helps Zygote out with some type-stability issues. Why this helps is unclear.
-function Zygote._pullback(::AContext, ::Type{<:GaussMarkovModel}, ordering, As, as, Qs, x0)
+function ChainRulesCore.rrule(::Type{<:GaussMarkovModel}, ordering, As, as, Qs, x0)
     function GaussMarkovModel_pullback(Δ)
-        return (nothing, nothing, Δ.As, Δ.as, Δ.Qs, Δ.x0)
+        return (NoTangent(), NoTangent(), Δ.As, Δ.as, Δ.Qs, Δ.x0)
     end
     return GaussMarkovModel(ordering, As, as, Qs, x0), GaussMarkovModel_pullback
 end

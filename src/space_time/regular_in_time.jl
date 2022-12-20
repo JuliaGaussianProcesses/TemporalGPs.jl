@@ -69,10 +69,10 @@ function restructure(y::AbstractVector{T}, lengths::AbstractVector{<:Integer}) w
     end
 end
 
-function Zygote._pullback(
-    ::AContext, ::typeof(restructure), y::Vector, lengths::AbstractVector{<:Integer},
+function ChainRulesCore.rrule(
+    ::typeof(restructure), y::Vector, lengths::AbstractVector{<:Integer},
 )
-    restructure_pullback(Δ::Vector) = nothing, reduce(vcat, Δ), nothing
+    restructure_pullback(Δ::Vector) = NoTangent(), reduce(vcat, Δ), NoTangent()
     return restructure(y, lengths), restructure_pullback
 end
 

@@ -72,11 +72,11 @@ storage_type(gmm::Gaussian{<:Vector{T}}) where {T<:Real} = ArrayStorage(T)
 
 storage_type(x::Gaussian{T}) where {T<:Real} = ScalarStorage(T)
 
-# function Zygote._pullback(::AContext, ::Type{<:Gaussian}, m, P)
-#     Gaussian_pullback(Δ::Nothing) = (nothing, nothing, nothing)
-#     Gaussian_pullback(Δ) = (nothing, Δ.m, Δ.P)
-#     return Gaussian(m, P), Gaussian_pullback
-# end
+function ChainRulesCore.rrule(::Type{<:Gaussian}, m, P)
+    Gaussian_pullback(::Nothing) = NoTangent(), NoTangent(), NoTangent()
+    Gaussian_pullback(Δ) = NoTangent(), Δ.m, Δ.P
+    return Gaussian(m, P), Gaussian_pullback
+end
 
 Base.length(x::Gaussian) = 0
 

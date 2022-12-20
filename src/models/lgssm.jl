@@ -21,7 +21,7 @@ end
 
 @inline ordering(model::LGSSM) = ordering(transitions(model))
 
-Zygote._pullback(::AContext, ::typeof(ordering), model) = ordering(model), nograd_pullback
+ChainRulesCore.rrule(::typeof(ordering), model) = ordering(model), _ -> (NoTangent(), NoTangent())
 
 function Base.:(==)(x::LGSSM, y::LGSSM)
     return (transitions(x) == transitions(y)) && (emissions(x) == emissions(y))
@@ -265,9 +265,9 @@ ident_eps(ε::Real) = UniformScaling(ε)
 
 ident_eps(x::ColVecs, ε::Real) = UniformScaling(convert(eltype(x.X), ε))
 
-# function Zygote._pullback(::NoContext, ::typeof(ident_eps), args...)
-#     return ident_eps(args...), nograd_pullback
-# end
+function ChainRulesCore.rrule(::typeof(ident_eps), args...)
+    return ident_eps(args...), _ -> Tuple(NoTangent(), fill(NoTangent(), length(args))...)
+end
 
 _collect(U::Adjoint{<:Any, <:Matrix}) = collect(U)
 _collect(U::SMatrix) = U

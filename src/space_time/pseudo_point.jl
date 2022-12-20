@@ -55,7 +55,7 @@ function dtc(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
 end
 
 # This stupid pullback saves an absurb amount of compute time.
-function Zygote._pullback(::AContext, ::typeof(count), ::typeof(ismissing), yn)
+function ChainRulesCore.rrule(::typeof(count), ::typeof(ismissing), yn)
     return count(ismissing, yn), nograd_pullback
 end
 
@@ -218,14 +218,13 @@ function partition(lengths::AbstractVector{<:Integer}, A::Matrix{<:Real})
     return map((s, d) -> collect(view(A, :, s:s+d-1)), starts, lengths)
 end
 
-function Zygote._pullback(
-    ctx::AContext,
+function ChainRulesCore.rrule(
     ::typeof(partition),
     lengths::AbstractVector{<:Integer},
     A::Matrix{<:Real},
 )
-    partition_pullback(::Nothing) = nothing
-    partition_pullback(Δ::Vector) = nothing, nothing, reduce(hcat, Δ)
+    partition_pullback(::Nothing) = NoTangent(), NoTangent(), NoTangent()
+    partition_pullback(Δ::Vector) = NoTangent(), NoTangent(), reduce(hcat, Δ)
     return partition(lengths, A), partition_pullback
 end
 

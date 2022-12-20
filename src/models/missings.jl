@@ -55,7 +55,7 @@ function _logpdf_volume_compensation(y::AbstractVector{<:Union{Missing, <:Real}}
 end
 
 
-function Zygote._pullback(::AContext, ::typeof(_logpdf_volume_compensation), y)
+function ChainRulesCore.rrule(::typeof(_logpdf_volume_compensation), y)
     return _logpdf_volume_compensation(y), nograd_pullback
 end
 
@@ -93,13 +93,12 @@ end
 
 fill_in_missings(Σ::Diagonal, y::AbstractVector{<:Real}) = (Σ, y)
 
-function Zygote._pullback(
-    ::AContext,
+function ChainRulesCore.rrule(
     ::typeof(_fill_in_missings),
     Σs::Vector,
     y::AbstractVector{Union{T, Missing}},
 ) where {T}
-    pullback_fill_in_missings(Δ::Nothing) = nothing
+    pullback_fill_in_missings(::Nothing) = nothing
     function pullback_fill_in_missings(Δ)
         ΔΣs_filled_in = Δ[1]
         Δy_filled_in = Δ[2]
@@ -124,7 +123,7 @@ function Zygote._pullback(
         )
 
         # return nothing, ΔΣs, Δy
-        return nothing, ΔΣs, Δy
+        return NoTangent(), ΔΣs, Δy
     end
     return fill_in_missings(Σs, y), pullback_fill_in_missings
 end

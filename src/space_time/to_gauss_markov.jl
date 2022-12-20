@@ -1,6 +1,6 @@
 my_I(T, N) = Matrix{T}(I, N, N)
 
-Zygote._pullback(::AContext, ::typeof(my_I), args...) = my_I(args...), nograd_pullback
+ChainRulesCore.rrule(::typeof(my_I), args...) = my_I(args...), nograd_pullback
 
 function lgssm_components(k::Separable, x::SpaceTimeGrid, storage)
 
