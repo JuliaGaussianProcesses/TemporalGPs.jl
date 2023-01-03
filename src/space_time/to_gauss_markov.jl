@@ -26,21 +26,6 @@ function _build_st_proj((Hs, hs)::Tuple{AbstractVector, AbstractVector}, Nr::Int
     return (_map(H -> kron(ident, H), Hs), _map(h -> Fill(h, Nr), hs))
 end
 
-_map(f, args...) = map(f, args...)
-
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f::Tf, x::Fill) where {Tf}
-    y_el, back = ChainRulesCore.rrule_via_ad(config, f, x.value)
-    function map_Fill_pullback(Δ::Tangent)
-        _, Δx_el = back(Δ.value)
-        return NoTangent(), NoTangent(), (value = Δx_el, axes=nothing)
-    end
-    return Fill(y_el, size(x)), map_Fill_pullback
-end
-
-# function ChainRulesCore.rrule(::typeof(_build_st_proj), (Hs, hs)::Tuple{AbstractVector, AbstractVector}, Nr::Integer, ident::AbstractMatrix)
-#     return _build_st_proj((Hs, hs), Nr, ident), Δ -> @show typeof.(Δ[1]), typeof.(Δ[2])
-# end
-
 function build_prediction_obs_vars(
     pr_indices::AbstractVector{<:Integer},
     r_full::AbstractVector{<:AbstractVector},

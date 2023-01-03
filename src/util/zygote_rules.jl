@@ -7,7 +7,7 @@ using Zygote: accum, AContext
 struct NoContext <: Zygote.AContext end
 
 # Stupid implementation to obtain type-stability.
-Zygote.cache(cx::NoContext) = (cache_fields=nothing)
+Zygote.cache(::NoContext) = (; cache_fields=nothing)
 
 # Stupid implementation.
 Base.haskey(cx::NoContext, x) = false
@@ -63,6 +63,17 @@ end
 
 @non_differentiable vcat(x::Zeros, y::Zeros)
 
+# Implementation of the matrix exponential that assumes one doesn't require access to the
+# gradient w.r.t. `A`, only `t`. The former is a bit compute-intensive to get at, while the
+# latter is very cheap.
+
+time_exp(A, t) = exp(A * t)
+function ChainRulesCore.rrule(::typeof(time_exp), A, t::Real)
+    B = exp(A * t)
+    time_exp_pullback(Ω̄) = NoTangent(), NoTangent(), sum(Ω̄ .*  (A * B))
+    return B, time_exp_pullback
+end
+
 function ChainRulesCore.rrule(::typeof(collect), x::F) where {F<:Fill}
     function collect_Fill_pullback(Δ)
         return NoTangent(), Tangent{F}(value=reduce(accum, Δ), axes=NoTangent())
@@ -84,6 +95,18 @@ function ChainRulesCore.rrule(::Type{<:BlockDiagonal}, blocks::Vector)
     return BlockDiagonal(blocks), BlockDiagonal_pullback
 end
 
+# We have an alternative map to avoid Zygote untouchable specialisation on map.
+_map(f, args...) = map(f, args...)
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f::Tf, x::F) where {Tf,F<:Fill}
+    y_el, back = ChainRulesCore.rrule_via_ad(config, f, x.value)
+    function map_Fill_pullback(Δ::Tangent)
+        _, Δx_el = back(Δ.value)
+        return NoTangent(), NoTangent(), Tangent{F}(value = Δx_el)
+    end
+    return Fill(y_el, size(x)), map_Fill_pullback
+end
+
 function _map(f::Tf, x1::Fill, x2::Fill) where {Tf}
     @assert size(x1) == size(x2)
     y_el = f(x1.value, x2.value)
@@ -96,14 +119,14 @@ function _map(f::Tf, x1::Fill, x2::Fill) where {Tf<:Function}
     return Fill(y_el, size(x1))
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f::Tf, x1::Fill, x2::Fill) where {Tf}
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f::Tf, x1::F1, x2::F2) where {Tf,F1<:Fill,F2<:Fill}
     @assert size(x1) == size(x2)
     y_el, back = ChainRulesCore.rrule_via_ad(config, f, x1.value, x2.value)
-    function map_Fill_pullback(Δ::NamedTuple)
+    function _map_Fill_pullback(Δ::NamedTuple)
         Δf, Δx1_el, Δx2_el = back(Δ.value)
-        return (Δf, (value = Δx1_el, axes=nothing), (value = Δx2_el, axes=nothing))
+        return Δf, Tangent{F1}(value = Δx1_el), Tangent{F2}(value = Δx2_el)
     end
-    return Fill(y_el, size(x1)), map_Fill_pullback
+    return Fill(y_el, size(x1)), _map_Fill_pullback
 end
 
 function ChainRulesCore.rrule(::typeof(Base.getindex), x::Fill, n::Int)
@@ -156,11 +179,12 @@ function ChainRulesCore.rrule(::typeof(cholesky), S::Symmetric{<:Real, <:StaticM
     return cholesky_rrule(S)
 end
 
-function logdet_pullback(C::Cholesky)
-    return logdet(C), function(Δ)
-        return ((uplo=nothing, info=nothing, factors=Diagonal(2 .* Δ ./ diag(C.factors))),)
-    end
-end
+# Not used anywhere
+# function logdet_pullback(C::Cholesky)
+#     return logdet(C), function(Δ)
+#         return ((uplo=nothing, info=nothing, factors=Diagonal(2 .* Δ ./ diag(C.factors))),)
+#     end
+# end
 
 function Zygote.accum(a::UpperTriangular, b::UpperTriangular)
     return UpperTriangular(Zygote.accum(a.data, b.data))

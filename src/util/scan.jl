@@ -27,7 +27,7 @@ function scan_emit(f, xs, state, idx)
     return (ys, state)
 end
 
-function ChainRulesCore.rrule(::typeof(scan_emit), f, xs, init_state, idx)
+function ChainRulesCore.rrule(config::RuleConfig, ::typeof(scan_emit), f, xs, init_state, idx)
     state = init_state
     (y, state) = f(state, _getindex(xs, idx[1]))
 
@@ -56,8 +56,8 @@ function ChainRulesCore.rrule(::typeof(scan_emit), f, xs, init_state, idx)
 
         T = length(idx)
         if T > 1
-            _, Δstate, Δx = step_pb(
-                f, states[idx[T-1]], _getindex(xs, idx[T]), Δys[idx[T]], Δstate,
+            _, Δstate, Δx = step_pullback(
+                config, f, states[idx[T-1]], _getindex(xs, idx[T]), Δys[idx[T]], Δstate,
             )
             Δxs = get_adjoint_storage(xs, idx[T], Δx)
 
@@ -65,21 +65,21 @@ function ChainRulesCore.rrule(::typeof(scan_emit), f, xs, init_state, idx)
                 a = _getindex(xs, idx[t])
                 b = Δys[idx[t]]
                 c = states[idx[t-1]]
-                _, Δstate, Δx = step_pb(
-                    f, c, a, b, Δstate,
+                _, Δstate, Δx = step_pullback(
+                    config, f, c, a, b, Δstate,
                 )
                 Δxs = _accum_at(Δxs, idx[t], Δx)
             end
 
-            _, Δstate, Δx = step_pb(
-                f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
+            _, Δstate, Δx = step_pullback(
+                config, f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
             )
             Δxs = _accum_at(Δxs, idx[1], Δx)
 
             return NoTangent(), NoTangent(), Δxs, Δstate, NoTangent()
         else
-            _, Δstate, Δx = step_pb(
-                f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
+            _, Δstate, Δx = step_pullback(
+                config, f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
             )
             Δxs = get_adjoint_storage(xs, idx[1], Δx)
 
@@ -90,8 +90,8 @@ function ChainRulesCore.rrule(::typeof(scan_emit), f, xs, init_state, idx)
     return (ys, state), scan_emit_rrule
 end
 
-@inline function step_pb(f::Tf, state, x, Δy, Δstate) where {Tf}
-    _, pb = _pullback(f, state, x)
+@inline function step_pullback(config::RuleConfig, f::Tf, state, x, Δy, Δstate) where {Tf}
+    _, pb = rrule_via_ad(config, f, state, x)
     return pb((Δy, Δstate))
 end
 
