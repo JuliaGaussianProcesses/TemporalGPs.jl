@@ -3,7 +3,6 @@
 
 using Zygote: @adjoint, accum, AContext
 
-
 # This context doesn't allow any globals.
 struct NoContext <: Zygote.AContext end
 
@@ -24,57 +23,45 @@ Zygote.accum(a::SArray{size, T}, b::SArray{size, T}) where {size, T<:Real} = a +
 
 Zygote.accum(a::Tuple, b::Tuple, c::Tuple) = map(Zygote.accum, a, b, c)
 
-function Zygote._pullback(
-    ::AContext, ::Type{SArray{S, T, N, L}}, x::NTuple{L, T},
-) where {S, T, N, L}
-    SArray_pullback(Δ::Nothing) = nothing
-    SArray_pullback(Δ::NamedTuple{(:data,)}) = nothing, Δ.data
-    SArray_pullback(Δ::SArray{S}) = nothing, Δ.data
+function ChainRulesCore.rrule(::RuleConfig{>:HasReverseMode}, ::Type{SArray{S, T, N, L}}, x::NTuple{L, T}) where {S, T, N, L}
+    SArray_pullback(::AbstractZero) = NoTangent(), NoTangent()
+    SArray_pullback(Δ::NamedTuple{(:data,)}) = NoTangent(), Δ.data
+    SArray_pullback(Δ::StaticArray{S}) = NoTangent(), Δ.data
     return SArray{S, T, N, L}(x), SArray_pullback
 end
 
-function Zygote._pullback(
-    ctx::AContext, ::Type{SArray{S, T, N, L}}, x::NTuple{L, Any},
+function ChainRulesCore.rrule(
+    config::RuleConfig{>:HasReverseMode}, ::Type{SArray{S, T, N, L}}, x::NTuple{L, Any},
 ) where {S, T, N, L}
-    new_x, convert_pb = Zygote._pullback(ctx, StaticArrays.convert_ntuple, T, x)
-    out, pb = Zygote._pullback(ctx, SArray{S, T, N, L}, new_x)
-    SArray_pullback(Δ::Nothing) = nothing
+    new_x, convert_pb = rrule_via_ad(config, StaticArrays.convert_ntuple, T, x)
+    _, pb = rrule_via_ad(config, SArray{S, T, N, L}, new_x)
+    SArray_pullback(::AbstractZero) = NoTangent(), NoTangent()
     SArray_pullback(Δ::SArray{S}) = SArray_pullback((data=Δ.data,))
+    SArray_pullback(Δ::SizedArray{S}) = SArray_pullback((data=Tuple(Δ.data),))
     SArray_pullback(Δ::Matrix) = SArray_pullback((data=Δ,))
     function SArray_pullback(Δ::NamedTuple{(:data,)})
         _, Δnew_x = pb(Δ)
         _, ΔT, Δx = convert_pb(Δnew_x)
-        return nothing, ΔT, Δx
+        return NoTangent(), ΔT, Δx
     end
     return SArray{S, T, N, L}(x), SArray_pullback
 end
 
-Zygote.@adjoint function collect(x::SArray{S, T, N, L}) where {S, T, N, L}
-    collect_pullback(Δ::Array) = ((data = ntuple(i -> Δ[i], Val(L)), ), )
+function ChainRulesCore.rrule(::typeof(collect), x::SArray{S, T, N, L}) where {S, T, N, L}
+    collect_pullback(Δ::Array) = (NoTangent(), (data = ntuple(i -> Δ[i], Val(L)), ), )
     return collect(x), collect_pullback
 end
 
-Zygote.@adjoint function vcat(A::SVector{DA}, B::SVector{DB}) where {DA, DB}
+function ChainRulesCore.rrule(::typeof(vcat), A::SVector{DA}, B::SVector{DB}) where {DA, DB}
     function vcat_pullback(Δ::SVector)
         ΔA = Δ[SVector{DA}(1:DA)]
         ΔB = Δ[SVector{DB}((DA+1):(DA+DB))]
-        return ΔA, ΔB
+        return NoTangent(), ΔA, ΔB
     end
     return vcat(A, B), vcat_pullback
 end
 
-# THIS IS A TEMPORARY FIX WHILE I WAIT FOR #445 IN ZYGOTE TO BE MERGED.
-# FOR SOME REASON THIS REALLY HELPS...
-@adjoint function (::Type{T})(x, sz) where {T <: Fill}
-    back(Δ::AbstractArray) = (sum(Δ), nothing)
-    back(Δ::NamedTuple) = (Δ.value, nothing)
-    return Fill(x, sz), back
-end
-
-function Zygote._pullback(::Zygote.AContext, ::typeof(vcat), x::Zeros, y::Zeros)
-    vcat_pullback(Δ) = (nothing, nothing, nothing)
-    return vcat(x, y), vcat_pullback
-end
+@non_differentiable vcat(x::Zeros, y::Zeros)
 
 @adjoint function collect(x::Fill)
     function collect_Fill_back(Δ)

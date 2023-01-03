@@ -55,7 +55,7 @@ function dtc(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
 end
 
 # This stupid pullback saves an absurb amount of compute time.
-ChainRulesCore.@non_differentiable count(ismissing, yn)
+ChainRulesCore.@non_differentiable count(::typeof(ismissing), yn)
 
 """
     elbo(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)
