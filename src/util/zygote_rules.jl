@@ -31,15 +31,15 @@ function ChainRulesCore.rrule(::RuleConfig{>:HasReverseMode}, ::Type{SArray{S, T
 end
 
 function ChainRulesCore.rrule(
-    config::RuleConfig{>:HasReverseMode}, ::Type{SArray{S, T, N, L}}, x::NTuple{L, Any},
-) where {S, T, N, L}
+    config::RuleConfig{>:HasReverseMode}, ::Type{X}, x::NTuple{L, Any},
+) where {S, T, N, L, X <: SArray{S, T, N, L}}
     new_x, convert_pb = rrule_via_ad(config, StaticArrays.convert_ntuple, T, x)
     _, pb = rrule_via_ad(config, SArray{S, T, N, L}, new_x)
     SArray_pullback(::AbstractZero) = NoTangent(), NoTangent()
-    SArray_pullback(Δ::SArray{S}) = SArray_pullback((data=Δ.data,))
-    SArray_pullback(Δ::SizedArray{S}) = SArray_pullback((data=Tuple(Δ.data),))
-    SArray_pullback(Δ::Matrix) = SArray_pullback((data=Δ,))
-    function SArray_pullback(Δ::NamedTuple{(:data,)})
+    SArray_pullback(Δ::SArray{S}) = SArray_pullback(Tangent{X}(data=Δ.data))
+    SArray_pullback(Δ::SizedArray{S}) = SArray_pullback(Tangent{X}(data=Tuple(Δ.data)))
+    SArray_pullback(Δ::Matrix) = SArray_pullback(Tangent{X}(data=Δ))
+    function SArray_pullback(Δ::Tangent{X,<:NamedTuple{(:data,)}}) where {X}
         _, Δnew_x = pb(Δ)
         _, ΔT, Δx = convert_pb(Δnew_x)
         return NoTangent(), ΔT, Δx
@@ -47,8 +47,8 @@ function ChainRulesCore.rrule(
     return SArray{S, T, N, L}(x), SArray_pullback
 end
 
-function ChainRulesCore.rrule(::typeof(collect), x::SArray{S, T, N, L}) where {S, T, N, L}
-    collect_pullback(Δ::Array) = (NoTangent(), (data = ntuple(i -> Δ[i], Val(L)), ), )
+function ChainRulesCore.rrule(::typeof(collect), x::X) where {S, T, N, L, X<:SArray{S, T, N, L}}
+    collect_pullback(Δ::Array) = NoTangent(), Tangent{X}(data = ntuple(i -> Δ[i], Val(L)))
     return collect(x), collect_pullback
 end
 
@@ -158,19 +158,19 @@ function cholesky_rrule(Σ::Symmetric{<:Real, <:StridedMatrix})
         for n in diagind(Σ̄)
             Σ̄[n] /= 2
         end
-        return (UpperTriangular(Σ̄),)
+        return NoTangent(), UpperTriangular(Σ̄)
     end
     return C, cholesky_pullback
 end
 
 function cholesky_rrule(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
     C = cholesky(S)
-    function cholesky_pullback(Δ::NamedTuple)
+    function cholesky_pullback(Δ::Tangent)
         U, Ū = C.U, Δ.factors
         Σ̄ = SMatrix{N,N}(Symmetric(Ū * U'))
         Σ̄ = U \ (U \ Σ̄)'
         Σ̄ = Σ̄ - Diagonal(Σ̄) / 2
-        return ((data=SMatrix{N, N}(UpperTriangular(Σ̄)), ),)
+        return NoTangent(), Tangent{typeof(S)}(data=SMatrix{N, N}(UpperTriangular(Σ̄)))
     end
     return C, cholesky_pullback
 end
@@ -244,8 +244,6 @@ function Zygote.accum(a::Tangent{T}, b::NamedTuple) where {T}
     return Zygote.accum(a, Tangent{T}(; b...))
 end
 
-Base.:(+)(::Tangent, ::Nothing) = ZeroTangent()
-
 function Base.:(-)(
     A::UpperTriangular{<:Real, <:SMatrix{N, N}}, B::Diagonal{<:Real, <:SVector{N}},
 ) where {N}
@@ -260,12 +258,10 @@ _symmetric_back(Δ::Diagonal, uplo) = Δ
 _symmetric_back(Δ::UpperTriangular, uplo) = collect(uplo == Symbol('U') ? Δ : transpose(Δ))
 _symmetric_back(Δ::LowerTriangular, uplo) = collect(uplo == Symbol('U') ? transpose(Δ) : Δ)
 
-function Zygote._pullback(
-    ctx::AContext, ::Type{Symmetric}, X::StridedMatrix{<:Real}, uplo=:U,
-)
+function ChainRulesCore.rrule(::Type{Symmetric}, X::StridedMatrix{<:Real}, uplo=:U)
     function Symmetric_pullback(Δ)
-        ΔX = Δ === nothing ? nothing : _symmetric_back(Δ, uplo)
-        return nothing, ΔX, nothing
+        ΔX = Δ isa AbstractZero ? NoTangent() : _symmetric_back(Δ, uplo)
+        return NoTangent(), ΔX, NoTangent()
     end
     return Symmetric(X, uplo), Symmetric_pullback
 end
@@ -309,23 +305,20 @@ end
 #     return T(x), StructArray_pullback
 # end
 
-function Zygote._pullback(::AContext, T::Type{<:StructArray}, x::Tuple)
-    function StructArray_pullback(Δ::NamedTuple{(:components, )})
-        return (nothing, values(Δ.components))
+function ChainRulesCore.rrule(T::Type{<:StructArray}, x::Tuple)
+    function StructArray_pullback(Δ::Tangent)
+        return NoTangent(), values(Δ.components)
     end
     return T(x), StructArray_pullback
 end
 
 # `getproperty` accesses the `components` field of a `StructArray`. This rule makes that
 # explicit. 
-function Zygote._pullback(
-    ctx::AContext, ::typeof(Zygote.literal_getproperty), x::StructArray, ::Val{p},
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(Zygote.literal_getproperty), x::StructArray, ::Val{p},
 ) where {p}
-    value, pb = Zygote._pullback(
-        ctx, Zygote.literal_getproperty, getfield(x, :components), Val(p),
-    )
+    value, pb = rrule_via_ad(config, Zygote.literal_getproperty, getfield(x, :components), Val(p))
     function literal_getproperty_pullback(Δ)
-        return nothing, (components=pb(Δ)[2], ), nothing
+        return NoTangent(), Tangent{typeof(x)}(components=pb(Δ)[2]), NoTangent()
     end
     return value, literal_getproperty_pullback
 end
@@ -337,38 +330,38 @@ end
 
 time_ad(::Val{:disabled}, label::String, f, x...) = f(x...)
 
-function Zygote._pullback(ctx::AContext, ::typeof(time_ad), label::String, f, x...)
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(time_ad), label::String, f, x...)
     println("Forward: ", label)
-    out, pb = @time Zygote._pullback(ctx, f, x...)
+    out, pb = @time rrule_via_ad(config, f, x...)
     function time_ad_pullback(Δ)
         println("Pullback: ", label)
         Δinputs = @time pb(Δ)
-        return (nothing, nothing, Δinputs...)
+        return (NoTangent(), NoTangent(), NoTangent(), Δinputs...)
     end
     return out, time_ad_pullback
 end
 
-function Zygote._pullback(ctx::AContext, ::typeof(\), A::Diagonal{<:Real}, x::Vector{<:Real})
-    out, pb = Zygote._pullback(ctx, (a, x) -> a .\ x, diag(A), x)
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(\), A::Diagonal{<:Real}, x::Vector{<:Real})
+    out, pb = rrule_via_ad(config, (a, x) -> a .\ x, diag(A), x)
     function ldiv_pullback(Δ)
-        if Δ === nothing
-            return nothing
+        if Δ isa AbstractZero
+            return NoTangent()
         else
             _, Δa, Δx = pb(Δ)
-            return nothing, Diagonal(Δa), Δx
+            return NoTangent(), Diagonal(Δa), Δx
         end
     end
     return out, ldiv_pullback
 end
 
-function Zygote._pullback(ctx::AContext, ::typeof(\), A::Diagonal{<:Real}, x::Matrix{<:Real})
-    out, pb = Zygote._pullback(ctx, (a, x) -> a .\ x, diag(A), x)
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(\), A::Diagonal{<:Real}, x::Matrix{<:Real})
+    out, pb = rrule_via_ad(config, (a, x) -> a .\ x, diag(A), x)
     function ldiv_pullback(Δ)
-        if Δ === nothing
-            return nothing
+        if Δ isa AbstractZero
+            return NoTangent()
         else
             _, Δa, Δx = pb(Δ)
-            return nothing, Diagonal(Δa), Δx
+            return NoTangent(), Diagonal(Δa), Δx
         end
     end
     return out, ldiv_pullback
@@ -376,32 +369,16 @@ end
 
 using Base.Broadcast: broadcasted
 
-function Zygote._pullback(
-    ::AContext, ::typeof(broadcasted), ::typeof(\), a::Vector{<:Real}, x::Vector{<:Real},
-)
+function ChainRulesCore.rrule(::typeof(broadcasted), ::typeof(\), a::Vector{<:Real}, x::Vector{<:Real})
     y = a .\ x
-    function broadcast_ldiv_pullback(Δ::Union{Nothing, Vector{<:Real}})
-        if Δ === nothing
-            return nothing
-        else
-            return nothing, nothing, -(Δ .* y ./ a), a .\ Δ
-        end
-    end
+    broadcast_ldiv_pullback(::AbstractZero) = NoTangent(), NoTangent(), NoTangent()
+    broadcast_ldiv_pullback(Δ::AbstractVector{<:Real}) = NoTangent(), NoTangent(), -(Δ .* y ./ a), a .\ Δ
     return y, broadcast_ldiv_pullback
 end
 
-function Zygote._pullback(
-    ::AContext, ::typeof(broadcasted), ::typeof(\), a::Vector{<:Real}, x::Matrix{<:Real},
-)
+function ChainRulesCore.rrule(::typeof(broadcasted), ::typeof(\), a::Vector{<:Real}, x::Matrix{<:Real})
     y = a .\ x
-    function broadcast_ldiv_pullback(
-        Δ::Union{Nothing, Matrix{<:Real}, Adjoint{<:Real, <:Matrix{<:Real}}},
-    )
-        if Δ === nothing
-            return nothing
-        else
-            return nothing, nothing, -vec(sum(Δ .* y ./ a; dims=2)), a .\ Δ
-        end
-    end
+    broadcast_ldiv_pullback(::AbstractZero) = NoTangent(), NoTangent(), NoTangent()
+    broadcast_ldiv_pullback(Δ::AbstractMatrix{<:Real}) = NoTangent(), NoTangent(), -vec(sum(Δ .* y ./ a; dims=2)), a .\ Δ
     return y, broadcast_ldiv_pullback
 end

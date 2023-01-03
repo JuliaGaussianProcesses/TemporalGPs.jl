@@ -45,14 +45,13 @@ function ChainRulesCore.rrule(config::RuleConfig, ::typeof(scan_emit), f, xs, in
     end
 
     function scan_emit_rrule(Δ)
-
-        Δ === nothing && return nothing
+        Δ isa AbstractZero && return NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent()
         Δys = Δ[1]
         Δstate = Δ[2]
 
         # This is a hack to handle the case that Δstate=nothing, and the "look at the
         # type of the first thing" heuristic breaks down.
-        Δstate = Δ[2] === nothing ? _get_zero_adjoint(states[idx[end]]) : Δ[2]
+        Δstate = Δ[2] isa AbstractZero ? _get_zero_adjoint(states[idx[end]]) : Δ[2]
 
         T = length(idx)
         if T > 1

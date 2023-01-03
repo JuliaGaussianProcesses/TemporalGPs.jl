@@ -12,7 +12,6 @@ module TemporalGPs
     using Zygote
 
     using FillArrays: AbstractFill
-    using Zygote: AContext
 
     import AbstractGPs: mean, cov, logpdf, FiniteGP, AbstractGP, posterior, dtc, elbo
 

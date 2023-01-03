@@ -30,12 +30,10 @@ function dense_zygote_friendly_map(f::Tf, x) where {Tf}
     return ys
 end
 
-function Zygote._pullback(
-    ::AContext, ::typeof(dense_zygote_friendly_map), f::Tf, x,
-) where {Tf}
+function ChainRulesCore.rrule(::typeof(dense_zygote_friendly_map), f::Tf, x) where {Tf}
 
     # Perform first iteration.
-    y_1, pb_1 = Zygote._pullback(NoContext(), f, _getindex(x, 1))
+    y_1, pb_1 = rrule_via_ad(Zygote.ZygoteRuleConfig(NoContext()), f, _getindex(x, 1))
 
     # Allocate for outputs.
     ys = Array{typeof(y_1)}(undef, size(x))
@@ -46,13 +44,13 @@ function Zygote._pullback(
     pbs[1] = pb_1
 
     for n in 2:length(x)
-        y, pb = Zygote._pullback(NoContext(), f, _getindex(x, n))
+        y, pb = rrule_via_ad(Zygote.ZygoteRuleConfig(NoContext()), f, _getindex(x, n))
         ys[n] = y
         pbs[n] = pb
     end
 
     function zygote_friendly_map_pullback(Δ)
-        Δ === nothing && return
+        Δ isa AbstractZero && return NoTangent(), NoTangent(), NoTangent()
 
         # Do first iteration.
         Δx_1 = pbs[1](Δ[1])
@@ -65,7 +63,7 @@ function Zygote._pullback(
             Δxs = _accum_at(Δxs, n, Δx[2])
         end
 
-        return nothing, nothing, Δxs
+        return NoTangent(), NoTangent(), Δxs
     end
 
     return ys, zygote_friendly_map_pullback
