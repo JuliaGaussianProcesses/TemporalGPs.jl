@@ -94,35 +94,21 @@ end
     return BlockDiagonal(blocks), BlockDiagonal_pullback
 end
 
-@adjoint function Base.map(f::Tf, x::Fill) where {Tf}
-    y_el, back = Zygote._pullback(__context__, f, x.value)
-    function map_Fill_pullback(Δ::Union{NamedTuple, Tangent})
-        if Δ isa Tangent
-            Δ_ = (value=Δ.value, axes=Δ.axes)
-        else
-            Δ_ = Δ
-        end
-        Δf, Δx_el = back(Δ_.value)
-        return Δf, (value = Δx_el, axes=nothing)
-    end
-    return Fill(y_el, size(x)), map_Fill_pullback
-end
-
-function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf}
+function _map(f::Tf, x1::Fill, x2::Fill) where {Tf}
     @assert size(x1) == size(x2)
     y_el = f(x1.value, x2.value)
     return Fill(y_el, size(x1))
 end
 
-function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf<:Function}
+function _map(f::Tf, x1::Fill, x2::Fill) where {Tf<:Function}
     @assert size(x1) == size(x2)
     y_el = f(x1.value, x2.value)
     return Fill(y_el, size(x1))
 end
 
-Zygote.@adjoint function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf}
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f::Tf, x1::Fill, x2::Fill) where {Tf}
     @assert size(x1) == size(x2)
-    y_el, back = Zygote._pullback(__context__, f, x1.value, x2.value)
+    y_el, back = ChainRulesCore.rrule_via_ad(config, f, x1.value, x2.value)
     function map_Fill_pullback(Δ::NamedTuple)
         Δf, Δx1_el, Δx2_el = back(Δ.value)
         return (Δf, (value = Δx1_el, axes=nothing), (value = Δx2_el, axes=nothing))
@@ -130,23 +116,17 @@ Zygote.@adjoint function Base.map(f::Tf, x1::Fill, x2::Fill) where {Tf}
     return Fill(y_el, size(x1)), map_Fill_pullback
 end
 
-@adjoint function Base.getindex(x::Fill, n::Int)
+function ChainRulesCore.rrule(::typeof(Base.getindex), x::Fill, n::Int)
     function getindex_FillArray_pullback(Δ)
-        return ((value = Δ, axes = nothing), nothing)
+        return ((value = Δ, axes = NoTangent()), ZeroTangent())
     end
     return x[n], getindex_FillArray_pullback
 end
 
-@adjoint function Base.getindex(x::SVector{1}, n::Int)
-    getindex_SArray_pullback(Δ) = (SVector{1}(Δ), nothing)
+function ChainRulesCore.rrule(::typeof(Base.getindex), x::SVector{1,1}, n::Int)
+    getindex_SArray_pullback(Δ) = (SVector{1}(Δ), ZeroTangent())
     return x[n], getindex_SArray_pullback
 end
-
-@adjoint function Base.getindex(x::SVector{1, 1}, n::Int)
-    getindex_pullback(Δ) = (SMatrix{1, 1}(Δ), nothing)
-    return x[n], getindex_SArray_pullback
-end
-
 
 #
 # AD-free pullbacks for a few things. These are primitives that will be used to write the

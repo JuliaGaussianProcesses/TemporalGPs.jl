@@ -66,11 +66,9 @@ function AbstractGPs.marginals(x::Gaussian{<:AbstractVector, <:AbstractMatrix})
     return AbstractGPs.Normal.(mean(x), sqrt.(diag(cov(x))))
 end
 
-storage_type(x::Gaussian{<:SVector{D, T}}) where {D, T<:Real} = SArrayStorage(T)
-
-storage_type(gmm::Gaussian{<:Vector{T}}) where {T<:Real} = ArrayStorage(T)
-
-storage_type(x::Gaussian{T}) where {T<:Real} = ScalarStorage(T)
+storage_type(::Gaussian{<:Vector{T}}) where {T<:Real} = ArrayStorage(T)
+storage_type(::Gaussian{<:SVector{D, T}}) where {D, T<:Real} = SArrayStorage(T)
+storage_type(::Gaussian{T}) where {T<:Real} = ScalarStorage(T)
 
 function ChainRulesCore.rrule(::Type{<:Gaussian}, m, P)
     Gaussian_pullback(::ZeroTangent) = NoTangent(), NoTangent(), NoTangent()

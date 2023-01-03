@@ -93,7 +93,7 @@ get_kernel(f::GP) = Zygote.literal_getfield(f, Val(:kernel))
 function build_emissions(
     (Hs, hs)::Tuple{AbstractVector, AbstractVector}, Σs::AbstractVector,
 )
-    Hst = map(adjoint, Hs)
+    Hst = _map(adjoint, Hs)
     return StructArray{get_type(Hst, hs, Σs)}((Hst, hs, Σs))
 end
 
@@ -132,9 +132,9 @@ function lgssm_components(
 
     # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
     t = vcat([first(t) - 1], t)
-    As = map(Δt -> time_exp(F, T(Δt)), diff(t))
+    As = _map(Δt -> time_exp(F, T(Δt)), diff(t))
     as = Fill(Zeros{T}(size(first(As), 1)), length(As))
-    Qs = map(A -> Symmetric(P) - A * Symmetric(P) * A', As)
+    Qs = _map(A -> Symmetric(P) - A * Symmetric(P) * A', As)
     Hs = Fill(H, length(As))
     hs = Fill(zero(T), length(As))
     emission_projections = (Hs, hs)
@@ -259,15 +259,13 @@ function lgssm_components(k::ScaledKernel, ts::AbstractVector, storage_type::Sto
     return As, as, Qs, _scale_emission_projections(emission_proj, σ), x0
 end
 
-function _scale_emission_projections((Hs, hs)::Tuple{AbstractVector, AbstractVector}, σ)
-    return (map(H->σ * H, Hs), map(h->σ * h, hs))
+function _scale_emission_projections((Hs, hs)::Tuple{AbstractVector, AbstractVector}, σ::Real)
+    return _map(H->σ * H, Hs), _map(h->σ * h, hs)
 end
 
 function _scale_emission_projections((Cs, cs, Hs, hs), σ)
-    return (Cs, cs, map(H->σ * H, Hs), map(h->σ * h, hs))
+    return (Cs, cs, _map(H -> σ * H, Hs), _map(h -> σ * h, hs))
 end
-
-
 
 # Stretched
 
@@ -298,9 +296,9 @@ function lgssm_components(k::KernelSum, ts::AbstractVector, storage_type::Storag
     As_l, as_l, Qs_l, emission_proj_l, x0_l = lgssm_components(k.kernels[1], ts, storage_type)
     As_r, as_r, Qs_r, emission_proj_r, x0_r = lgssm_components(k.kernels[2], ts, storage_type)
 
-    As = map(blk_diag, As_l, As_r)
-    as = map(vcat, as_l, as_r)
-    Qs = map(blk_diag, Qs_l, Qs_r)
+    As = _map(blk_diag, As_l, As_r)
+    as = _map(vcat, as_l, as_r)
+    Qs = _map(blk_diag, Qs_l, Qs_r)
     emission_projections = _sum_emission_projections(emission_proj_l, emission_proj_r)
     x0 = Gaussian(vcat(x0_l.m, x0_r.m), blk_diag(x0_l.P, x0_r.P))
 
@@ -318,10 +316,10 @@ function _sum_emission_projections(
     (Cs_l, cs_l, Hs_l, hs_l)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
     (Cs_r, cs_r, Hs_r, hs_r)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
 )
-    Cs = map(vcat, Cs_l, Cs_r)
+    Cs = _map(vcat, Cs_l, Cs_r)
     cs = cs_l + cs_r
-    Hs = map(blk_diag, Hs_l, Hs_r)
-    hs = map(vcat, hs_l, hs_r)
+    Hs = _map(blk_diag, Hs_l, Hs_r)
+    hs = _map(vcat, hs_l, hs_r)
     return (Cs, cs, Hs, hs)
 end
 

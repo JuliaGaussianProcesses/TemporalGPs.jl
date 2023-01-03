@@ -120,7 +120,6 @@ function ChainRulesCore.rrule(
             eachindex(y),
         )
 
-        # return nothing, ΔΣs, Δy
         return NoTangent(), ΔΣs, Δy
     end
     return fill_in_missings(Σs, y), pullback_fill_in_missings

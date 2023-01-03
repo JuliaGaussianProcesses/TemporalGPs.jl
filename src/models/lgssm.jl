@@ -20,8 +20,7 @@ end
 end
 
 @inline ordering(model::LGSSM) = ordering(transitions(model))
-
-ChainRulesCore.rrule(::typeof(ordering), model) = ordering(model), _ -> (NoTangent(), NoTangent())
+ChainRulesCore.@non_differentiable ordering(model)
 
 function Base.:(==)(x::LGSSM, y::LGSSM)
     return (transitions(x) == transitions(y)) && (emissions(x) == emissions(y))

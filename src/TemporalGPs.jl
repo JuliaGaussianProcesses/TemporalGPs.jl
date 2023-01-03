@@ -37,8 +37,8 @@ module TemporalGPs
     include(joinpath("util", "harmonise.jl"))
     include(joinpath("util", "linear_algebra.jl"))
     include(joinpath("util", "scan.jl"))
-    # include(joinpath("util", "zygote_friendly_map.jl"))
-    zygote_friendly_map = map
+    include(joinpath("util", "zygote_friendly_map.jl"))
+    # zygote_friendly_map = map
     # Implementation of the matrix exponential that assumes one doesn't require access to the
     # gradient w.r.t. `A`, only `t`. The former is a bit compute-intensive to get at, while the
     # latter is very cheap.
@@ -50,7 +50,7 @@ module TemporalGPs
         return B, time_exp_pullback
     end
 
-    # include(joinpath("util", "zygote_rules.jl"))
+    include(joinpath("util", "zygote_rules.jl"))
     include(joinpath("util", "gaussian.jl"))
     include(joinpath("util", "mul.jl"))
     include(joinpath("util", "storage_types.jl"))

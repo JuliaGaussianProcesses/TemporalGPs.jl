@@ -52,7 +52,9 @@ function objective(params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
-only(Zygote.gradient(objective ∘ unpack, flat_initial_params))
+
+objective(unpack(flat_initial_params))
+Zygote.gradient(objective ∘ unpack, flat_initial_params)
 
 # Optimise using Optim. Takes a little while to compile because Zygote.
 training_results = Optim.optimize(
@@ -69,7 +71,7 @@ training_results = Optim.optimize(
 
 # Extracting the final values of the parameters.
 # Should be close to truth.
-final_params = unpack(training_results.minimizer);
+final_params = unpack(training_results.minimizer)
 
 # Construct the posterior as per usual.
 f_post = posterior(build_gp(final_params)(x, final_params.var_noise), y);

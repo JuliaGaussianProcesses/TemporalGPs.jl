@@ -44,7 +44,7 @@ function ChainRulesCore.rrule(::typeof(scan_emit), f, xs, init_state, idx)
         states[t] = state
     end
 
-    function scan_emit_pullback(Δ)
+    function scan_emit_rrule(Δ)
 
         Δ === nothing && return nothing
         Δys = Δ[1]
@@ -87,7 +87,7 @@ function ChainRulesCore.rrule(::typeof(scan_emit), f, xs, init_state, idx)
         end
     end
 
-    return (ys, state), scan_emit_pullback
+    return (ys, state), scan_emit_rrule
 end
 
 @inline function step_pb(f::Tf, state, x, Δy, Δstate) where {Tf}
