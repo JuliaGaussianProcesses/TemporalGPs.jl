@@ -1,7 +1,7 @@
 # This is all AD-related stuff. If you're looking to understand TemporalGPs, this can be
 # safely ignored.
 
-using Zygote: @adjoint, accum, AContext
+using Zygote: accum, AContext
 
 # This context doesn't allow any globals.
 struct NoContext <: Zygote.AContext end
@@ -63,20 +63,23 @@ end
 
 @non_differentiable vcat(x::Zeros, y::Zeros)
 
-@adjoint function collect(x::Fill)
-    function collect_Fill_back(Δ)
-        return ((value=reduce(accum, Δ), axes=nothing),)
+function ChainRulesCore.rrule(::typeof(collect), x::F) where {F<:Fill}
+    function collect_Fill_pullback(Δ)
+        return NoTangent(), Tangent{F}(value=reduce(accum, Δ), axes=NoTangent())
     end
-    return collect(x), collect_Fill_back
+    return collect(x), collect_Fill_pullback
 end
 
-@adjoint function step(x::StepRangeLen)
-    return step(x), Δ -> ((ref=nothing, step=Δ, len=nothing, offset=nothing),)
+function ChainRulesCore.rrule(::typeof(step), x::T) where {T<:StepRangeLen}
+    function step_StepRangeLen_pullback(Δ)
+        return NoTangent(), Tangent{T}(step=Δ)
+    end
+    return step(x), step_StepRangeLen_pullback
 end
 
-@adjoint function BlockDiagonal(blocks::Vector)
-    function BlockDiagonal_pullback(Δ::NamedTuple{(:blocks,)})
-        return (Δ.blocks,)
+function ChainRulesCore.rrule(::Type{<:BlockDiagonal}, blocks::Vector)
+    function BlockDiagonal_pullback(Δ)
+        return NoTangent(), Δ.blocks
     end
     return BlockDiagonal(blocks), BlockDiagonal_pullback
 end
@@ -149,7 +152,7 @@ function cholesky_rrule(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
     return C, cholesky_pullback
 end
 
-@adjoint function cholesky(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
+function ChainRulesCore.rrule(::typeof(cholesky), S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
     return cholesky_rrule(S)
 end
 

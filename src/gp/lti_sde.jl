@@ -340,11 +340,11 @@ function blk_diag(A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T}
     )
 end
 
-Zygote.@adjoint function blk_diag(A, B)
+function ChainRulesCore.rrule(::typeof(blk_diag), A, B)
     function blk_diag_adjoint(Δ)
         ΔA = Δ[1:size(A, 1), 1:size(A, 2)]
         ΔB = Δ[size(A, 1)+1:end, size(A, 2)+1:end]
-        return (ΔA, ΔB)
+        return NoTangent(), ΔA, ΔB
     end
     return blk_diag(A, B), blk_diag_adjoint
 end
@@ -355,13 +355,11 @@ function blk_diag(A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T
     return [[A zero_AB]; [zero_BA B]]
 end
 
-Zygote.@adjoint function blk_diag(
-    A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T},
-) where {DA, DB, T}
+function ChainRulesCore.rrule(::typeof(blk_diag), A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T}
     function blk_diag_adjoint(Δ::SMatrix)
         ΔA = Δ[SVector{DA}(1:DA), SVector{DA}(1:DA)]
         ΔB = Δ[SVector{DB}((DA+1):(DA+DB)), SVector{DB}((DA+1):(DA+DB))]
-        return ΔA, ΔB
+        return NoTangent(), ΔA, ΔB
     end
     return blk_diag(A, B), blk_diag_adjoint
 end
