@@ -187,7 +187,7 @@ get_adjoint_storage(::Fill, ::Int, init) = (value=init, axes=nothing)
 @inline function _accum_at(
     Δxs::NamedTuple{(:value, :axes), Tuple{T, Nothing}}, ::Int, Δx,
 ) where {T}
-    return (value=accum(Δxs.value, Δx), axes=nothing)
+    return (value=Zygote.accum(Δxs.value, Δx), axes=nothing)
 end
 
 

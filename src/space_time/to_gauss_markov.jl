@@ -1,6 +1,5 @@
 my_I(T, N) = Matrix{T}(I, N, N)
-
-ChainRulesCore.rrule(::typeof(my_I), args...) = my_I(args...), nograd_pullback
+ChainRulesCores.@non_differentiable my_I(args...)
 
 function lgssm_components(k::Separable, x::SpaceTimeGrid, storage)
 

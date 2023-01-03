@@ -89,14 +89,12 @@ function ε_randn(rng::AbstractRNG, A::SMatrix{Dout, Din, T}) where {Dout, Din, 
     return randn(rng, SVector{Dout, T})
 end
 
-ChainRulesCore.rrule(::typeof(ε_randn), args...) = ε_randn(args...), nograd_pullback
+ChainRulesCore.@non_differentiable ε_randn(args...)
 
 scalar_type(x::AbstractVector{T}) where {T} = T
 scalar_type(x::T) where {T<:Real} = T
 
-ChainRulesCore.rrule(::typeof(scalar_type), x) = scalar_type(x), nograd_pullback
-
-
+ChainRulesCore.@non_differentiable scalar_type(x)
 
 """
     SmallOutputLGC{

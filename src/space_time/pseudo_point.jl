@@ -55,9 +55,7 @@ function dtc(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
 end
 
 # This stupid pullback saves an absurb amount of compute time.
-function ChainRulesCore.rrule(::typeof(count), ::typeof(ismissing), yn)
-    return count(ismissing, yn), nograd_pullback
-end
+ChainRulesCore.@non_differentiable count(ismissing, yn)
 
 """
     elbo(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)

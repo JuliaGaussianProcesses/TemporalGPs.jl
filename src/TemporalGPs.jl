@@ -39,8 +39,6 @@ module TemporalGPs
     include(joinpath("util", "scan.jl"))
     # include(joinpath("util", "zygote_friendly_map.jl"))
     zygote_friendly_map = map
-    nograd_pullback(Δ) = nothing
-
     # Implementation of the matrix exponential that assumes one doesn't require access to the
     # gradient w.r.t. `A`, only `t`. The former is a bit compute-intensive to get at, while the
     # latter is very cheap.

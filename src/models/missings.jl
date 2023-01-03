@@ -55,9 +55,7 @@ function _logpdf_volume_compensation(y::AbstractVector{<:Union{Missing, <:Real}}
 end
 
 
-function ChainRulesCore.rrule(::typeof(_logpdf_volume_compensation), y)
-    return _logpdf_volume_compensation(y), nograd_pullback
-end
+ChainRulesCore.@non_differentiable _logpdf_volume_compensation(y)
 
 function fill_in_missings(Σs::Vector, y::AbstractVector{Union{Missing, T}}) where {T}
     return _fill_in_missings(Σs, y)

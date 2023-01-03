@@ -15,8 +15,7 @@ Base.haskey(cx::NoContext, x) = false
 
 Zygote.accum_param(::NoContext, x, Δ) = Δ
 
-
-Zygote._pullback(::AContext, ::typeof(eltype), x) = eltype(x), nograd_pullback
+ChainRulesCore.@non_differentiable eltype(x)
 
 # Hacks to help the compiler out in very specific situations.
 Zygote.accum(a::Array{T}, b::Array{T}) where {T<:Real} = a + b

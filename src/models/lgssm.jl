@@ -265,9 +265,7 @@ ident_eps(ε::Real) = UniformScaling(ε)
 
 ident_eps(x::ColVecs, ε::Real) = UniformScaling(convert(eltype(x.X), ε))
 
-function ChainRulesCore.rrule(::typeof(ident_eps), args...)
-    return ident_eps(args...), _ -> Tuple(NoTangent(), fill(NoTangent(), length(args))...)
-end
+ChainRulesCore.@non_differentiable ident_eps(args...)
 
 _collect(U::Adjoint{<:Any, <:Matrix}) = collect(U)
 _collect(U::SMatrix) = U
