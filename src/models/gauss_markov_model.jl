@@ -67,7 +67,7 @@ end
 
 x0(model::GaussMarkovModel) = Zygote.literal_getfield(model, Val(:x0))
 
-function get_adjoint_storage(x::GaussMarkovModel, n::Int, Δx::NamedTuple{(:A, :a, :Q)})
+function get_adjoint_storage(x::GaussMarkovModel, n::Int, Δx::Tangent{T,<:NamedTuple{(:A, :a, :Q)}}) where {T}
     return (
         ordering = NoTangent(),
         As = get_adjoint_storage(x.As, n, Δx.A),
@@ -80,8 +80,8 @@ end
 function _accum_at(
     Δxs::NamedTuple{(:ordering, :As, :as, :Qs, :x0)},
     n::Int,
-    Δx::NamedTuple{(:A, :a, :Q)},
-)
+    Δx::Tangent{T, <:NamedTuple{(:A, :a, :Q)}},
+) where {T}
     return (
         ordering = NoTangent(),
         As = _accum_at(Δxs.As, n, Δx.A),

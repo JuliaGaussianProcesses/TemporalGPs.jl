@@ -59,7 +59,6 @@ function ChainRulesCore.rrule(config::RuleConfig, ::typeof(scan_emit), f, xs, in
                 config, f, states[idx[T-1]], _getindex(xs, idx[T]), Δys[idx[T]], Δstate,
             )
             Δxs = get_adjoint_storage(xs, idx[T], Δx)
-
             for t in reverse(2:(T - 1))
                 a = _getindex(xs, idx[t])
                 b = Δys[idx[t]]
@@ -69,19 +68,16 @@ function ChainRulesCore.rrule(config::RuleConfig, ::typeof(scan_emit), f, xs, in
                 )
                 Δxs = _accum_at(Δxs, idx[t], Δx)
             end
-
             _, Δstate, Δx = step_pullback(
                 config, f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
             )
             Δxs = _accum_at(Δxs, idx[1], Δx)
-
             return NoTangent(), NoTangent(), Δxs, Δstate, NoTangent()
         else
             _, Δstate, Δx = step_pullback(
                 config, f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
             )
             Δxs = get_adjoint_storage(xs, idx[1], Δx)
-
             return NoTangent(), NoTangent(), Δxs, Δstate, NoTangent()
         end
     end
@@ -107,10 +103,8 @@ __getindex(x::Tuple{Any}, idx::Int) = (_getindex(x[1], idx), )
 __getindex(x::Tuple, idx::Int) = (_getindex(x[1], idx), __getindex(Base.tail(x), idx)...)
 
 
-_get_zero_adjoint(::Any) = nothing
-_get_zero_adjoint(x::AbstractArray) = zero(x)
-
-
+_get_zero_adjoint(::Any) = ZeroTangent()
+_get_zero_adjoint(x::AbstractArray) = fill(ZeroTangent(), length(x))
 
 # Vector. In all probability, only one of these methods is necessary.
 
@@ -138,24 +132,19 @@ end
 #     return Δx
 # end
 
-
-
 # Diagonal type constraint for the compiler's benefit.
 @inline function _accum_at(Δxs::Vector{T}, n::Int, Δx::T) where {T}
     Δxs[n] = Δx
     return Δxs
 end
 
-
-
 # If there's nothing, there's nothing to do.
 
-_accum_at(Δxs::Nothing, n::Int, Δx::Nothing) = nothing
+_accum_at(::AbstractZero, ::Int, ::AbstractZero) = NoTangent()
 
 # Zip
-
-function get_adjoint_storage(x::Base.Iterators.Zip, n::Int, Δx::Tuple)
-    return (is=map((x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), x.is, Δx),)
+function get_adjoint_storage(x::Base.Iterators.Zip, n::Int, Δx::Tangent)
+    return (is=map((x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), x.is, backing(Δx)),)
 end
 
 # function _accum_at(Δxs::NamedTuple{(:is,)}, n::Int, Δx::Tuple)
@@ -169,33 +158,36 @@ end
 
 
 # This is a work-around for `map` not inferring for some unknown reason. Very odd...
-function _accum_at(Δxs::NamedTuple{(:is, )}, n::Int, Δx::Tuple)
-    return (is=__accum_at(Δxs.is, n, Δx), )
+function _accum_at(Δxs::NamedTuple{(:is, )}, n::Int, Δx::Tangent)
+    return (is=__accum_at(Δxs.is, n, backing(Δx)), )
 end
 __accum_at(Δxs::Tuple{Any}, n::Int, Δx::Tuple{Any}) = (_accum_at(Δxs[1], n, Δx[1]), )
+# __accum_at(Δxs::Vector{Any}, n::Int, Δx::Tangent) = (_accum_at(Δxs[1], n, Δx[1]), )
 function __accum_at(Δxs::Tuple, n::Int, Δx::Tuple)
     return (_accum_at(Δxs[1], n, Δx[1]), __accum_at(Base.tail(Δxs), n, Base.tail(Δx))...)
 end
-
+# function __accum_at(Δxs::Tuple, n, Δxs::Tuple)
+    # return (_accum_at(Δxs[1], n, Δx[1]), __accum_at(Base.tail(Δxs), n, Base.tail(backing(Δx)))...)
+# end
 
 # Fill
 
-get_adjoint_storage(::Fill, ::Int, init) = (value=init, axes=nothing)
+get_adjoint_storage(::Fill, ::Int, init) = (value=init, axes=NoTangent())
 
 # T is not parametrized since T can be SMatrix and Δx isa SizedMatrix
 @inline function _accum_at(
-    Δxs::NamedTuple{(:value, :axes), Tuple{T, Nothing}}, ::Int, Δx,
-) where {T}
-    return (value=Zygote.accum(Δxs.value, Δx), axes=nothing)
+    Δxs::NamedTuple{(:value, :axes)}, ::Int, Δx,
+)
+    return (value=Zygote.accum(Δxs.value, Δx), axes=NoTangent())
 end
 
 
 
 # StructArray
 
-function get_adjoint_storage(x::StructArray, n::Int, Δx::NamedTuple)
+function get_adjoint_storage(x::StructArray, n::Int, Δx::Tangent)
     init_arrays = map(
-        (x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), getfield(x, :components), Δx,
+        (x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), getfield(x, :components), backing(Δx),
     )
     return (components = init_arrays, )
 end
@@ -207,10 +199,11 @@ function get_adjoint_storage(x::StructArray, n::Int, Δx::StaticVector)
     return (components = init_arrays, )
 end
 
-function _accum_at(Δxs::NamedTuple{(:components,)}, n::Int, Δx::NamedTuple)
-    return (components = map((Δy, y) -> _accum_at(Δy, n, y), Δxs.components, Δx), )
+# _accum_at for StructArrayget_adjoint_storage(xs, idx[T], Δx)
+function _accum_at(Δxs::NamedTuple{(:components,)}, n::Int, Δx::Tangent)
+    return (components = map((Δy, y) -> _accum_at(Δy, n, y), Δxs.components, backing(Δx)), )
 end
 
 function _accum_at(Δxs::NamedTuple{(:components,)}, n::Int, Δx::SVector)
-    return (components = map((Δy, y) -> _accum_at(Δy, n, y), Δxs.components, Δx), )
+    return (components = map((Δy, y) -> _accum_at(Δy, n, y), Δxs.components, backing(Δx)), )
 end

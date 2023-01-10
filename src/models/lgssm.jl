@@ -274,20 +274,21 @@ _collect(U::SMatrix) = U
 # AD stuff. No need to understand this unless you're really plumbing the depths...
 
 function get_adjoint_storage(
-    x::LGSSM, n::Int, Δx::NamedTuple{(:ordering, :transition, :emission)},
-)
-    return (
+    x::LGSSM, n::Int, Δx::Tangent{T,<:NamedTuple{(:ordering,:transition,:emission)}},
+) where {T}
+    return Tangent{typeof(x)}(
         transitions = get_adjoint_storage(x.transitions, n, Δx.transition),
         emissions = get_adjoint_storage(x.emissions, n, Δx.emission)
     )
 end
 
 function _accum_at(
-    Δxs::NamedTuple{(:transitions, :emissions)},
+    Δxs::Tangent{X},
     n::Int,
-    Δx::NamedTuple{(:ordering, :transition, :emission)},
-)
-    return (
+    Δx::Tangent{T,<:NamedTuple{(:ordering,:transition,:emission)}},
+) where {X<:LGSSM, T}
+    Main.@infiltrate
+    return Tangent{X}(
         transitions = _accum_at(Δxs.transitions, n, Δx.transition),
         emissions = _accum_at(Δxs.emissions, n, Δx.emission),
     )

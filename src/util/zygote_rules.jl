@@ -88,13 +88,6 @@ function ChainRulesCore.rrule(::typeof(step), x::T) where {T<:StepRangeLen}
     return step(x), step_StepRangeLen_pullback
 end
 
-function ChainRulesCore.rrule(::Type{<:BlockDiagonal}, blocks::Vector)
-    function BlockDiagonal_pullback(Δ)
-        return NoTangent(), Δ.blocks
-    end
-    return BlockDiagonal(blocks), BlockDiagonal_pullback
-end
-
 # We have an alternative map to avoid Zygote untouchable specialisation on map.
 _map(f, args...) = map(f, args...)
 
