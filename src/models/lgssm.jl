@@ -287,7 +287,6 @@ function _accum_at(
     n::Int,
     Δx::Tangent{T,<:NamedTuple{(:ordering,:transition,:emission)}},
 ) where {X<:LGSSM, T}
-    Main.@infiltrate
     return Tangent{X}(
         transitions = _accum_at(Δxs.transitions, n, Δx.transition),
         emissions = _accum_at(Δxs.emissions, n, Δx.emission),

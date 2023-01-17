@@ -81,7 +81,6 @@ function ChainRulesCore.rrule(config::RuleConfig, ::typeof(scan_emit), f, xs, in
             return NoTangent(), NoTangent(), Δxs, Δstate, NoTangent()
         end
     end
-
     return (ys, state), scan_emit_rrule
 end
 

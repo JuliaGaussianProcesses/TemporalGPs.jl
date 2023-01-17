@@ -40,9 +40,9 @@ function ChainRulesCore.rrule(
     SArray_pullback(Δ::SizedArray{S}) = SArray_pullback(Tangent{X}(data=Tuple(Δ.data)))
     SArray_pullback(Δ::Matrix) = SArray_pullback(Tangent{X}(data=Δ))
     function SArray_pullback(Δ::Tangent{X,<:NamedTuple{(:data,)}}) where {X}
-        _, Δnew_x = pb(Δ)
+        _, Δnew_x = pb(backing(Δ))
         _, ΔT, Δx = convert_pb(Δnew_x)
-        return NoTangent(), ΔT, Δx
+        return ΔT, Δx
     end
     return SArray{S, T, N, L}(x), SArray_pullback
 end
@@ -298,9 +298,9 @@ end
 #     return T(x), StructArray_pullback
 # end
 
-function ChainRulesCore.rrule(T::Type{<:StructArray}, x::Tuple)
+function ChainRulesCore.rrule(T::Type{<:StructArray}, x::Union{Tuple,NamedTuple})
     function StructArray_pullback(Δ::Tangent)
-        return NoTangent(), values(Δ.components)
+        return NoTangent(), values(backing(Δ.components))
     end
     return T(x), StructArray_pullback
 end

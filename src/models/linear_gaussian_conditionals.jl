@@ -85,14 +85,14 @@ Generate the vector of random numbers needed inside `conditional_rand`.
 """
 ε_randn(rng::AbstractRNG, f::AbstractLGC) = ε_randn(rng, f.A)
 ε_randn(rng::AbstractRNG, A::AbstractMatrix{T}) where {T<:Real} = randn(rng, T, size(A, 1))
-function ε_randn(rng::AbstractRNG, A::SMatrix{Dout, Din, T}) where {Dout, Din, T<:Real}
+function ε_randn(rng::AbstractRNG, ::SMatrix{Dout, Din, T}) where {Dout, Din, T<:Real}
     return randn(rng, SVector{Dout, T})
 end
 
 ChainRulesCore.@non_differentiable ε_randn(args...)
 
-scalar_type(x::AbstractVector{T}) where {T} = T
-scalar_type(x::T) where {T<:Real} = T
+scalar_type(::AbstractVector{T}) where {T} = T
+scalar_type(::T) where {T<:Real} = T
 
 ChainRulesCore.@non_differentiable scalar_type(x)
 

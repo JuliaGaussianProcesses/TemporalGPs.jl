@@ -67,8 +67,6 @@ function _logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
     return logpdf(build_lgssm(ft), observations_to_time_form(ft.x, y))
 end
 
-
-
 # Converting GPs into LGSSMs (Linear Gaussian State-Space Models).
 
 function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)

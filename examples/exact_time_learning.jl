@@ -33,10 +33,11 @@ function build_gp(params)
 end
 
 # Specify a collection of inputs. Must be increasing.
-T = 1_000_000;
+T = 1_000;
 x = RegularSpacing(0.0, 1e-4, T);
 
 # Generate some noisy synthetic data from the GP.
+f = build_gp(params)
 y = rand(f(x, params.var_noise));
 
 # Specify an objective function for Optim to minimise in terms of x and y.
@@ -46,6 +47,7 @@ function objective(params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
+only(Zygote.gradient(objective ∘ unpack, flat_initial_params))
 # Optimise using Optim. Zygote takes a little while to compile.
 training_results = Optim.optimize(
     objective ∘ unpack,
