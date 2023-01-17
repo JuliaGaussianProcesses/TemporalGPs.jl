@@ -1,7 +1,9 @@
 using StaticArrays
 using ChainRulesTestUtils
-using TemporalGPs: time_exp, logdet_pullback
+using TemporalGPs
+using TemporalGPs: time_exp, _map
 using FillArrays
+using Zygote: ZygoteRuleConfig
 
 @testset "Test rrules" begin
     @testset "SArray" begin
@@ -11,7 +13,8 @@ using FillArrays
     @testset "_map" begin
         σ = 2.0
         # test_rrule(TemporalGPs._scale_emission_projections, ([Fill(1.0, 10) for _ in 1:2], [Fill(2.0, 10)] for _ in 1:2), 2.0)
-        test_rrule(TemporalGPs._map, x -> σ * x,  ([Fill(1.0, 10) for _ in 1:2], [Fill(2.0, 10)] for _ in 1:2))
+        tgt = Tangent{Tuple}(ntuple(_ -> Tangent{Any}([Tangent{Fill}(value=1.0, axes=NoTangent())]), 2))
+        test_rrule(ZygoteRuleConfig(), TemporalGPs._map ⊢ tgt, x -> σ * x,  ([Fill(1.0, 10) for _ in 1:2], [Fill(2.0, 10) for _ in 1:2]); rrule_f=rrule_via_ad, check_inferred=false)
     end
 end
 

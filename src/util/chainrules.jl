@@ -93,14 +93,19 @@ _map(f, args...) = map(f, args...)
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f::Tf, x::F) where {Tf,F<:Fill}
     y_el, back = ChainRulesCore.rrule_via_ad(config, f, x.value)
-    function map_Fill_pullback(Δ::Tangent)
+    function _map_Fill_rrule(Δ::Tangent)
         Δf, Δx_el = back(Δ.value)
-        return NoTangent(), Δf * length(x), Tangent{F}(value = Δx_el)
+        return NoTangent(), Δf, Tangent{F}(value = Δx_el)
     end
-    return Fill(y_el, size(x)), map_Fill_pullback
+    return Fill(y_el, size(x)), _map_Fill_rrule
 end
 
-function _map(f::Tf, x1::Fill, x2::Fill) where {Tf}
+function _map(f, x::Fill)
+    y_el = f(x.value)
+    return Fill(y_el, size(x))
+end
+
+function _map(f, x1::Fill, x2::Fill)
     @assert size(x1) == size(x2)
     y_el = f(x1.value, x2.value)
     return Fill(y_el, size(x1))
