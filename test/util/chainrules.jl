@@ -1,5 +1,19 @@
 using StaticArrays
+using ChainRulesTestUtils
 using TemporalGPs: time_exp, logdet_pullback
+using FillArrays
+
+@testset "Test rrules" begin
+    @testset "SArray" begin
+        # test_rrule()
+    end
+
+    @testset "_map" begin
+        σ = 2.0
+        # test_rrule(TemporalGPs._scale_emission_projections, ([Fill(1.0, 10) for _ in 1:2], [Fill(2.0, 10)] for _ in 1:2), 2.0)
+        test_rrule(TemporalGPs._map, x -> σ * x,  ([Fill(1.0, 10) for _ in 1:2], [Fill(2.0, 10)] for _ in 1:2))
+    end
+end
 
 @testset "zygote_rules" begin
     @testset "SArray" begin
