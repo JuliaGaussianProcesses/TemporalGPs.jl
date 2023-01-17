@@ -94,8 +94,8 @@ _map(f, args...) = map(f, args...)
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f::Tf, x::F) where {Tf,F<:Fill}
     y_el, back = ChainRulesCore.rrule_via_ad(config, f, x.value)
     function map_Fill_pullback(Δ::Tangent)
-        _, Δx_el = back(Δ.value)
-        return NoTangent(), NoTangent(), Tangent{F}(value = Δx_el)
+        Δf, Δx_el = back(Δ.value)
+        return NoTangent(), Δf * length(x), Tangent{F}(value = Δx_el)
     end
     return Fill(y_el, size(x)), map_Fill_pullback
 end
@@ -112,7 +112,7 @@ function _map(f::Tf, x1::Fill, x2::Fill) where {Tf<:Function}
     return Fill(y_el, size(x1))
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f::Tf, x1::F1, x2::F2) where {Tf,F1<:Fill,F2<:Fill}
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f, x1::F1, x2::F2) where {F1<:Fill,F2<:Fill}
     @assert size(x1) == size(x2)
     y_el, back = ChainRulesCore.rrule_via_ad(config, f, x1.value, x2.value)
     function _map_Fill_pullback(Δ::NamedTuple)
@@ -124,13 +124,13 @@ end
 
 function ChainRulesCore.rrule(::typeof(Base.getindex), x::Fill, n::Int)
     function getindex_FillArray_pullback(Δ)
-        return ((value = Δ, axes = NoTangent()), ZeroTangent())
+        return NoTangent(), (value = Δ, axes = NoTangent()), ZeroTangent()
     end
     return x[n], getindex_FillArray_pullback
 end
 
 function ChainRulesCore.rrule(::typeof(Base.getindex), x::SVector{1,1}, n::Int)
-    getindex_SArray_pullback(Δ) = (SVector{1}(Δ), ZeroTangent())
+    getindex_SArray_pullback(Δ) = NoTangent(), SVector{1}(Δ), ZeroTangent()
     return x[n], getindex_SArray_pullback
 end
 

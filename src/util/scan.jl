@@ -45,7 +45,7 @@ function ChainRulesCore.rrule(config::RuleConfig, ::typeof(scan_emit), f, xs, in
     end
 
     function scan_emit_rrule(Δ)
-        Δ isa AbstractZero && return NoTangent(), NoTangent(), NoTangent(), NoTangent(), NoTangent()
+        Δ isa AbstractZero && return ntuple(_->NoTangent(), 5)
         Δys = Δ[1]
         Δstate = Δ[2]
 

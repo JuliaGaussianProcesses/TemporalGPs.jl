@@ -40,7 +40,7 @@ function predict(x::Gaussian, f::AbstractLGC)
     A, a, Q = get_fields(f)
     m, P = get_fields(x)
     # Symmetric wrapper needed for numerical stability. Do not unwrap.
-    return Gaussian(A * m + a, A * symmetric(P) * A' + Q)
+    return Gaussian(A * m + a, (A * symmetric(P)) * A' + Q)
 end
 
 """
