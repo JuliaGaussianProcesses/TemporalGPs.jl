@@ -288,11 +288,11 @@ function adjoint_test(
     fdm=central_fdm(5, 1; max_range=1e-3),
     test=true,
     check_infers=TEST_TYPE_INFER,
-    context=NoContext(),
+    context=Context(),
     kwargs...,
 )
     # Compute <Jᵀ ȳ, ẋ> = <x̄, ẋ> using Zygote.
-    y, pb = Zygote._pullback(context, f, x...)
+    y, pb = Zygote.pullback(f, x...)
 
     # Check type inference if requested.
     if check_infers
@@ -305,24 +305,21 @@ function adjoint_test(
         @inferred Zygote._pullback(context, f, x...)
         @inferred pb(ȳ)
     end
-
-    x̄ = pb(ȳ)[2:end]
-
+    x̄ = pb(ȳ)
     x̄_ad, ẋ_ad = harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)
     inner_ad = dot(x̄_ad, ẋ_ad)
-
+    
     # Approximate <ȳ, J ẋ> = <ȳ, ẏ> using FiniteDifferences.
-    # @show harmonise(j′vp(fdm, f, ȳ, x...), ẋ)[1]
     # x̄_fd = j′vp(fdm, f, ȳ, x...)
     ẏ = jvp(fdm, f, zip(x, ẋ)...)
 
     ȳ_fd, ẏ_fd = harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)
     inner_fd = dot(ȳ_fd, ẏ_fd)
-
     # Check that Zygote didn't modify the forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)
 
     # Check for approximate agreement in "inner-products".
+    @show inner_ad, inner_fd
     test && @test fd_isapprox(inner_ad, inner_fd, rtol, atol)
 
     return x̄
@@ -334,7 +331,7 @@ function adjoint_test(f, input::Tuple; kwargs...)
 end
 
 function adjoint_test(f, Δoutput, input::Tuple; kwargs...)
-    ∂input = map(rand_tangent, input)
+    ∂input = map(rand_zygote_tangent, input)
     return adjoint_test(f, Δoutput, input, ∂input; kwargs...)
 end
 

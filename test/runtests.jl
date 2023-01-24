@@ -50,7 +50,7 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
                 include(joinpath("util", "harmonise.jl"))
                 include(joinpath("util", "scan.jl"))
                 include(joinpath("util", "zygote_friendly_map.jl"))
-                include(joinpath("util", "zygote_rules.jl"))
+                include(joinpath("util", "chainrules.jl"))
                 include(joinpath("util", "gaussian.jl"))
                 include(joinpath("util", "mul.jl"))
                 include(joinpath("util", "regular_data.jl"))
