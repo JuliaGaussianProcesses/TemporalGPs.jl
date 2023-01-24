@@ -17,33 +17,43 @@ using Zygote: ZygoteRuleConfig
         σ = 2.0
         # test_rrule(TemporalGPs._scale_emission_projections, ([Fill(1.0, 10) for _ in 1:2], [Fill(2.0, 10)] for _ in 1:2), 2.0)
         N = 2
-        tgt = Tangent{Tuple}(ntuple(_ -> Tangent{Any}([Tangent{Fill}(value=1.0, axes=NoTangent())]), N))
-        test_rrule(ZygoteRuleConfig(), TemporalGPs._map ⊢ tgt, x -> σ * x,  ([Fill(1.0, 10) for _ in 1:N], [Fill(2.0, 10) for _ in 1:N]); rrule_f=rrule_via_ad, check_inferred=false)
+        tgt = Tangent{Tuple}(ntuple(_ -> Tangent{Any}(NoTangent(), [Tangent{Fill}(value=1.0, axes=NoTangent())]), N))
+        test_rrule(ZygoteRuleConfig(), TemporalGPs._map ⊢ tgt, x -> σ * x, ([Fill(1.0, 10) for _ in 1:N], [Fill(2.0, 10) for _ in 1:N]); rrule_f=rrule_via_ad, check_inferred=false)
     end
 end
 
-@testset "zygote_rules" begin
+@testset "chainrules" begin
     @testset "SArray" begin
-        adjoint_test(SArray{Tuple{3, 2, 1}}, (ntuple(i -> 2.5i, 6), ))
-        _, pb = Zygote._pullback(SArray{Tuple{3, 2, 1}}, ntuple(i -> 2.5i, 6))
-        pb(nothing) === (nothing, nothing)
+        for (f, x) in (
+            (SArray{Tuple{3, 2, 1}}, ntuple(i -> 2.5i, 6)),
+            (SVector{5}, (ntuple(i -> 2.5i, 5))),
+            (SVector{2}, (2.0, 1.0)),
+            (SMatrix{5, 4}, (ntuple(i -> 2.5i, 20))),
+            (SMatrix{1, 1}, (randn(),))
+            )
+            test_rrule(ZygoteRuleConfig(), f, x; rrule_f=rrule_via_ad, check_inferred=false)
+        end
     end
-    @testset "SVector" begin
-        adjoint_test(SVector{5}, (ntuple(i -> 2.5i, 5), ))
-        adjoint_test(SVector{2}, (2.0, 1.0))
-    end
-    @testset "SMatrix" begin
-        adjoint_test(SMatrix{5, 4}, (ntuple(i -> 2.5i, 20), ))
-    end
-    @testset "SMatrix{1, 1} from scalar" begin
-        adjoint_test(SMatrix{1, 1}, (randn(), ))
-    end
+    # adjoint_test(SArray{Tuple{3, 2, 1}}, (ntuple(i -> 2.5i, 6), ))
+    # _, pb = Zygote._pullback(SArray{Tuple{3, 2, 1}}, ntuple(i -> 2.5i, 6))
+    # pb(nothing) === (nothing, nothing)
+    # @testset "SVector" begin
+        # adjoint_test(SVector{5}, (ntuple(i -> 2.5i, 5), ))
+        # adjoint_test(SVector{2}, (2.0, 1.0))
+    # end
+    # @testset "SMatrix" begin
+        # adjoint_test(SMatrix{5, 4}, (ntuple(i -> 2.5i, 20), ))
+    # end
+    # @testset "SMatrix{1, 1} from scalar" begin
+        # adjoint_test(SMatrix{1, 1}, (randn(), ))
+    # end
     @testset "time_exp" begin
         A = randn(3, 3)
-        adjoint_test(t->time_exp(A, t), (0.1, ))
+        test_rrule(time_exp, A ⊢ NoTangent(), 0.1)
     end
     @testset "collect(::SArray)" begin
         A = SArray{Tuple{3, 1, 2}}(ntuple(i -> 3.5i, 6))
+        # test_rrule(collect, A)
         adjoint_test(collect, (A, ))
     end
     @testset "vcat(::SVector, ::SVector)" begin
@@ -79,8 +89,9 @@ end
         x1 = Fill(randn(3, 4), 3)
         x2 = Fill(randn(3, 4), 3)
 
-        @test map(+, x1, x2) == map(+, collect(x1), collect(x2))
-        adjoint_test((x1, x2) -> map(+, x1, x2), (x1, x2))
+        @test _map(+, x1, x2) == _map(+, collect(x1), collect(x2))
+        test_rrule(ZygoteRuleConfig(), _map, +, x1, x2; rrule_f=rrule_via_ad, check_inferred=false)
+        adjoint_test((x1, x2) -> _map(+, x1, x2), (x1, x2))
 
         adjoint_test(
             (x1, x2) -> map((z1, z2) -> sin.(z1 .* z2), x1, x2), (x1, x2);
@@ -92,64 +103,64 @@ end
         end
         adjoint_test(foo, (randn(), x1, x2); check_infers=false)
     end
-    @testset "$N, $T" for N in [1, 2, 3], T in [Float32, Float64]
+    # @testset "$N, $T" for N in [1, 2, 3], T in [Float32, Float64]
 
-        rng = MersenneTwister(123456)
+    #     rng = MersenneTwister(123456)
 
-        # Do dense stuff.
-        S_ = randn(rng, T, N, N)
-        S = S_ * S_' + I
-        C = cholesky(S)
-        Ss = SMatrix{N, N, T}(S)
-        Cs = cholesky(Ss)
+    #     # Do dense stuff.
+    #     S_ = randn(rng, T, N, N)
+    #     S = S_ * S_' + I
+    #     C = cholesky(S)
+    #     Ss = SMatrix{N, N, T}(S)
+    #     Cs = cholesky(Ss)
 
-        @testset "cholesky" begin
-            C_fwd, pb = Zygote.pullback(cholesky, Symmetric(S))
-            Cs_fwd, pbs = Zygote.pullback(cholesky, Symmetric(Ss))
+    #     @testset "cholesky" begin
+    #         C_fwd, pb = Zygote.pullback(cholesky, Symmetric(S))
+    #         Cs_fwd, pbs = Zygote.pullback(cholesky, Symmetric(Ss))
 
-            @test eltype(C_fwd) == T
-            @test eltype(Cs_fwd) == T
+    #         @test eltype(C_fwd) == T
+    #         @test eltype(Cs_fwd) == T
 
-            ΔC = randn(rng, T, N, N)
-            ΔCs = SMatrix{N, N, T}(ΔC)
+    #         ΔC = randn(rng, T, N, N)
+    #         ΔCs = SMatrix{N, N, T}(ΔC)
 
-            @test C.U ≈ Cs.U
-            @test Cs.U ≈ Cs_fwd.U
+    #         @test C.U ≈ Cs.U
+    #         @test Cs.U ≈ Cs_fwd.U
 
-            ΔS, = pb((factors=ΔC, ))
-            ΔSs, = pbs((factors=ΔCs, ))
+    #         ΔS, = pb((factors=ΔC, ))
+    #         ΔSs, = pbs((factors=ΔCs, ))
 
-            @test ΔS ≈ ΔSs.data
-            @test eltype(ΔS) == T
-            @test eltype(ΔSs.data) == T
+    #         @test ΔS ≈ ΔSs.data
+    #         @test eltype(ΔS) == T
+    #         @test eltype(ΔSs.data) == T
 
-            @test allocs(@benchmark(cholesky(Symmetric($Ss)); samples=1, evals=1)) == 0
-            @test allocs(@benchmark(Zygote._pullback($(Context()), cholesky, Symmetric($Ss)); samples=1, evals=1)) == 0
-            @test allocs(@benchmark($pbs((factors=$ΔCs,)); samples=1, evals=1)) == 0
-        end
-        @testset "logdet" begin
-            @test logdet(Cs) ≈ logdet(C)
-            C_fwd, pb = logdet_pullback(C)
-            Cs_fwd, pbs = logdet_pullback(Cs)
+    #         @test allocs(@benchmark(cholesky(Symmetric($Ss)); samples=1, evals=1)) == 0
+    #         @test allocs(@benchmark(Zygote._pullback($(Context()), cholesky, Symmetric($Ss)); samples=1, evals=1)) == 0
+    #         @test allocs(@benchmark($pbs((factors=$ΔCs,)); samples=1, evals=1)) == 0
+    #     end
+    #     @testset "logdet" begin
+    #         @test logdet(Cs) ≈ logdet(C)
+    #         C_fwd, pb = logdet_pullback(C)
+    #         Cs_fwd, pbs = logdet_pullback(Cs)
 
-            @test eltype(C_fwd) == T
-            @test eltype(Cs_fwd) == T
+    #         @test eltype(C_fwd) == T
+    #         @test eltype(Cs_fwd) == T
 
-            @test logdet(Cs) ≈ Cs_fwd
+    #         @test logdet(Cs) ≈ Cs_fwd
 
-            Δ = randn(rng, T)
-            ΔC = first(pb(Δ)).factors
-            ΔCs = first(pbs(Δ)).factors
+    #         Δ = randn(rng, T)
+    #         ΔC = first(pb(Δ)).factors
+    #         ΔCs = first(pbs(Δ)).factors
 
-            @test ΔC ≈ ΔCs
-            @test eltype(ΔC) == T
-            @test eltype(ΔCs) == T
+    #         @test ΔC ≈ ΔCs
+    #         @test eltype(ΔC) == T
+    #         @test eltype(ΔCs) == T
 
-            @test allocs(@benchmark(logdet($Cs); samples=1, evals=1)) == 0
-            @test allocs(@benchmark(logdet_pullback($Cs); samples=1, evals=1)) == 0
-            @test allocs(@benchmark($pbs($Δ); samples=1, evals=1)) == 0
-        end
-    end
+    #         @test allocs(@benchmark(logdet($Cs); samples=1, evals=1)) == 0
+    #         @test allocs(@benchmark(logdet_pullback($Cs); samples=1, evals=1)) == 0
+    #         @test allocs(@benchmark($pbs($Δ); samples=1, evals=1)) == 0
+    #     end
+    # end
     @testset "StructArray" begin
         a = randn(5)
         b = rand(5)

@@ -121,11 +121,12 @@ end
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f, x1::F1, x2::F2) where {F1<:Fill,F2<:Fill}
     @assert size(x1) == size(x2)
     y_el, back = ChainRulesCore.rrule_via_ad(config, f, x1.value, x2.value)
-    function _map_Fill_pullback(Δ::NamedTuple)
+    _map_Fill_rrule(Δ::AbstractArray) = _map_Fill_rrule(Tangent{Any}(value = first(Δ)))
+    function _map_Fill_rrule(Δ::Tangent)
         Δf, Δx1_el, Δx2_el = back(Δ.value)
-        return Δf, Tangent{F1}(value = Δx1_el), Tangent{F2}(value = Δx2_el)
+        return NoTangent(), Δf, Tangent{F1}(value = Δx1_el, axes = NoTangent()), Tangent{F2}(value = Δx2_el, axes = NoTangent())
     end
-    return Fill(y_el, size(x1)), _map_Fill_pullback
+    return Fill(y_el, size(x1)), _map_Fill_rrule
 end
 
 function ChainRulesCore.rrule(::typeof(Base.getindex), x::Fill, n::Int)
