@@ -20,57 +20,47 @@ using Zygote: ZygoteRuleConfig
             test_rrule(ZygoteRuleConfig(), f, x; rrule_f=rrule_via_ad, check_inferred=false)
         end
     end
-    # adjoint_test(SArray{Tuple{3, 2, 1}}, (ntuple(i -> 2.5i, 6), ))
-    # _, pb = Zygote._pullback(SArray{Tuple{3, 2, 1}}, ntuple(i -> 2.5i, 6))
-    # pb(nothing) === (nothing, nothing)
-    # @testset "SVector" begin
-        # adjoint_test(SVector{5}, (ntuple(i -> 2.5i, 5), ))
-        # adjoint_test(SVector{2}, (2.0, 1.0))
-    # end
-    # @testset "SMatrix" begin
-        # adjoint_test(SMatrix{5, 4}, (ntuple(i -> 2.5i, 20), ))
-    # end
-    # @testset "SMatrix{1, 1} from scalar" begin
-        # adjoint_test(SMatrix{1, 1}, (randn(), ))
-    # end
     @testset "time_exp" begin
         A = randn(3, 3)
         test_rrule(time_exp, A ⊢ NoTangent(), 0.1)
     end
     @testset "collect(::SArray)" begin
         A = SArray{Tuple{3, 1, 2}}(ntuple(i -> 3.5i, 6))
-        # test_rrule(collect, A)
-        adjoint_test(collect, (A, ))
+        test_rrule(collect, A)
     end
     @testset "vcat(::SVector, ::SVector)" begin
         a = SVector{3}(randn(3))
         b = SVector{2}(randn(2))
-        adjoint_test(vcat, (a, b))
+        test_rrule(vcat, a, b)
     end
-    # @testset "collect(::Fill)" begin
-    #     P = 11
-    #     Q = 3
-    #     @testset "$(typeof(x)) element" for x in [
-    #         randn(),
-    #         randn(1, 2),
-    #         SMatrix{1, 2}(randn(1, 2)),
-    #     ]
-    #         adjoint_test(collect, (Fill(x, P), ))
-    #         adjoint_test(collect, (Fill(x, P, Q), ))
-    #     end
-    # end
+    @testset "collect(::Fill)" begin
+        P = 11
+        Q = 3
+        @testset "$(typeof(x)) element" for x in [
+            randn(),
+            randn(1, 2),
+            SMatrix{1, 2}(randn(1, 2)),
+        ]
+            test_rrule(collect, Fill(x, P) ⊢ Tangent{typeof(x)}(value=x, axes=NoTangent()))
+            # The test rule does not work due to inconsistencies of FiniteDifferencies for FillArrays
+            # test_rrule(collect, Fill(x, P, Q))
+        end
+    end
     # The rrule is not even used...
-    # @testset "getindex(::Fill, ::Int)" begin
-    #     adjoint_test(x -> getindex(x, 3), (Fill(randn(5, 3), 10),))
-    # end
+    @testset "getindex(::Fill, ::Int)" begin
+        X = Fill(randn(5, 3), 10)
+        test_rrule(getindex, X, 3)
+    end
     @testset "BlockDiagonal" begin
-        adjoint_test(BlockDiagonal, (map(N -> randn(N, N), [3, 4, 1]), ))
+        X = map(N -> randn(N, N), [3, 4, 1])
+        test_rrule(BlockDiagonal, X)
     end
     @testset "map(f, x::Fill)" begin
         x = Fill(randn(3, 4), 4)
-        adjoint_test(x -> _map(sum, x), (x, ))
-        adjoint_test(x -> _map(x -> map(sin, x), x), (x, ); check_infers=false)
-        adjoint_test((a, x) -> _map(x -> a * x, x), (randn(), x))
+        test_rrule(_map, sum, x)
+        test_rrule(_map, x->map(sin, x), x; check_inferred=false)
+        a = 2.0
+        test_rrule(_map, x -> a * x, x; check_inferred=false)
     end
     @testset "map(f, x1::Fill, x2::Fill)" begin
         x1 = Fill(randn(3, 4), 3)
@@ -150,6 +140,7 @@ using Zygote: ZygoteRuleConfig
     @testset "StructArray" begin
         a = randn(5)
         b = rand(5)
+        test_rrule(ZygoteRuleConfig(), StructArray, (a, b))
         adjoint_test(StructArray, ((a, b), ))
         # adjoint_test(StructArray, ((a=a, b=b), ))
 

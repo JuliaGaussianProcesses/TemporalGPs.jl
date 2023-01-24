@@ -2,6 +2,7 @@
 # safely ignored.
 
 using Zygote: accum, AContext
+import ChainRulesCore: ProjectTo
 
 # This context doesn't allow any globals.
 struct NoContext <: Zygote.AContext end
@@ -49,12 +50,12 @@ function ChainRulesCore.rrule(
 end
 
 function ChainRulesCore.rrule(::typeof(collect), x::X) where {S, T, N, L, X<:SArray{S, T, N, L}}
-    collect_rrule(Δ::AbstractArray) = NoTangent(), Tangent{X}(data = ntuple(i -> Δ[i], Val(L)))
+    collect_rrule(Δ) = NoTangent(), Tangent{X}(data = ntuple(i -> Δ[i], Val(L)))
     return collect(x), collect_rrule
 end
 
 function ChainRulesCore.rrule(::typeof(vcat), A::SVector{DA}, B::SVector{DB}) where {DA, DB}
-    function vcat_rrule(Δ::SVector)
+    function vcat_rrule(Δ)  # SVector
         ΔA = Δ[SVector{DA}(1:DA)]
         ΔB = Δ[SVector{DB}((DA+1):(DA+DB))]
         return NoTangent(), ΔA, ΔB
@@ -75,11 +76,44 @@ function ChainRulesCore.rrule(::typeof(time_exp), A, t::Real)
     return B, time_exp_rrule
 end
 
-function ChainRulesCore.rrule(::Zygote.ZygoteRuleConfig, ::typeof(collect), x::F) where {F<:Fill}
-    function collect_Fill_rrule(Δ)
-        return NoTangent(), Tangent{F}(value=reduce(Zygote.accum, Δ), axes=NoTangent())
+
+# Following is taken from https://github.com/JuliaArrays/FillArrays.jl/pull/153
+# Until a solution has been found this code will be needed here.
+"""
+    ProjectTo(::Fill) -> ProjectTo{Fill}
+    ProjectTo(::Ones) -> ProjectTo{NoTangent}
+
+Most FillArrays arrays store one number, and so their gradients under automatic
+differentiation represent the variation of this one number. 
+
+The exception is those like `Ones` and `Zeros` whose type fixes their value,
+which have no graidient.
+"""
+ProjectTo(x::Fill{<:Number}) = ProjectTo{Fill}(; element = ProjectTo(getindex_value(x)), axes = axes(x))
+
+ProjectTo(x::AbstractFill{Bool}) = ProjectTo{NoTangent}()  # Bool is always regarded as categorical
+
+ProjectTo(x::Zeros) = ProjectTo{NoTangent}()
+ProjectTo(x::Ones) = ProjectTo{NoTangent}()
+
+function (project::ProjectTo{Fill})(dx::AbstractArray)
+    for d in 1:max(ndims(dx), length(project.axes))
+        size(dx, d) == length(get(project.axes, d, 1)) || throw(_projection_mismatch(axes_x, size(dx)))
     end
-    return collect(x), collect_Fill_rrule
+    Fill(mean(dx), project.axes)  # Note that mean(dx::Fill) is optimised
+end
+
+function (project::ProjectTo{Fill})(dx::Tangent{<:Fill})
+    # This would need a definition for length(::NoTangent) to be safe:
+    # for d in 1:max(length(dx.axes), length(project.axes))
+    #     length(get(dx.axes, d, 1)) == length(get(project.axes, d, 1)) || throw(_projection_mismatch(dx.axes, size(dx)))
+    # end
+    Fill(dx.value / prod(length, project.axes), project.axes)
+end
+
+function _projection_mismatch(axes_x::Tuple, size_dx::Tuple)
+    size_x = map(length, axes_x)
+    DimensionMismatch("variable with size(x) == $size_x cannot have a gradient with size(dx) == $size_dx")
 end
 
 function ChainRulesCore.rrule(::typeof(step), x::T) where {T<:StepRangeLen}
@@ -92,52 +126,8 @@ end
 # We have an alternative map to avoid Zygote untouchable specialisation on map.
 _map(f, args...) = map(f, args...)
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f::Tf, x::F) where {Tf,F<:Fill}
-    y_el, back = ChainRulesCore.rrule_via_ad(config, f, x.value)
-    function _map_Fill_rrule(Δ::Tangent)
-        Δf, Δx_el = back(Δ.value)
-        return NoTangent(), Δf, Tangent{F}(value = Δx_el)
-    end
-    return Fill(y_el, size(x)), _map_Fill_rrule
-end
-
-function _map(f, x::Fill)
-    y_el = f(x.value)
-    return Fill(y_el, size(x))
-end
-
-function _map(f, x1::Fill, x2::Fill)
-    @assert size(x1) == size(x2)
-    y_el = f(x1.value, x2.value)
-    return Fill(y_el, size(x1))
-end
-
-function _map(f::Tf, x1::Fill, x2::Fill) where {Tf<:Function}
-    @assert size(x1) == size(x2)
-    y_el = f(x1.value, x2.value)
-    return Fill(y_el, size(x1))
-end
-
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f, x1::F1, x2::F2) where {F1<:Fill,F2<:Fill}
-    @assert size(x1) == size(x2)
-    y_el, back = ChainRulesCore.rrule_via_ad(config, f, x1.value, x2.value)
-    _map_Fill_rrule(Δ::AbstractArray) = _map_Fill_rrule(Tangent{Any}(value = first(Δ)))
-    function _map_Fill_rrule(Δ::Tangent)
-        Δf, Δx1_el, Δx2_el = back(Δ.value)
-        return NoTangent(), Δf, Tangent{F1}(value = Δx1_el, axes = NoTangent()), Tangent{F2}(value = Δx2_el, axes = NoTangent())
-    end
-    return Fill(y_el, size(x1)), _map_Fill_rrule
-end
-
-function ChainRulesCore.rrule(::typeof(Base.getindex), x::F, n::Int) where {F<:Fill}
-    function getindex_FillArray_rrule(Δ)
-        return NoTangent(), Tangent{F}(value = Δ, axes = NoTangent()), NoTangent()
-    end
-    return x[n], getindex_FillArray_rrule
-end
-
 function ChainRulesCore.rrule(::typeof(Base.getindex), x::SVector{1,1}, n::Int)
-    getindex_SArray_rrule(Δ) = NoTangent(), SVector{1}(Δ), ZeroTangent()
+    getindex_SArray_rrule(Δ) = NoTangent(), SVector{1}(Δ), NoTangent()
     return x[n], getindex_SArray_rrule
 end
 
@@ -259,11 +249,11 @@ _symmetric_back(Δ::UpperTriangular, uplo) = collect(uplo == Symbol('U') ? Δ : 
 _symmetric_back(Δ::LowerTriangular, uplo) = collect(uplo == Symbol('U') ? transpose(Δ) : Δ)
 
 function ChainRulesCore.rrule(::Type{Symmetric}, X::StridedMatrix{<:Real}, uplo=:U)
-    function Symmetric_pullback(Δ)
+    function Symmetric_rrule(Δ)
         ΔX = Δ isa AbstractZero ? NoTangent() : _symmetric_back(Δ, uplo)
         return NoTangent(), ΔX, NoTangent()
     end
-    return Symmetric(X, uplo), Symmetric_pullback
+    return Symmetric(X, uplo), Symmetric_rrule
 end
 
 # function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}) where i
@@ -306,10 +296,14 @@ end
 # end
 
 function ChainRulesCore.rrule(T::Type{<:StructArray}, x::Union{Tuple,NamedTuple})
-    function StructArray_pullback(Δ::Tangent)
-        return NoTangent(), values(backing(Δ.components))
+    function StructArray_rrule(Δ::AbstractArray)
+        return NoTangent(), StructArray(backing.(Δ))
     end
-    return T(x), StructArray_pullback
+    function StructArray_rrule(Δ::Tangent)
+        @info "Tangent branch"
+        return NoTangent(), StructArray(backing(Δ.components))
+    end
+    return T(x), StructArray_rrule
 end
 
 # `getproperty` accesses the `components` field of a `StructArray`. This rule makes that

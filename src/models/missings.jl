@@ -96,18 +96,18 @@ function ChainRulesCore.rrule(
     Σs::Vector,
     y::AbstractVector{Union{T, Missing}},
 ) where {T}
-    pullback_fill_in_missings(::AbstractZero) = NoTangent(), NoTangent(), NoTangent()
-    function pullback_fill_in_missings(Δ)
+    # pullback_fill_in_missings(::AbstractZero) = NoTangent(), NoTangent(), NoTangent()
+    function pullback_fill_in_missings(Δ::Tangent)
         ΔΣs_filled_in = Δ[1]
         Δy_filled_in = Δ[2]
 
         # The cotangent of a `Missing` doesn't make sense, so should be a `NoTangent`.
         Δy = if Δy_filled_in isa AbstractZero
-            NoTangent()
+            ZeroTangent()
         else
-            Δy = Vector{Union{eltype(Δy_filled_in), NoTangent}}(undef, length(y))
+            Δy = Vector{Union{eltype(Δy_filled_in), ZeroTangent}}(undef, length(y))
             map!(
-                n -> y[n] === missing ? NoTangent() : Δy_filled_in[n],
+                n -> y[n] === missing ? ZeroTangent() : Δy_filled_in[n],
                 Δy, eachindex(y),
             )
             Δy
