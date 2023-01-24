@@ -218,7 +218,7 @@ function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y::AbstractVector{<:R
     Bt = Q.U' \ A * P.U'
     F = cholesky(symmetric(Bt' * Bt + UniformScaling(1.0)))
     G = F.U' \ P.U
-    P_post = G'G
+    P_post = G' * @showgrad(G)
 
     # Compute posterior mean.
     δ = Q.U' \ (y - (A * m + a))
@@ -232,6 +232,7 @@ function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y::AbstractVector{<:R
     return Gaussian(m_post, P_post), lml
 end
 
+using Zygote: @showgrad
 # For some compiler-y reason, chopping this up helps.
 _compute_lml(δ, F, β, c, Q) = -(δ'δ - β'β + c + logdet(F) + logdet(Q)) / 2
 
