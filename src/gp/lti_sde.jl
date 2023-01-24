@@ -133,6 +133,7 @@ function lgssm_components(
     As = _map(Δt -> time_exp(F, T(Δt)), diff(t))
     as = Fill(Zeros{T}(size(first(As), 1)), length(As))
     Qs = _map(A -> Symmetric(P) - A * Symmetric(P) * A', As)
+    @show H
     Hs = Fill(H, length(As))
     hs = Fill(zero(T), length(As))
     emission_projections = (Hs, hs)
@@ -147,7 +148,7 @@ function lgssm_components(
     # Compute stationary distribution and sde.
     x0 = stationary_distribution(k, storage_type)
     P = x0.P
-    F, q, H = to_sde(k, storage_type)
+    F, _, H = to_sde(k, storage_type)
 
     # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
     A = time_exp(F, T(step(t)))
@@ -165,12 +166,12 @@ end
 # Fallback definitions for most base kernels.
 function to_sde(k::SimpleKernel, ::ArrayStorage{T}) where {T<:Real}
     F, q, H = to_sde(k, SArrayStorage(T))
-    return collect(F), q, collect(H)
+    return F, q, H
 end
 
 function stationary_distribution(k::SimpleKernel, ::ArrayStorage{T}) where {T<:Real}
     x = stationary_distribution(k, SArrayStorage(T))
-    return Gaussian(collect(x.m), collect(x.P))
+    return Gaussian(x.m, x.P)
 end
 
 # Matern-1/2
@@ -315,7 +316,7 @@ function _sum_emission_projections(
     (Hs_l, hs_l)::Tuple{AbstractVector, AbstractVector},
     (Hs_r, hs_r)::Tuple{AbstractVector, AbstractVector},
 )
-    return (map(vcat, Hs_l, Hs_r), hs_l + hs_r)
+    return map(vcat, Hs_l, Hs_r), hs_l + hs_r
 end
 
 function _sum_emission_projections(
@@ -326,7 +327,7 @@ function _sum_emission_projections(
     cs = cs_l + cs_r
     Hs = _map(blk_diag, Hs_l, Hs_r)
     hs = _map(vcat, hs_l, hs_r)
-    return (Cs, cs, Hs, hs)
+    return Cs, cs, Hs, hs
 end
 
 Base.vcat(x::Zeros{T, 1}, y::Zeros{T, 1}) where {T} = Zeros{T}(length(x) + length(y))

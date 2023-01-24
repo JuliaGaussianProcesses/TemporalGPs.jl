@@ -67,7 +67,7 @@ Sample from the conditional distribution `y | x`. `ε` is the randomness needed 
 this sample. If `rng` is provided, it will be used to construct `ε` via `ε_randn`.
 
 If implementing a new `AbstractLGC`, implement the `ε` method as it avoids randomness, which
-means that it plays nicely with `scan_emit`'s checkpointed pullback.
+means that it plays nicely with `scan_emit`'s checkpointed rrule.
 """
 function conditional_rand(rng::AbstractRNG, f::AbstractLGC, x::AbstractVector)
     return conditional_rand(ε_randn(rng, f), f, x)

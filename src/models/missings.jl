@@ -84,7 +84,7 @@ function fill_in_missings(Σ::Diagonal, y::AbstractVector{<:Union{Missing, <:Rea
 end
 
 # We need to densify anyway, might as well do it here and save having to implement the
-# pullback twice.
+# rrule twice.
 function fill_in_missings(Σs::Fill, y::AbstractVector{Union{Missing, T}}) where {T}
     return fill_in_missings(collect(Σs), y)
 end

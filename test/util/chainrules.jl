@@ -1,5 +1,8 @@
 using StaticArrays
+using BenchmarkTools
+using ChainRulesCore
 using ChainRulesTestUtils
+using Test
 using TemporalGPs
 using TemporalGPs: time_exp, _map
 using FillArrays
@@ -13,8 +16,9 @@ using Zygote: ZygoteRuleConfig
     @testset "_map" begin
         σ = 2.0
         # test_rrule(TemporalGPs._scale_emission_projections, ([Fill(1.0, 10) for _ in 1:2], [Fill(2.0, 10)] for _ in 1:2), 2.0)
-        tgt = Tangent{Tuple}(ntuple(_ -> Tangent{Any}([Tangent{Fill}(value=1.0, axes=NoTangent())]), 2))
-        test_rrule(ZygoteRuleConfig(), TemporalGPs._map ⊢ tgt, x -> σ * x,  ([Fill(1.0, 10) for _ in 1:2], [Fill(2.0, 10) for _ in 1:2]); rrule_f=rrule_via_ad, check_inferred=false)
+        N = 2
+        tgt = Tangent{Tuple}(ntuple(_ -> Tangent{Any}([Tangent{Fill}(value=1.0, axes=NoTangent())]), N))
+        test_rrule(ZygoteRuleConfig(), TemporalGPs._map ⊢ tgt, x -> σ * x,  ([Fill(1.0, 10) for _ in 1:N], [Fill(2.0, 10) for _ in 1:N]); rrule_f=rrule_via_ad, check_inferred=false)
     end
 end
 

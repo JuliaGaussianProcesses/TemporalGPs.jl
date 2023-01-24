@@ -38,6 +38,7 @@ function ChainRulesCore.rrule(
     SArray_pullback(::AbstractZero) = NoTangent(), NoTangent()
     SArray_pullback(Δ::SArray{S}) = SArray_pullback(Tangent{X}(data=Δ.data))
     SArray_pullback(Δ::SizedArray{S}) = SArray_pullback(Tangent{X}(data=Tuple(Δ.data)))
+    SArray_pullback(Δ::AbstractVector) = SArray_pullback(Tangent{X}(data=Tuple(Δ)))
     SArray_pullback(Δ::Matrix) = SArray_pullback(Tangent{X}(data=Δ))
     function SArray_pullback(Δ::Tangent{X,<:NamedTuple{(:data,)}}) where {X}
         _, Δnew_x = pb(backing(Δ))
@@ -48,17 +49,17 @@ function ChainRulesCore.rrule(
 end
 
 function ChainRulesCore.rrule(::typeof(collect), x::X) where {S, T, N, L, X<:SArray{S, T, N, L}}
-    collect_pullback(Δ::Array) = NoTangent(), Tangent{X}(data = ntuple(i -> Δ[i], Val(L)))
-    return collect(x), collect_pullback
+    collect_rrule(Δ::AbstractArray) = NoTangent(), Tangent{X}(data = ntuple(i -> Δ[i], Val(L)))
+    return collect(x), collect_rrule
 end
 
 function ChainRulesCore.rrule(::typeof(vcat), A::SVector{DA}, B::SVector{DB}) where {DA, DB}
-    function vcat_pullback(Δ::SVector)
+    function vcat_rrule(Δ::SVector)
         ΔA = Δ[SVector{DA}(1:DA)]
         ΔB = Δ[SVector{DB}((DA+1):(DA+DB))]
         return NoTangent(), ΔA, ΔB
     end
-    return vcat(A, B), vcat_pullback
+    return vcat(A, B), vcat_rrule
 end
 
 @non_differentiable vcat(x::Zeros, y::Zeros)
@@ -70,22 +71,22 @@ end
 time_exp(A, t) = exp(A * t)
 function ChainRulesCore.rrule(::typeof(time_exp), A, t::Real)
     B = exp(A * t)
-    time_exp_pullback(Ω̄) = NoTangent(), NoTangent(), sum(Ω̄ .*  (A * B))
-    return B, time_exp_pullback
+    time_exp_rrule(Ω̄) = NoTangent(), NoTangent(), sum(Ω̄ .*  (A * B))
+    return B, time_exp_rrule
 end
 
 function ChainRulesCore.rrule(::typeof(collect), x::F) where {F<:Fill}
-    function collect_Fill_pullback(Δ)
+    function collect_Fill_rrule(Δ)
         return NoTangent(), Tangent{F}(value=reduce(accum, Δ), axes=NoTangent())
     end
-    return collect(x), collect_Fill_pullback
+    return collect(x), collect_Fill_rrule
 end
 
 function ChainRulesCore.rrule(::typeof(step), x::T) where {T<:StepRangeLen}
-    function step_StepRangeLen_pullback(Δ)
+    function step_StepRangeLen_rrule(Δ)
         return NoTangent(), Tangent{T}(step=Δ)
     end
-    return step(x), step_StepRangeLen_pullback
+    return step(x), step_StepRangeLen_rrule
 end
 
 # We have an alternative map to avoid Zygote untouchable specialisation on map.
