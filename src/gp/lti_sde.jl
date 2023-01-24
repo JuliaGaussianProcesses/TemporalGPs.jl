@@ -133,7 +133,6 @@ function lgssm_components(
     As = _map(Δt -> time_exp(F, T(Δt)), diff(t))
     as = Fill(Zeros{T}(size(first(As), 1)), length(As))
     Qs = _map(A -> Symmetric(P) - A * Symmetric(P) * A', As)
-    @show H
     Hs = Fill(H, length(As))
     hs = Fill(zero(T), length(As))
     emission_projections = (Hs, hs)
