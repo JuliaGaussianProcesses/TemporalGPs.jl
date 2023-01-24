@@ -29,7 +29,7 @@ println("linear_gaussian_conditionals:")
         test_interface(
             rng, model, x;
             check_adjoints=true,
-            check_infers=true,
+            check_infers=TEST_TYPE_INFER,
             check_allocs=storage.val isa SArrayStorage,
         )
 
@@ -111,7 +111,7 @@ println("linear_gaussian_conditionals:")
         test_interface(
             rng, model, x;
             check_adjoints=true,
-            check_infers=true,
+            check_infers=TEST_TYPE_INFER,
             check_allocs=storage.val isa SArrayStorage,
         )
     end
@@ -143,7 +143,7 @@ println("linear_gaussian_conditionals:")
         test_interface(
             rng, model, x;
             check_adjoints=true,
-            check_infers=true,
+            check_infers=TEST_TYPE_INFER,
             check_allocs=storage.val isa SArrayStorage,
         )
     end
