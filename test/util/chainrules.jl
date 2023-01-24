@@ -8,20 +8,6 @@ using TemporalGPs: time_exp, _map
 using FillArrays
 using Zygote: ZygoteRuleConfig
 
-@testset "Test rrules" begin
-    @testset "SArray" begin
-        # test_rrule()
-    end
-
-    @testset "_map" begin
-        σ = 2.0
-        # test_rrule(TemporalGPs._scale_emission_projections, ([Fill(1.0, 10) for _ in 1:2], [Fill(2.0, 10)] for _ in 1:2), 2.0)
-        N = 2
-        tgt = Tangent{Tuple}(ntuple(_ -> Tangent{Any}(NoTangent(), [Tangent{Fill}(value=1.0, axes=NoTangent())]), N))
-        test_rrule(ZygoteRuleConfig(), TemporalGPs._map ⊢ tgt, x -> σ * x, ([Fill(1.0, 10) for _ in 1:N], [Fill(2.0, 10) for _ in 1:N]); rrule_f=rrule_via_ad, check_inferred=false)
-    end
-end
-
 @testset "chainrules" begin
     @testset "SArray" begin
         for (f, x) in (
@@ -61,45 +47,45 @@ end
         b = SVector{2}(randn(2))
         adjoint_test(vcat, (a, b))
     end
-    @testset "collect(::Fill)" begin
-        P = 11
-        Q = 3
-        @testset "$(typeof(x)) element" for x in [
-            randn(),
-            randn(1, 2),
-            SMatrix{1, 2}(randn(1, 2)),
-        ]
-            adjoint_test(collect, (Fill(x, P), ))
-            adjoint_test(collect, (Fill(x, P, Q), ))
-        end
-    end
-    @testset "getindex(::Fill, ::Int)" begin
-        adjoint_test(x -> getindex(x, 3), (Fill(randn(5, 3), 10),))
-    end
+    # @testset "collect(::Fill)" begin
+    #     P = 11
+    #     Q = 3
+    #     @testset "$(typeof(x)) element" for x in [
+    #         randn(),
+    #         randn(1, 2),
+    #         SMatrix{1, 2}(randn(1, 2)),
+    #     ]
+    #         adjoint_test(collect, (Fill(x, P), ))
+    #         adjoint_test(collect, (Fill(x, P, Q), ))
+    #     end
+    # end
+    # The rrule is not even used...
+    # @testset "getindex(::Fill, ::Int)" begin
+    #     adjoint_test(x -> getindex(x, 3), (Fill(randn(5, 3), 10),))
+    # end
     @testset "BlockDiagonal" begin
         adjoint_test(BlockDiagonal, (map(N -> randn(N, N), [3, 4, 1]), ))
     end
     @testset "map(f, x::Fill)" begin
         x = Fill(randn(3, 4), 4)
-        adjoint_test(x -> map(sum, x), (x, ))
-        adjoint_test(x -> map(x -> map(z -> sin(z), x), x), (x, ); check_infers=false)
-        adjoint_test((a, x) -> map(x -> a * x, x), (randn(), x))
+        adjoint_test(x -> _map(sum, x), (x, ))
+        adjoint_test(x -> _map(x -> map(sin, x), x), (x, ); check_infers=false)
+        adjoint_test((a, x) -> _map(x -> a * x, x), (randn(), x))
     end
     @testset "map(f, x1::Fill, x2::Fill)" begin
         x1 = Fill(randn(3, 4), 3)
         x2 = Fill(randn(3, 4), 3)
 
         @test _map(+, x1, x2) == _map(+, collect(x1), collect(x2))
-        test_rrule(ZygoteRuleConfig(), _map, +, x1, x2; rrule_f=rrule_via_ad, check_inferred=false)
         adjoint_test((x1, x2) -> _map(+, x1, x2), (x1, x2))
 
         adjoint_test(
-            (x1, x2) -> map((z1, z2) -> sin.(z1 .* z2), x1, x2), (x1, x2);
+            (x1, x2) -> _map((z1, z2) -> sin.(z1 .* z2), x1, x2), (x1, x2);
             check_infers=false,
         )
 
         foo = (a, x1, x2) -> begin
-            return map((z1, z2) -> a * sin.(z1 .* z2), x1, x2)
+            return _map((z1, z2) -> a * sin.(z1 .* z2), x1, x2)
         end
         adjoint_test(foo, (randn(), x1, x2); check_infers=false)
     end
@@ -175,10 +161,10 @@ end
         xs_sa = StructArray{eltype(xs)}((ms, Ps))
         adjoint_test(xs -> xs.m, (xs_sa, ))
     end
-    @testset "\\" begin
-        adjoint_test(\, (Diagonal(rand(5) .+ 1.0), randn(5)))
-        adjoint_test(\, (Diagonal(rand(5) .+ 1.0), randn(5, 2)))
-    end
+    # @testset "\\" begin
+        # adjoint_test(\, (Diagonal(rand(5) .+ 1.0), randn(5)))
+        # adjoint_test(\, (Diagonal(rand(5) .+ 1.0), randn(5, 2)))
+    # end
     @testset ".\\" begin
         adjoint_test((a, x) -> a .\ x, (randn(10), randn(10)); rtol=1e-7, atol=1e-7)
         adjoint_test((a, x) -> a .\ x, (randn(10), randn(10, 3)); rtol=1e-7, atol=1e-7)

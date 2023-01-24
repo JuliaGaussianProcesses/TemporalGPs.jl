@@ -319,7 +319,6 @@ function adjoint_test(
     test && @test fd_isapprox(y, f(x...), rtol, atol)
 
     # Check for approximate agreement in "inner-products".
-    @show inner_ad, inner_fd
     test && @test fd_isapprox(inner_ad, inner_fd, rtol, atol)
 
     return x̄

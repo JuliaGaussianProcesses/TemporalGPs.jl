@@ -24,10 +24,10 @@ Zygote.accum(a::SArray{size, T}, b::SArray{size, T}) where {size, T<:Real} = a +
 Zygote.accum(a::Tuple, b::Tuple, c::Tuple) = map(Zygote.accum, a, b, c)
 
 function ChainRulesCore.rrule(::RuleConfig{>:HasReverseMode}, ::Type{SArray{S, T, N, L}}, x::NTuple{L, T}) where {S, T, N, L}
-    SArray_pullback(::AbstractZero) = NoTangent(), NoTangent()
-    SArray_pullback(Δ::NamedTuple{(:data,)}) = NoTangent(), Δ.data
-    SArray_pullback(Δ::StaticArray{S}) = NoTangent(), Δ.data
-    return SArray{S, T, N, L}(x), SArray_pullback
+    SArray_rrule(::AbstractZero) = NoTangent(), NoTangent()
+    SArray_rrule(Δ::NamedTuple{(:data,)}) = NoTangent(), Δ.data
+    SArray_rrule(Δ::StaticArray{S}) = NoTangent(), Δ.data
+    return SArray{S, T, N, L}(x), SArray_rrule
 end
 
 function ChainRulesCore.rrule(
@@ -35,17 +35,17 @@ function ChainRulesCore.rrule(
 ) where {S, T, N, L, X <: SArray{S, T, N, L}}
     new_x, convert_pb = rrule_via_ad(config, StaticArrays.convert_ntuple, T, x)
     _, pb = rrule_via_ad(config, SArray{S, T, N, L}, new_x)
-    SArray_pullback(::AbstractZero) = NoTangent(), NoTangent()
-    SArray_pullback(Δ::SArray{S}) = SArray_pullback(Tangent{X}(data=Δ.data))
-    SArray_pullback(Δ::SizedArray{S}) = SArray_pullback(Tangent{X}(data=Tuple(Δ.data)))
-    SArray_pullback(Δ::AbstractVector) = SArray_pullback(Tangent{X}(data=Tuple(Δ)))
-    SArray_pullback(Δ::Matrix) = SArray_pullback(Tangent{X}(data=Δ))
-    function SArray_pullback(Δ::Tangent{X,<:NamedTuple{(:data,)}}) where {X}
+    SArray_rrule(::AbstractZero) = NoTangent(), NoTangent()
+    SArray_rrule(Δ::SArray{S}) = SArray_rrule(Tangent{X}(data=Δ.data))
+    SArray_rrule(Δ::SizedArray{S}) = SArray_rrule(Tangent{X}(data=Tuple(Δ.data)))
+    SArray_rrule(Δ::AbstractVector) = SArray_rrule(Tangent{X}(data=Tuple(Δ)))
+    SArray_rrule(Δ::Matrix) = SArray_rrule(Tangent{X}(data=Δ))
+    function SArray_rrule(Δ::Tangent{X,<:NamedTuple{(:data,)}}) where {X}
         _, Δnew_x = pb(backing(Δ))
         _, ΔT, Δx = convert_pb(Δnew_x)
         return ΔT, Δx
     end
-    return SArray{S, T, N, L}(x), SArray_pullback
+    return SArray{S, T, N, L}(x), SArray_rrule
 end
 
 function ChainRulesCore.rrule(::typeof(collect), x::X) where {S, T, N, L, X<:SArray{S, T, N, L}}
@@ -75,9 +75,9 @@ function ChainRulesCore.rrule(::typeof(time_exp), A, t::Real)
     return B, time_exp_rrule
 end
 
-function ChainRulesCore.rrule(::typeof(collect), x::F) where {F<:Fill}
+function ChainRulesCore.rrule(::Zygote.ZygoteRuleConfig, ::typeof(collect), x::F) where {F<:Fill}
     function collect_Fill_rrule(Δ)
-        return NoTangent(), Tangent{F}(value=reduce(accum, Δ), axes=NoTangent())
+        return NoTangent(), Tangent{F}(value=reduce(Zygote.accum, Δ), axes=NoTangent())
     end
     return collect(x), collect_Fill_rrule
 end
@@ -129,16 +129,16 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_ma
     return Fill(y_el, size(x1)), _map_Fill_rrule
 end
 
-function ChainRulesCore.rrule(::typeof(Base.getindex), x::Fill, n::Int)
-    function getindex_FillArray_pullback(Δ)
-        return NoTangent(), (value = Δ, axes = NoTangent()), ZeroTangent()
+function ChainRulesCore.rrule(::typeof(Base.getindex), x::F, n::Int) where {F<:Fill}
+    function getindex_FillArray_rrule(Δ)
+        return NoTangent(), Tangent{F}(value = Δ, axes = NoTangent()), NoTangent()
     end
-    return x[n], getindex_FillArray_pullback
+    return x[n], getindex_FillArray_rrule
 end
 
 function ChainRulesCore.rrule(::typeof(Base.getindex), x::SVector{1,1}, n::Int)
-    getindex_SArray_pullback(Δ) = NoTangent(), SVector{1}(Δ), ZeroTangent()
-    return x[n], getindex_SArray_pullback
+    getindex_SArray_rrule(Δ) = NoTangent(), SVector{1}(Δ), ZeroTangent()
+    return x[n], getindex_SArray_rrule
 end
 
 #
