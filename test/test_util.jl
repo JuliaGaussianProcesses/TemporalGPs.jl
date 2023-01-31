@@ -1,6 +1,12 @@
-using ChainRulesCore: backing
+using BlockDiagonals
+using ChainRulesCore: backing, ZeroTangent, Tangent
 using ChainRulesTestUtils: rand_tangent
+using FiniteDifferences
+using LinearAlgebra
+using Random: AbstractRNG
+using StaticArrays
 using TemporalGPs:
+    AbstractLGSSM,
     Gaussian,
     harmonise,
     Forward,
@@ -15,6 +21,7 @@ using TemporalGPs:
     AbstractLGC,
     dim_out,
     dim_in
+using Zygote
 
 
 

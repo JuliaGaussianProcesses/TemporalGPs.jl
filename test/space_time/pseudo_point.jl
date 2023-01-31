@@ -1,13 +1,23 @@
+using AbstractGPs: AbstractGPs, dtc
+using KernelFunctions
+using Random: MersenneTwister
+using StructArrays
 using TemporalGPs:
+    TemporalGPs,
     dtc,
     dtcify,
     DTCSeparable,
     RectilinearGrid,
     RegularInTime,
+    RegularSpacing,
+    to_sde,
     get_times,
     get_space,
     Separable,
     approx_posterior_marginals
+using Test
+include("../test_util.jl")
+include("../models/model_test_utils.jl")
 
 @testset "pseudo_point" begin
 
@@ -64,8 +74,6 @@ using TemporalGPs:
 
     @testset "kernel=$(k.name), x=$(x.name)" for k in kernels, x in xs
 
-
-
         # Compute pseudo-input locations. These have to share time points with `x`.
         t = get_times(x.val)
         z = RectilinearGrid(z_r, t)
@@ -88,11 +96,11 @@ using TemporalGPs:
         validate_dims(lgssm)
 
         # The two approaches to DTC computation should be equivalent up to roundoff error.
-        dtc_naive = dtc(fx_naive, y, f_naive(z_naive))
+        dtc_naive = dtc(VFE(f_naive(z_naive)), fx_naive, y)
         dtc_sde = dtc(fx, y, z_r)
         @test dtc_naive ≈ dtc_sde rtol=1e-6
 
-        elbo_naive = elbo(fx_naive, y, f_naive(z_naive))
+        elbo_naive = elbo(VFE(f_naive(z_naive)), fx_naive, y)
         elbo_sde = elbo(fx, y, z_r)
         @test elbo_naive ≈ elbo_sde rtol=1e-6
 
@@ -104,7 +112,7 @@ using TemporalGPs:
         )
 
         # Compute approximate posterior marginals naively.
-        f_approx_post_naive = approx_posterior(VFE(), fx_naive, y, f_naive(z_naive))
+        f_approx_post_naive = posterior(VFE(f_naive(z_naive)), fx_naive, y)
         x_pr = RectilinearGrid(x_pr_r, get_times(x.val))
         naive_approx_post_marginals = marginals(f_approx_post_naive(collect(x_pr)))
 

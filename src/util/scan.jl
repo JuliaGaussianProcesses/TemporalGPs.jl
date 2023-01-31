@@ -27,7 +27,7 @@ function scan_emit(f, xs, state, idx)
     return (ys, state)
 end
 
-function ChainRulesCore.rrule(config::RuleConfig, ::typeof(scan_emit), f, xs, init_state, idx)
+function rrule(config::RuleConfig, ::typeof(scan_emit), f, xs, init_state, idx)
     state = init_state
     (y, state) = f(state, _getindex(xs, idx[1]))
 

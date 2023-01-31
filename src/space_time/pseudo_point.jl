@@ -50,7 +50,7 @@ WARNING: this API is unstable, and subject to change in future versions of Tempo
 was thrown together quickly in pursuit of a conference deadline, and has yet to receive the
 attention it deserves.
 """
-function dtc(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
+function AbstractGPs.dtc(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
     return logpdf(dtcify(z_r, fx), y)
 end
 

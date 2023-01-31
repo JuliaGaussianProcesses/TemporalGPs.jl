@@ -1,5 +1,12 @@
+using ChainRulesTestUtils: ChainRulesTestUtils, rand_tangent
+using FillArrays
+using Random: AbstractRNG
 using TemporalGPs:
+    ArrayStorage,
+    SArrayStorage,
     GaussMarkovModel,
+    Forward,
+    Reverse,
     dim,
     LGSSM,
     Gaussian,
@@ -11,7 +18,7 @@ using TemporalGPs:
     ScalarOutputLGC,
     LargeOutputLGC,
     BottleneckLGC
-using ChainRulesTestUtils: rand_tangent
+
 
 
 

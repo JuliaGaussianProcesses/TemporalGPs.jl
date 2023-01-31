@@ -3,6 +3,7 @@ module TemporalGPs
     using AbstractGPs
     using BlockDiagonals
     using ChainRulesCore
+    import ChainRulesCore: rrule
     using FillArrays
     using LinearAlgebra
     using KernelFunctions
