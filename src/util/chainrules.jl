@@ -2,7 +2,7 @@
 # safely ignored.
 
 using Zygote: accum, AContext
-import ChainRulesCore: ProjectTo
+import ChainRulesCore: ProjectTo, rrule
 
 # This context doesn't allow any globals.
 struct NoContext <: Zygote.AContext end
@@ -24,14 +24,14 @@ Zygote.accum(a::SArray{size, T}, b::SArray{size, T}) where {size, T<:Real} = a +
 
 Zygote.accum(a::Tuple, b::Tuple, c::Tuple) = map(Zygote.accum, a, b, c)
 
-function ChainRulesCore.rrule(::RuleConfig{>:HasReverseMode}, ::Type{SArray{S, T, N, L}}, x::NTuple{L, T}) where {S, T, N, L}
+function rrule(::RuleConfig{>:HasReverseMode}, ::Type{SArray{S, T, N, L}}, x::NTuple{L, T}) where {S, T, N, L}
     SArray_rrule(::AbstractZero) = NoTangent(), NoTangent()
     SArray_rrule(Δ::NamedTuple{(:data,)}) = NoTangent(), Δ.data
     SArray_rrule(Δ::StaticArray{S}) = NoTangent(), Δ.data
     return SArray{S, T, N, L}(x), SArray_rrule
 end
 
-function ChainRulesCore.rrule(
+function rrule(
     config::RuleConfig{>:HasReverseMode}, ::Type{X}, x::NTuple{L, Any},
 ) where {S, T, N, L, X <: SArray{S, T, N, L}}
     new_x, convert_pb = rrule_via_ad(config, StaticArrays.convert_ntuple, T, x)
@@ -49,12 +49,14 @@ function ChainRulesCore.rrule(
     return SArray{S, T, N, L}(x), SArray_rrule
 end
 
-function ChainRulesCore.rrule(::typeof(collect), x::X) where {S, T, N, L, X<:SArray{S, T, N, L}}
-    collect_rrule(Δ) = NoTangent(), Tangent{X}(data = ntuple(i -> Δ[i], Val(L)))
-    return collect(x), collect_rrule
+function rrule(::typeof(collect), x::X) where {S, T, N, L, X<:SArray{S, T, N, L}}
+    y = collect(x)
+    proj = ProjectTo(y)
+    collect_rrule(Δ) = NoTangent(),  proj(Δ)
+    return y, collect_rrule
 end
 
-function ChainRulesCore.rrule(::typeof(vcat), A::SVector{DA}, B::SVector{DB}) where {DA, DB}
+function rrule(::typeof(vcat), A::SVector{DA}, B::SVector{DB}) where {DA, DB}
     function vcat_rrule(Δ)  # SVector
         ΔA = Δ[SVector{DA}(1:DA)]
         ΔB = Δ[SVector{DB}((DA+1):(DA+DB))]
@@ -70,7 +72,7 @@ end
 # latter is very cheap.
 
 time_exp(A, t) = exp(A * t)
-function ChainRulesCore.rrule(::typeof(time_exp), A, t::Real)
+function rrule(::typeof(time_exp), A, t::Real)
     B = exp(A * t)
     time_exp_rrule(Ω̄) = NoTangent(), NoTangent(), sum(Ω̄ .*  (A * B))
     return B, time_exp_rrule
@@ -89,7 +91,7 @@ differentiation represent the variation of this one number.
 The exception is those like `Ones` and `Zeros` whose type fixes their value,
 which have no graidient.
 """
-ProjectTo(x::Fill{<:Number}) = ProjectTo{Fill}(; element = ProjectTo(getindex_value(x)), axes = axes(x))
+ProjectTo(x::Fill{<:Number}) = ProjectTo{Fill}(; element = ProjectTo(FillArrays.getindex_value(x)), axes = axes(x))
 
 ProjectTo(x::AbstractFill{Bool}) = ProjectTo{NoTangent}()  # Bool is always regarded as categorical
 
@@ -116,7 +118,21 @@ function _projection_mismatch(axes_x::Tuple, size_dx::Tuple)
     DimensionMismatch("variable with size(x) == $size_x cannot have a gradient with size(dx) == $size_dx")
 end
 
-function ChainRulesCore.rrule(::typeof(step), x::T) where {T<:StepRangeLen}
+function rrule(::typeof(Base.collect), x::Fill)
+    y = collect(x)
+    proj = ProjectTo(y)
+    function collect_rrule(Δ)
+        @show Δ
+        NoTangent(), proj(Δ)
+    end
+    return y, collect_rrule
+end
+
+
+### Same thing for `StructArray`
+
+
+function rrule(::typeof(step), x::T) where {T<:StepRangeLen}
     function step_StepRangeLen_rrule(Δ)
         return NoTangent(), Tangent{T}(step=Δ)
     end
@@ -126,7 +142,7 @@ end
 # We have an alternative map to avoid Zygote untouchable specialisation on map.
 _map(f, args...) = map(f, args...)
 
-function ChainRulesCore.rrule(::typeof(Base.getindex), x::SVector{1,1}, n::Int)
+function rrule(::typeof(Base.getindex), x::SVector{1,1}, n::Int)
     getindex_SArray_rrule(Δ) = NoTangent(), SVector{1}(Δ), NoTangent()
     return x[n], getindex_SArray_rrule
 end
@@ -165,7 +181,7 @@ function cholesky_rrule(S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
     return C, cholesky_pullback
 end
 
-function ChainRulesCore.rrule(::typeof(cholesky), S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
+function rrule(::typeof(cholesky), S::Symmetric{<:Real, <:StaticMatrix{N, N}}) where {N}
     return cholesky_rrule(S)
 end
 
@@ -283,39 +299,48 @@ end
 #   Zygote._pullback(cx, Zygote.literal_getindex, x, Val(f))
 
 
-# function Zygote._pullback(
-#     ::AContext,
-#     T::Type{<:StructArray{T, N, C} where {T, N, C<:NamedTuple}},
-#     x::Union{Tuple, NamedTuple},
-# )
-#     function StructArray_pullback(Δ::NamedTuple{(:components, )})
-#         @show typeof(x), typeof(Δ.components)
-#         return (nothing, Δ.components)
-#     end
-#     return T(x), StructArray_pullback
-# end
+ProjectTo(sa::StructArray{T}) where {T} = ProjectTo{StructArray{T}}(;axes=axes(sa))
 
-function ChainRulesCore.rrule(T::Type{<:StructArray}, x::Union{Tuple,NamedTuple})
-    function StructArray_rrule(Δ::AbstractArray)
-        return NoTangent(), StructArray(backing.(Δ))
+function (project::ProjectTo{StructArray{T}})(dx::AbstractArray{Y}) where {T,Y<:Union{T,Tangent{T}}}
+    fields = fieldnames(T)
+    components = ntuple(length(fields)) do i
+        getfield.(dx, fields[i])
     end
-    function StructArray_rrule(Δ::Tangent)
-        @info "Tangent branch"
-        return NoTangent(), StructArray(backing(Δ.components))
-    end
-    return T(x), StructArray_rrule
+    StructArray{T}(backing.(components))
 end
+(proj::ProjectTo{StructArray{T}})(dx::Tangent{<:StructArray{T}}) where {T} = begin 
+    StructArray{T}(backing(dx.components))
+end
+function (project::ProjectTo{StructArray{T}})(dx::StructArray{Y}) where {T,Y<:Union{T,Tangent{T}}}
+    StructArray{T}(StructArrays.components(backing.(dx)))
+end
+
+function rrule(::Type{StructArray}, x::T) where {T<:Union{Tuple,NamedTuple}}
+    y = StructArray(x)
+    function StructArray_rrule(Δ)
+        return NoTangent(), Tangent{T}(StructArrays.components(backing.(Δ))...)
+    end
+    return y, StructArray_rrule
+end
+function rrule(::Type{StructArray{X}}, x::T) where {X,T<:Union{Tuple,NamedTuple}}
+    y = StructArray{X}(x)
+    function StructArray_rrule(Δ)
+        return NoTangent(), Tangent{T}(StructArrays.components(backing.(Δ))...)
+    end
+    return y, StructArray_rrule
+end
+
 
 # `getproperty` accesses the `components` field of a `StructArray`. This rule makes that
 # explicit. 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(Zygote.literal_getproperty), x::StructArray, ::Val{p},
-) where {p}
-    value, pb = rrule_via_ad(config, Zygote.literal_getproperty, getfield(x, :components), Val(p))
-    function literal_getproperty_pullback(Δ)
-        return NoTangent(), Tangent{typeof(x)}(components=pb(Δ)[2]), NoTangent()
-    end
-    return value, literal_getproperty_pullback
-end
+# function rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(Base.getproperty), x::StructArray, ::Val{p},
+# ) where {p}
+#     value, pb = rrule_via_ad(config, Base.getproperty, StructArrays.components(x), Val(p))
+#     function getproperty_rrule(Δ)
+#         return NoTangent(), Tangent{typeof(x)}(components=pb(Δ)[2]), NoTangent()
+#     end
+#     return value, getproperty_rrule
+# end
 
 function time_ad(label::String, f, x...)
     println("primal: ", label)

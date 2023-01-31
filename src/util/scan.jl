@@ -186,7 +186,7 @@ end
 
 function get_adjoint_storage(x::StructArray, n::Int, Δx::Tangent)
     init_arrays = map(
-        (x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), getfield(x, :components), backing(Δx),
+        (x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), getfield(x, :components), ChainRulesCore.backing(Δx),
     )
     return (components = init_arrays, )
 end

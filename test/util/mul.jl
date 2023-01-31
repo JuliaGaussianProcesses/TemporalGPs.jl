@@ -1,3 +1,6 @@
+using Random: MersenneTwister
+using LinearAlgebra: mul!
+
 @testset "mul" begin
     rng = MersenneTwister(123456)
     P = 50

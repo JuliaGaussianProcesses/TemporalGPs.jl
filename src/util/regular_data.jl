@@ -25,7 +25,8 @@ Base.getindex(x::RegularSpacing, n::Int) = x.t0 + (n - 1) * x.Δt
 Base.step(x::RegularSpacing) = x.Δt
 
 function ChainRulesCore.rrule(::Type{TR}, t0::T, Δt::T, N::Int) where {TR<:RegularSpacing, T<:Real}
-    function RegularSpacing_rrule(Δ::Tangent)
+    function RegularSpacing_rrule(Δ)
+        Δ = unthunk(Δ)
         return NoTangent(), Δ.t0, Δ.Δt, NoTangent()
     end
     return RegularSpacing(t0, Δt, N), RegularSpacing_rrule

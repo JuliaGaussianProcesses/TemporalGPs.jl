@@ -1,3 +1,6 @@
+using FiniteDifferences
+using Zygote
+
 function FiniteDifferences.to_vec(x::RegularSpacing)
     function from_vec_RegularSpacing(x_vec)
         return RegularSpacing(x_vec[1], x_vec[2], x.N)
@@ -25,6 +28,6 @@ end
         Δ_Δt = randn()
         @test back((t0 = Δ_t0, Δt = Δ_Δt, N=nothing)) == (Δ_t0, Δ_Δt, nothing)
 
-        adjoint_test((t0, Δt) -> RegularSpacing(t0, Δt, 10), (randn(), randn()))
+        test_rrule(RegularSpacing, randn(), rand(), 10; output_tangent=Tangent{RegularSpacing}(Δt=0.1, t0=0.2))
     end
 end
