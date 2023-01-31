@@ -1,3 +1,4 @@
+using AbstractGPs
 using BlockDiagonals
 using ChainRulesCore: backing, ZeroTangent, Tangent
 using ChainRulesTestUtils: rand_tangent
@@ -35,7 +36,7 @@ check_zygote_grad(f, args...) = test_rrule(Zygote.ZygoteRuleConfig(), f, args...
 function to_vec(x::Fill)
     x_vec, back_vec = to_vec(FillArrays.getindex_value(x))
     function Fill_from_vec(x_vec)
-        return Fill(back_vec(x_vec), length(x))
+        return Fill(back_vec(x_vec), axes(x))
     end
     return x_vec, Fill_from_vec
 end

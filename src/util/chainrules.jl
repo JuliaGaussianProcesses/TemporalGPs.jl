@@ -107,11 +107,14 @@ end
 
 function (project::ProjectTo{Fill})(dx::Tangent{<:Fill})
     # This would need a definition for length(::NoTangent) to be safe:
-    # for d in 1:max(length(dx.axes), length(project.axes))
-    #     length(get(dx.axes, d, 1)) == length(get(project.axes, d, 1)) || throw(_projection_mismatch(dx.axes, size(dx)))
-    # end
+    for d in 1:max(length(dx.axes), length(project.axes))
+        length(get(dx.axes, d, 1)) == length(get(project.axes, d, 1)) || throw(_projection_mismatch(dx.axes, size(dx)))
+    end
     Fill(dx.value / prod(length, project.axes), project.axes)
 end
+
+# We have an alternative map to avoid Zygote untouchable specialisation on map.
+_map(f, args...) = map(f, args...) 
 
 function _projection_mismatch(axes_x::Tuple, size_dx::Tuple)
     size_x = map(length, axes_x)
@@ -120,14 +123,22 @@ end
 
 function rrule(::typeof(Base.collect), x::Fill)
     y = collect(x)
-    proj = ProjectTo(y)
+    # proj = ProjectTo(y)
     function collect_rrule(Δ)
-        @show Δ
         NoTangent(), proj(Δ)
     end
     return y, collect_rrule
 end
 
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f::Tf, x::F) where {Tf,F<:Fill}
+    y_el, back = ChainRulesCore.rrule_via_ad(config, f, x.value)
+    function _map_Fill_rrule(Δ)
+        Δf, Δx_el = back(Δ.value)
+        return NoTangent(), Δf, Tangent{F}(value = Δx_el, axes = NoTangent())
+    end
+    return Fill(y_el, size(x)), _map_Fill_rrule
+end
 
 ### Same thing for `StructArray`
 
@@ -139,8 +150,7 @@ function rrule(::typeof(step), x::T) where {T<:StepRangeLen}
     return step(x), step_StepRangeLen_rrule
 end
 
-# We have an alternative map to avoid Zygote untouchable specialisation on map.
-_map(f, args...) = map(f, args...)
+
 
 function rrule(::typeof(Base.getindex), x::SVector{1,1}, n::Int)
     getindex_SArray_rrule(Δ) = NoTangent(), SVector{1}(Δ), NoTangent()
@@ -326,6 +336,9 @@ function rrule(::Type{StructArray{X}}, x::T) where {X,T<:Union{Tuple,NamedTuple}
     y = StructArray{X}(x)
     function StructArray_rrule(Δ)
         return NoTangent(), Tangent{T}(StructArrays.components(backing.(Δ))...)
+    end
+    function StructArray_rrule(Δ::Tangent)
+        return NoTangent(), Tangent{T}(Δ.components...)
     end
     return y, StructArray_rrule
 end

@@ -9,6 +9,8 @@ using TemporalGPs: time_exp, _map, Gaussian
 using FillArrays
 using StructArrays
 using Zygote: ZygoteRuleConfig
+include("../test_util.jl")
+
 @testset "chainrules" begin
     @testset "StaticArrays" begin
         @testset "SArray constructor" begin
@@ -62,7 +64,7 @@ using Zygote: ZygoteRuleConfig
     end
     @testset "map(f, x::Fill)" begin
         x = Fill(randn(3, 4), 4)
-        # test_rrule(_map, sum, x)
+        test_rrule(_map, sum, x ⊢ Tangent{typeof(x)}(value=randn(3, 4), axes=NoTangent()))
         # test_rrule(_map, x->map(sin, x), x; check_inferred=false)
         a = 2.0
         # test_rrule(_map, x -> a * x, x; check_inferred=false)
