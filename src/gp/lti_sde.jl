@@ -135,7 +135,7 @@ function lgssm_components(
     Qs = _map(A -> Symmetric(P) - A * Symmetric(P) * A', As)
     Hs = Fill(H, length(As))
     hs = Fill(zero(T), length(As))
-    emission_projections = (@showgrad(Hs), hs)
+    emission_projections = (Hs, hs)
 
     return As, as, Qs, emission_projections, x0
 end
