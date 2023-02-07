@@ -165,12 +165,12 @@ end
 # Fallback definitions for most base kernels.
 function to_sde(k::SimpleKernel, ::ArrayStorage{T}) where {T<:Real}
     F, q, H = to_sde(k, SArrayStorage(T))
-    return F, q, H
+    return collect(F), collect(q), collect(H)
 end
 
 function stationary_distribution(k::SimpleKernel, ::ArrayStorage{T}) where {T<:Real}
     x = stationary_distribution(k, SArrayStorage(T))
-    return Gaussian(x.m, x.P)
+    return Gaussian(collect(x.m), collect(x.P))
 end
 
 # Matern-1/2
@@ -339,12 +339,13 @@ function blk_diag(A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T}
 end
 
 function ChainRulesCore.rrule(::typeof(blk_diag), A, B)
-    function blk_diag_adjoint(Δ)
+    blk_diag_rrule(Δ::AbstractThunk) = blk_diag_rrule(unthunk(Δ))
+    function blk_diag_rrule(Δ)
         ΔA = Δ[1:size(A, 1), 1:size(A, 2)]
         ΔB = Δ[size(A, 1)+1:end, size(A, 2)+1:end]
         return NoTangent(), ΔA, ΔB
     end
-    return blk_diag(A, B), blk_diag_adjoint
+    return blk_diag(A, B), blk_diag_rrule
 end
 
 function blk_diag(A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T}
@@ -354,7 +355,7 @@ function blk_diag(A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T
 end
 
 function ChainRulesCore.rrule(::typeof(blk_diag), A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T}
-    function blk_diag_adjoint(Δ::SMatrix)
+    function blk_diag_adjoint(Δ)
         ΔA = Δ[SVector{DA}(1:DA), SVector{DA}(1:DA)]
         ΔB = Δ[SVector{DB}((DA+1):(DA+DB)), SVector{DB}((DA+1):(DA+DB))]
         return NoTangent(), ΔA, ΔB

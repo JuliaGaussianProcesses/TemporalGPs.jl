@@ -16,8 +16,8 @@ println("lti_sde:")
     @testset "blk_diag" begin
         A = randn(2, 2)
         B = randn(3, 3)
-        adjoint_test(TemporalGPs.blk_diag, (A, B))
-        adjoint_test(TemporalGPs.blk_diag, (SMatrix{2, 2}(A), SMatrix{3, 3}(B)))
+        test_rrule(TemporalGPs.blk_diag, A, B; check_inferred=false)
+        test_rrule(TemporalGPs.blk_diag, SMatrix{2, 2}(A), SMatrix{3, 3}(B))
     end
 
     @testset "SimpleKernel parameter types" begin
@@ -29,7 +29,12 @@ println("lti_sde:")
             # (name="static storage Float32", val=SArrayStorage(Float32)),
         )
 
-        kernels = [Matern12Kernel(), Matern32Kernel(), Matern52Kernel(), ConstantKernel(c=1.5)]
+        kernels = [
+            Matern12Kernel(),
+            Matern32Kernel(),
+            Matern52Kernel(),
+            ConstantKernel(c=1.5),
+        ]
 
         @testset "$kernel, $(storage.name)" for kernel in kernels, storage in storages
             F, q, H = TemporalGPs.to_sde(kernel, storage.val)
