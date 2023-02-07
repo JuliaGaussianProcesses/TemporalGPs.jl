@@ -108,7 +108,7 @@ include("../models/model_test_utils.jl")
             (y, z_r) -> elbo(fx, y, z_r), (y, z_r);
             rtol=1e-7,
             context=Zygote.Context(),
-            check_infers=false,
+            check_inferred=false,
         )
 
         # Compute approximate posterior marginals naively.

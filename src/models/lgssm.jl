@@ -169,7 +169,7 @@ step_logpdf(x::Gaussian, (model, y)) = step_logpdf(ordering(model), x, (model, y
 function step_logpdf(::Forward, x::Gaussian, (model, y))
     xp = predict(x, transition_dynamics(model))
     xf, lml = posterior_and_lml(xp, emission_dynamics(model), y)
-    return lml, xf
+    return lml, @showgrad(xf)
 end
 
 function step_logpdf(::Reverse, x::Gaussian, (model, y))

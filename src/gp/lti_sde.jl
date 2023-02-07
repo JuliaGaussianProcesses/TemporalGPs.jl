@@ -126,7 +126,7 @@ function lgssm_components(
     # Compute stationary distribution and sde.
     x0 = stationary_distribution(k, storage)
     P = x0.P
-    F, q, H = to_sde(k, storage)
+    F, _, H = to_sde(k, storage)
 
     # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
     t = vcat([first(t) - 1], t)
@@ -135,7 +135,7 @@ function lgssm_components(
     Qs = _map(A -> Symmetric(P) - A * Symmetric(P) * A', As)
     Hs = Fill(H, length(As))
     hs = Fill(zero(T), length(As))
-    emission_projections = (Hs, hs)
+    emission_projections = (@showgrad(Hs), hs)
 
     return As, as, Qs, emission_projections, x0
 end
@@ -165,7 +165,7 @@ end
 # Fallback definitions for most base kernels.
 function to_sde(k::SimpleKernel, ::ArrayStorage{T}) where {T<:Real}
     F, q, H = to_sde(k, SArrayStorage(T))
-    return collect(F), collect(q), collect(H)
+    return collect(F), q, collect(H)
 end
 
 function stationary_distribution(k::SimpleKernel, ::ArrayStorage{T}) where {T<:Real}

@@ -3,6 +3,7 @@ using BlockDiagonals
 using ChainRulesCore: backing, ZeroTangent, Tangent
 using ChainRulesTestUtils: rand_tangent
 using FiniteDifferences
+using FillArrays
 using LinearAlgebra
 using Random: AbstractRNG
 using StaticArrays
@@ -31,7 +32,7 @@ using Zygote
 
 import FiniteDifferences: to_vec
 
-test_zygote_grad(f, args...; check_inferred=false) = test_rrule(Zygote.ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred) 
+test_zygote_grad(f, args...; check_inferred=false, kwargs...) = test_rrule(Zygote.ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred, kwargs...) 
 
 function to_vec(x::Fill)
     x_vec, back_vec = to_vec(FillArrays.getindex_value(x))
@@ -297,7 +298,7 @@ function adjoint_test(
     atol=1e-6,
     fdm=central_fdm(5, 1; max_range=1e-3),
     test=true,
-    check_infers=TEST_TYPE_INFER,
+    check_inferred=TEST_TYPE_INFER,
     context=Context(),
     kwargs...,
 )
@@ -305,7 +306,7 @@ function adjoint_test(
     y, pb = Zygote.pullback(f, x...)
 
     # Check type inference if requested.
-    if check_infers
+    if check_inferred
         # @descend only works if you `using Cthulhu`.
         # @descend Zygote._pullback(context, f, x...)
         # @descend pb(ȳ)
@@ -431,7 +432,7 @@ end
 
 function test_interface(
     rng::AbstractRNG, conditional::AbstractLGC, x::Gaussian;
-    check_infers=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, kwargs...,
+    check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, kwargs...,
 )
     x_val = rand(rng, x)
     y = conditional_rand(rng, conditional, x_val)
@@ -439,11 +440,11 @@ function test_interface(
     @testset "rand" begin
         @test length(y) == dim_out(conditional)
         args = (TemporalGPs.ε_randn(rng, conditional), conditional, x_val)
-        check_infers && @inferred conditional_rand(args...)
+        check_inferred && @inferred conditional_rand(args...)
         if check_adjoints
             adjoint_test(
                 conditional_rand, args;
-                check_infers, kwargs...,
+                check_inferred, kwargs...,
             )
         end
         if check_allocs
@@ -453,7 +454,7 @@ function test_interface(
 
     @testset "predict" begin
         @test predict(x, conditional) isa Gaussian
-        check_infers && @inferred predict(x, conditional)
+        check_inferred && @inferred predict(x, conditional)
         check_adjoints && adjoint_test(predict, (x, conditional); kwargs...)
         check_allocs && check_adjoint_allocations(predict, (x, conditional); kwargs...)
     end
@@ -470,7 +471,7 @@ function test_interface(
     @testset "posterior_and_lml" begin
         args = (x, conditional, y)
         @test posterior_and_lml(args...) isa Tuple{Gaussian, Real}
-        check_infers && @inferred posterior_and_lml(args...)
+        check_inferred && @inferred posterior_and_lml(args...)
         if check_adjoints
             (Δx, Δlml) = rand_zygote_tangent(posterior_and_lml(args...))
             ∂args = map(rand_tangent, args)
@@ -492,7 +493,7 @@ end
 """
     test_interface(
         rng::AbstractRNG, ssm::AbstractLGSSM;
-        check_infers=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, kwargs...
+        check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, kwargs...
     )
 
 Basic consistency tests that any LGSSM should be able to satisfy. The purpose of these tests
@@ -501,7 +502,7 @@ consistent and implements the required interface.
 """
 function test_interface(
     rng::AbstractRNG, ssm::AbstractLGSSM;
-    check_infers=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, kwargs...
+    check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, kwargs...
 )
     y_no_missing = rand(rng, ssm)
 
@@ -509,11 +510,11 @@ function test_interface(
         @test is_of_storage_type(y_no_missing[1], storage_type(ssm))
         @test y_no_missing isa AbstractVector
         @test length(y_no_missing) == length(ssm)
-        check_infers && @inferred rand(rng, ssm)
+        check_inferred && @inferred rand(rng, ssm)
         if check_adjoints
             adjoint_test(
                 ssm -> rand(MersenneTwister(123456), ssm), (ssm, );
-                check_infers, kwargs...,
+                check_inferred, kwargs...,
             )
         end
         if check_allocs
@@ -531,9 +532,9 @@ function test_interface(
         @test is_of_storage_type(xs, storage_type(ssm))
         @test xs isa AbstractVector{<:Gaussian}
         @test length(xs) == length(ssm)
-        check_infers && @inferred marginals(ssm)
+        check_inferred && @inferred marginals(ssm)
         if check_adjoints
-            adjoint_test(marginals, (ssm, ); check_infers, kwargs...)
+            test_zygote_grad(marginals, ssm; check_inferred, kwargs...)
         end
         if check_allocs
             check_adjoint_allocations(marginals, (ssm, ); kwargs...)
@@ -544,34 +545,34 @@ function test_interface(
         (name="no-missings", y=y_no_missing),
         # (name="with-missings", y=y_missing),
     ]
-        _check_infers = data.name == "with-missings" ? false : check_infers
+        _check_inferred = data.name == "with-missings" ? false : check_inferred
 
         y = data.y
         @testset "logpdf" begin
             lml = logpdf(ssm, y)
             @test lml isa Real
             @test is_of_storage_type(lml, storage_type(ssm))
-            _check_infers && @inferred logpdf(ssm, y)
+            _check_inferred && @inferred logpdf(ssm, y)
         end
         @testset "_filter" begin
             xs = _filter(ssm, y)
             @test is_of_storage_type(xs, storage_type(ssm))
             @test xs isa AbstractVector{<:Gaussian}
             @test length(xs) == length(ssm)
-            _check_infers && @inferred _filter(ssm, y)
+            _check_inferred && @inferred _filter(ssm, y)
         end
         @testset "posterior" begin
             posterior_ssm = posterior(ssm, y)
             @test length(posterior_ssm) == length(ssm)
             @test ordering(posterior_ssm) != ordering(ssm)
-            _check_infers && @inferred posterior(ssm, y)
+            _check_inferred && @inferred posterior(ssm, y)
         end
 
         # Hack to only run the AD tests if requested.
         @testset "adjoints" for _ in (check_adjoints ? [1] : [])
-            adjoint_test(logpdf, (ssm, y); check_infers=_check_infers, kwargs...)
-            adjoint_test(_filter, (ssm, y); check_infers=_check_infers, kwargs...)
-            adjoint_test(posterior, (ssm, y); check_infers=_check_infers, kwargs...)
+            adjoint_test(logpdf, (ssm, y); check_inferred=_check_inferred, kwargs...)
+            adjoint_test(_filter, (ssm, y); check_inferred=_check_inferred, kwargs...)
+            adjoint_test(posterior, (ssm, y); check_inferred=_check_inferred, kwargs...)
 
             if check_allocs
                 check_adjoint_allocations(logpdf, (ssm, y); kwargs...)

@@ -9,11 +9,11 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
     @testset "restructure" begin
         adjoint_test(
             x -> TemporalGPs.restructure(x, [26, 24, 20, 30]), (randn(100), );
-            check_infers=false,
+            check_inferred=false,
         )
         adjoint_test(
             x -> TemporalGPs.restructure(x, [26, 24, 20, 30]), (Fill(randn(), 100), );
-            check_infers=false,
+            check_inferred=false,
         )
     end
 
@@ -103,7 +103,7 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
         #     out, pb = Zygote._pullback(NoContext(), logpdf, ft_sde, y)
         #     pb(rand_zygote_tangent(out))
         # end
-        # # adjoint_test(logpdf, (ft_sde, y); fdm=central_fdm(2, 1), check_infers=false)
+        # # adjoint_test(logpdf, (ft_sde, y); fdm=central_fdm(2, 1), check_inferred=false)
 
         # if t.val isa RegularSpacing
         #     adjoint_test(
@@ -114,7 +114,7 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
         #             return logpdf(_ft, y)
         #         end,
         #         (r, t.val.Δt, y_sde);
-        #         check_infers=false,
+        #         check_inferred=false,
         #     )
         # end
     end

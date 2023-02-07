@@ -138,7 +138,7 @@ function posterior_and_lml(x::Gaussian, f::SmallOutputLGC, y::AbstractVector{<:R
     α = S.U' \ (y - (A * m + a))
 
     lml = -(length(y) * convert(scalar_type(y), log(2π)) + logdet(S) + α'α) / 2
-    return Gaussian(m + B'α, P - B'B), lml
+    return Gaussian(m + B'α, P - @showgrad(B')B), lml
 end
 
 function posterior_and_lml(

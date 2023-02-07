@@ -74,9 +74,9 @@ function rrule(config::RuleConfig, ::typeof(scan_emit), f, xs, init_state, idx)
             Δxs = _accum_at(Δxs, idx[1], Δx)
             return NoTangent(), NoTangent(), Δxs, Δstate, NoTangent()
         else
-            _, Δstate, Δx = step_pullback(
+            _, Δstate, Δx = @showgrad(step_pullback(
                 config, f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
-            )
+            ))
             Δxs = get_adjoint_storage(xs, idx[1], Δx)
             return NoTangent(), NoTangent(), Δxs, Δstate, NoTangent()
         end
@@ -86,7 +86,7 @@ end
 
 @inline function step_pullback(config::RuleConfig, f::Tf, state, x, Δy, Δstate) where {Tf}
     _, pb = rrule_via_ad(config, f, state, x)
-    return pb((Δy, Δstate))
+    return pb((@showgrad(Δy), Δstate))
 end
 
 # Helper functionality for constructing appropriate differentials.
@@ -132,7 +132,7 @@ end
 # end
 
 # Diagonal type constraint for the compiler's benefit.
-@inline function _accum_at(Δxs::Vector{T}, n::Int, Δx::T) where {T}
+@inline function _accum_at(Δxs::Vector{T}, n::Int, Δx) where {T}
     Δxs[n] = Δx
     return Δxs
 end

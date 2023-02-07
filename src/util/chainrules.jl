@@ -43,7 +43,7 @@ function rrule(
     SArray_rrule(Δ::Matrix) = SArray_rrule(Tangent{X}(data=Δ))
     function SArray_rrule(Δ::Tangent{X,<:NamedTuple{(:data,)}}) where {X}
         _, Δnew_x = pb(backing(Δ))
-        _, ΔT, Δx = convert_pb(Δnew_x)
+        _, ΔT, Δx = convert_pb(Tuple(Δnew_x))
         return ΔT, Δx
     end
     return SArray{S, T, N, L}(x), SArray_rrule
@@ -121,6 +121,11 @@ function _projection_mismatch(axes_x::Tuple, size_dx::Tuple)
     DimensionMismatch("variable with size(x) == $size_x cannot have a gradient with size(dx) == $size_dx")
 end
 
+function rrule(::Type{<:Fill}, x, sz)
+    Fill_rrule(Δ) = NoTangent(), Δ.value, NoTangent()
+    Fill(x, sz), Fill_rrule 
+end
+
 function rrule(::typeof(Base.collect), x::Fill)
     y = collect(x)
     proj = ProjectTo(x)
@@ -159,8 +164,6 @@ function rrule(::typeof(step), x::T) where {T<:StepRangeLen}
     end
     return step(x), step_StepRangeLen_rrule
 end
-
-
 
 function rrule(::typeof(Base.getindex), x::SVector{1,1}, n::Int)
     getindex_SArray_rrule(Δ) = NoTangent(), SVector{1}(Δ), NoTangent()
