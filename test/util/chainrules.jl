@@ -46,17 +46,17 @@ include("../test_util.jl")
             randn(1, 2),
             SMatrix{1, 2}(randn(1, 2)),
         ]
-            # test_rrule(ZygoteRuleConfig(), collect, Fill(x, P); rrule_f=rrule_via_ad, check_inferred=true)
-            # test_rrule(collect, Fill(x, P) ⊢ Tangent{typeof(x)}(value=x, axes=NoTangent()))
+            test_rrule(collect, Fill(x, P); check_inferred=true)
+            test_rrule(collect, Fill(x, P))
             # The test rule does not work due to inconsistencies of FiniteDifferencies for FillArrays
-            # test_rrule(collect, Fill(x, P, Q))
+            test_rrule(collect, Fill(x, P, Q))
         end
     end
 
     # The rrule is not even used...
     @testset "getindex(::Fill, ::Int)" begin
-        # X = Fill(randn(5, 3), 10)
-        # test_rrule(getindex, X, 3)
+        X = Fill(randn(5, 3), 10)
+        test_rrule(getindex, X, 3; check_inferred=false)
     end
     @testset "BlockDiagonal" begin
         X = map(N -> randn(N, N), [3, 4, 1])
@@ -64,23 +64,23 @@ include("../test_util.jl")
     end
     @testset "map(f, x::Fill)" begin
         x = Fill(randn(3, 4), 4)
-        test_rrule(_map, sum, x ⊢ Tangent{typeof(x)}(value=randn(3, 4), axes=NoTangent()))
-        # test_rrule(_map, x->map(sin, x), x; check_inferred=false)
-        a = 2.0
-        # test_rrule(_map, x -> a * x, x; check_inferred=false)
+        test_rrule(_map, sum, x; check_inferred=false)
+        test_rrule(_map, x->map(sin, x), x; check_inferred=false)
+        test_rrule(_map, x -> 2.0 * x, x; check_inferred=false)
+        test_rrule(ZygoteRuleConfig(), (x,a)-> _map(x -> x * a, x), x, 2.0; check_inferred=false, rrule_f=rrule_via_ad)
     end
     @testset "map(f, x1::Fill, x2::Fill)" begin
         x1 = Fill(randn(3, 4), 3)
         x2 = Fill(randn(3, 4), 3)
 
         @test _map(+, x1, x2) == _map(+, collect(x1), collect(x2))
-        # test_rrule(_map, +, x1, x2)
+        test_rrule(_map, +, x1, x2; check_inferred=true)
 
         fsin(x, y) = sin.(x .* y)
-        # test_rrule(_map, fsin, x1, x2; check_infers=false)
+        test_rrule(_map, fsin, x1, x2; check_inferred=false)
 
         foo(a, x1, x2) = _map((z1, z2) -> a * sin.(z1 .* z2), x1, x2)
-        # test_rrule(foo, randn(), x1, x2; check_infers=false)
+        test_rrule(ZygoteRuleConfig(), foo, randn(), x1, x2; check_inferred=false, rrule_f=rrule_via_ad)
     end
     # @testset "$N, $T" for N in [1, 2, 3], T in [Float32, Float64]
 

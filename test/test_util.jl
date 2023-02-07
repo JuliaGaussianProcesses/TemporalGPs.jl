@@ -31,7 +31,7 @@ using Zygote
 
 import FiniteDifferences: to_vec
 
-check_zygote_grad(f, args...) = test_rrule(Zygote.ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred=false) 
+test_zygote_grad(f, args...; check_inferred=false) = test_rrule(Zygote.ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred) 
 
 function to_vec(x::Fill)
     x_vec, back_vec = to_vec(FillArrays.getindex_value(x))

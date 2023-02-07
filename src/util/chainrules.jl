@@ -91,18 +91,18 @@ differentiation represent the variation of this one number.
 The exception is those like `Ones` and `Zeros` whose type fixes their value,
 which have no graidient.
 """
-ProjectTo(x::Fill{<:Number}) = ProjectTo{Fill}(; element = ProjectTo(FillArrays.getindex_value(x)), axes = axes(x))
+ProjectTo(x::Fill) = ProjectTo{Fill}(; element = ProjectTo(FillArrays.getindex_value(x)), axes = axes(x))
 
-ProjectTo(x::AbstractFill{Bool}) = ProjectTo{NoTangent}()  # Bool is always regarded as categorical
+ProjectTo(::AbstractFill{Bool}) = ProjectTo{NoTangent}()  # Bool is always regarded as categorical
 
-ProjectTo(x::Zeros) = ProjectTo{NoTangent}()
-ProjectTo(x::Ones) = ProjectTo{NoTangent}()
+ProjectTo(::Zeros) = ProjectTo{NoTangent}()
+ProjectTo(::Ones) = ProjectTo{NoTangent}()
 
+(project::ProjectTo{Fill})(x::Fill) = x
 function (project::ProjectTo{Fill})(dx::AbstractArray)
     for d in 1:max(ndims(dx), length(project.axes))
         size(dx, d) == length(get(project.axes, d, 1)) || throw(_projection_mismatch(axes_x, size(dx)))
     end
-    Fill(mean(dx), project.axes)  # Note that mean(dx::Fill) is optimised
 end
 
 function (project::ProjectTo{Fill})(dx::Tangent{<:Fill})
@@ -123,21 +123,31 @@ end
 
 function rrule(::typeof(Base.collect), x::Fill)
     y = collect(x)
-    # proj = ProjectTo(y)
-    function collect_rrule(Δ)
+    proj = ProjectTo(x)
+    function collect_Fill_rrule(Δ)
+        @show Δ, proj(Δ)
         NoTangent(), proj(Δ)
     end
-    return y, collect_rrule
+    return y, collect_Fill_rrule
 end
 
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f::Tf, x::F) where {Tf,F<:Fill}
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f, x::Fill)
     y_el, back = ChainRulesCore.rrule_via_ad(config, f, x.value)
     function _map_Fill_rrule(Δ)
-        Δf, Δx_el = back(Δ.value)
-        return NoTangent(), Δf, Tangent{F}(value = Δx_el, axes = NoTangent())
+        Δf, Δx_el = back(unthunk(Δ).value)
+        return NoTangent(), Δf, Fill(Δx_el, axes(x))
     end
-    return Fill(y_el, size(x)), _map_Fill_rrule
+    return Fill(y_el, axes(x)), _map_Fill_rrule
+end
+
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f, x::Fill, y::Fill)
+    z_el, back = ChainRulesCore.rrule_via_ad(config, f, x.value, y.value)
+    function _map_Fill_rrule(Δ)
+        Δf, Δx_el, Δy_el = back(unthunk(Δ).value)
+        return NoTangent(), Δf, Fill(Δx_el, axes(x)), Fill(Δy_el, axes(x))
+    end
+    return Fill(z_el, axes(x)), _map_Fill_rrule
 end
 
 ### Same thing for `StructArray`
