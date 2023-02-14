@@ -1,6 +1,6 @@
 using BenchmarkTools, BlockDiagonals, LinearAlgebra, Random, TemporalGPs
 
-rng = MersenneTwister(123456);
+rng = Xoshiro(123456);
 P = 50;
 Q = 150;
 

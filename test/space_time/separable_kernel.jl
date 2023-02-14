@@ -2,7 +2,7 @@ using Random
 using TemporalGPs: RectilinearGrid, Separable
 
 @testset "separable_kernel" begin
-    rng = MersenneTwister(123456)
+    rng = Xoshiro(123456)
 
     k = Separable(SEKernel(), Matern32Kernel())
     x0 = collect(RectilinearGrid(randn(rng, 2), randn(rng, 3)))

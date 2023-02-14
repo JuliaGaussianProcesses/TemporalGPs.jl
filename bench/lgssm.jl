@@ -122,7 +122,7 @@ let
         )
 
         # Build dynamics model.
-        rng = MersenneTwister(123456)
+        rng = Xoshiro(123456)
         ft = impl.dynamics_constructor(rng, N_space, N_time, N_blocks)
         y = rand(rng, ft)
 
@@ -288,7 +288,7 @@ end
 # Hacked together benchmarks for playing around.
 #
 
-rng = MersenneTwister(123456);
+rng = Xoshiro(123456);
 Ts = [1, 10, 100, 1_000];
 N_space = 500;
 N_blocks = 1;
@@ -306,7 +306,7 @@ using Profile, ProfileView
 
 
 # Test simple things quickly.
-rng = MersenneTwister(123456);
+rng = Xoshiro(123456);
 T = 1_000_000;
 x = range(0.0; step=0.3, length=T);
 f = GP(Matern52Kernel() + Matern52Kernel() + Matern52Kernel() + Matern52Kernel(), GPC());

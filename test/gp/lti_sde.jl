@@ -50,7 +50,7 @@ println("lti_sde:")
     end
 
     @testset "lgssm_components" begin
-        rng = MersenneTwister(123456)
+        rng = Xoshiro(123456)
         N = 13
 
         kernels = vcat(

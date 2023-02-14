@@ -1,5 +1,5 @@
 @testset "posterior_lti_sde" begin
-    rng = MersenneTwister(123456)
+    rng = Xoshiro(123456)
     N = 13
     Npr = 15
 

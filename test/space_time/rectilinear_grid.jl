@@ -11,7 +11,7 @@ function FiniteDifferences.to_vec(x::RectilinearGrid)
 end
 
 @testset "rectilinear_grid" begin
-    rng = MersenneTwister(123456)
+    rng = Xoshiro(123456)
     Nl = 5
     Nr = 3
     xl = randn(rng, Nl)

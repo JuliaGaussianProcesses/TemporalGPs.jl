@@ -21,7 +21,7 @@ println("gauss_markov:")
         N in Ns,
         storage in storages
 
-        rng = MersenneTwister(123456)
+        rng = Xoshiro(123456)
         gmm = tv == true ?
             random_tv_gmm(rng, Forward(), Dlat, N, storage.val) :
             random_ti_gmm(rng, Forward(), Dlat, N, storage.val)

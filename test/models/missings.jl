@@ -9,7 +9,7 @@ include("../test_util.jl")
 println("missings:")
 @testset "missings" begin
 
-    rng = MersenneTwister(123456)
+    rng = Xoshiro(123456)
 
     storages = (
         dense=(name="dense storage Float64", val=ArrayStorage(Float64)),

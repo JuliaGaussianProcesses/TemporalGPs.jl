@@ -5,8 +5,10 @@ using ChainRulesTestUtils: rand_tangent
 using FiniteDifferences
 using FillArrays
 using LinearAlgebra
-using Random: AbstractRNG
+using Random: AbstractRNG, Xoshiro
 using StaticArrays
+using StructArrays
+using TemporalGPs
 using TemporalGPs:
     AbstractLGSSM,
     Gaussian,
@@ -442,8 +444,8 @@ function test_interface(
         args = (TemporalGPs.ε_randn(rng, conditional), conditional, x_val)
         check_inferred && @inferred conditional_rand(args...)
         if check_adjoints
-            adjoint_test(
-                conditional_rand, args;
+            test_zygote_grad(
+                conditional_rand, args...;
                 check_inferred, kwargs...,
             )
         end
@@ -513,7 +515,7 @@ function test_interface(
         check_inferred && @inferred rand(rng, ssm)
         if check_adjoints
             adjoint_test(
-                ssm -> rand(MersenneTwister(123456), ssm), (ssm, );
+                ssm -> rand(Xoshiro(123456), ssm), (ssm, );
                 check_inferred, kwargs...,
             )
         end

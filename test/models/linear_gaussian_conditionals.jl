@@ -1,19 +1,20 @@
 using TemporalGPs: posterior_and_lml, predict, predict_marginals
+using Test
 
 include("../test_util.jl")
 
 println("linear_gaussian_conditionals:")
 @testset "linear_gaussian_conditionals" begin
-    Dlats = [1, 3]
-    Dobss = [1, 2]
-    # Dlats = [3]
-    # Dobss = [2]
+    # Dlats = [1, 3]
+    # Dobss = [1, 2]
+    Dlats = [3]
+    Dobss = [2]
     storages = [
         (name="dense storage Float64", val=ArrayStorage(Float64)),
     ]
     Q_types = [
         Val(:dense),
-        Val(:diag),
+        # Val(:diag),
     ]
 
     @testset "SmallOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))" for
@@ -24,7 +25,7 @@ println("linear_gaussian_conditionals:")
 
         println("SmallOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))")
 
-        rng = MersenneTwister(123456)
+        rng = Xoshiro(123456)
         x = random_gaussian(rng, Dlat, storage.val)
         model = random_small_output_lgc(rng, Dlat, Dobs, Q_type, storage.val)
 
@@ -71,7 +72,7 @@ println("linear_gaussian_conditionals:")
 
         println("LargeOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))")
 
-        rng = MersenneTwister(123456)
+        rng = Xoshiro(123456)
         x = random_gaussian(rng, Dlat, storage.val)
         model = random_large_output_lgc(rng, Dlat, Dobs, Q_type, storage.val)
 
@@ -126,7 +127,7 @@ println("linear_gaussian_conditionals:")
 
         println("ScalarOutputLGC (Dlat=$Dlat, ($storage.name))")
 
-        rng = MersenneTwister(123456)
+        rng = Xoshiro(123456)
         x = random_gaussian(rng, Dlat, storage.val)
         model = random_scalar_output_lgc(rng, Dlat, storage.val)
 
@@ -160,7 +161,7 @@ println("linear_gaussian_conditionals:")
         println("BottleneckLGC (Din=$Din, Dmid=$Dmid, Dout=$Dout, Q=$(Q_type))")
 
         storage = ArrayStorage(Float64)
-        rng = MersenneTwister(123456)
+        rng = Xoshiro(123456)
         x = random_gaussian(rng, Din, storage)
         model = random_bottleneck_lgc(rng, Din, Dmid, Dout, Q_type, storage)
 

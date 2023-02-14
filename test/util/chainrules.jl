@@ -84,7 +84,7 @@ include("../test_util.jl")
     end
     # @testset "$N, $T" for N in [1, 2, 3], T in [Float32, Float64]
 
-    #     rng = MersenneTwister(123456)
+    #     rng = Xoshiro(123456)
 
     #     # Do dense stuff.
     #     S_ = randn(rng, T, N, N)

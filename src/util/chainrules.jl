@@ -2,7 +2,7 @@
 # safely ignored.
 
 using Zygote: accum, AContext
-import ChainRulesCore: ProjectTo, rrule
+import ChainRulesCore: ProjectTo, rrule, _eltype_projectto
 
 # This context doesn't allow any globals.
 struct NoContext <: Zygote.AContext end
@@ -23,6 +23,20 @@ Zygote.accum(a::Array{T}, b::Array{T}) where {T<:Real} = a + b
 Zygote.accum(a::SArray{size, T}, b::SArray{size, T}) where {size, T<:Real} = a + b
 
 Zygote.accum(a::Tuple, b::Tuple, c::Tuple) = map(Zygote.accum, a, b, c)
+
+# ---------------------------------------------------------------------------- #
+#                                 StaticArrays                                 #
+# ---------------------------------------------------------------------------- #
+
+function ProjectTo(x::SArray{S,T}) where {S, T}
+    return ProjectTo{SArray}(; element=_eltype_projectto(T), axes=axes(x), static_size=S)
+end
+
+function rrule(::Type{T}, x::Tuple) where {T<:SArray}
+    project_x = ProjectTo(x)
+    SArray_pullback(ȳ) = (NoTangent(), project_x(ȳ))
+    return T(x), Array_pullback
+end
 
 function rrule(::RuleConfig{>:HasReverseMode}, ::Type{SArray{S, T, N, L}}, x::NTuple{L, T}) where {S, T, N, L}
     SArray_rrule(::AbstractZero) = NoTangent(), NoTangent()

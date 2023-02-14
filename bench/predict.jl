@@ -179,7 +179,7 @@ let
         )
 
         # Build dynamics model.
-        rng = MersenneTwister(123456)
+        rng = Xoshiro(123456)
         Δmp, ΔPp, mf, Pf, A, a, Q = impl.dynamics_constructor(rng, dim_lat, n_obs, n_blocks)
 
         # Generate pullback.
@@ -439,7 +439,7 @@ using BenchmarkTools, FillArrays, Kronecker, LinearAlgebra, Random, Stheno,
 
 using TemporalGPs: predict
 
-rng = MersenneTwister(123456);
+rng = Xoshiro(123456);
 D = 3;
 N = 247;
 
@@ -515,7 +515,7 @@ using TemporalGPs: predict
 
 
 
-rng = MersenneTwister(123456);
+rng = Xoshiro(123456);
 D = 3;
 N = 247;
 N_blocks = 3;
