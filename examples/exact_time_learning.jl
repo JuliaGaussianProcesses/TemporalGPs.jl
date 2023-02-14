@@ -47,7 +47,6 @@ function objective(params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
-only(Zygote.gradient(objective ∘ unpack, flat_initial_params))
 # Optimise using Optim. Zygote takes a little while to compile.
 training_results = Optim.optimize(
     objective ∘ unpack,
@@ -62,7 +61,7 @@ training_results = Optim.optimize(
 );
 
 # Extracting the final values of the parameters. Should be moderately close to truth.
-final_params = unpack(training_results.minimizer);
+final_params = unpack(training_results.minimizer)
 
 # Construct the posterior as per usual.
 f_final = build_gp(final_params)
@@ -86,6 +85,6 @@ if get(ENV, "TESTING", "FALSE") == "FALSE"
     plt = plot();
     scatter!(plt, x, y; label="", markersize=0.1, alpha=0.1);
     plot!(plt, f_post(x_pr); ribbon_scale=3.0, label="");
-    plot!(x_pr, f_post_samples; color=:red, label="");
+    plot!(plt, x_pr, f_post_samples; color=:red, label="");
     savefig(plt, "posterior.png");
 end
