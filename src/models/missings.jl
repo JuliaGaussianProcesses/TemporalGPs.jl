@@ -96,18 +96,16 @@ function ChainRulesCore.rrule(
     Σs::Vector,
     y::AbstractVector{Union{T, Missing}},
 ) where {T}
-    # pullback_fill_in_missings(::AbstractZero) = NoTangent(), NoTangent(), NoTangent()
-    function pullback_fill_in_missings(Δ::Tangent)
-        ΔΣs_filled_in = Δ[1]
-        Δy_filled_in = Δ[2]
+    function _fill_in_missings_rrule(Δ::Tangent)
+        ΔΣs, Δy_filled = Δ
 
         # The cotangent of a `Missing` doesn't make sense, so should be a `NoTangent`.
-        Δy = if Δy_filled_in isa AbstractZero
+        Δy = if Δy_filled isa AbstractZero
             ZeroTangent()
         else
-            Δy = Vector{Union{eltype(Δy_filled_in), ZeroTangent}}(undef, length(y))
+            Δy = Vector{Union{eltype(Δy_filled), ZeroTangent}}(undef, length(y))
             map!(
-                n -> y[n] === missing ? ZeroTangent() : Δy_filled_in[n],
+                n -> y[n] === missing ? ZeroTangent() : Δy_filled[n],
                 Δy, eachindex(y),
             )
             Δy
@@ -116,13 +114,13 @@ function ChainRulesCore.rrule(
         # Fill in missing locations with zeros. Opting for type-stability to keep things
         # simple.
         ΔΣs = map(
-            n -> y[n] === missing ? zero(Σs[n]) : ΔΣs_filled_in[n],
+            n -> y[n] === missing ? zero(Σs[n]) : ΔΣs[n],
             eachindex(y),
         )
 
         return NoTangent(), ΔΣs, Δy
     end
-    return fill_in_missings(Σs, y), pullback_fill_in_missings
+    return fill_in_missings(Σs, y), _fill_in_missings_rrule
 end
 
 get_zero(D::Int, ::Type{Vector{T}}) where {T} = zeros(T, D)

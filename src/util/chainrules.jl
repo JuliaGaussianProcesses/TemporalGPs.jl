@@ -32,6 +32,9 @@ function ProjectTo(x::SArray{S,T}) where {S, T}
     return ProjectTo{SArray}(; element=_eltype_projectto(T), axes=axes(x), static_size=S)
 end
 
+(proj::ProjectTo{SArray})(dx::SArray) = SArray{proj.static_size}(dx.data)
+(proj::ProjectTo{SArray})(dx::AbstractArray) = SArray{proj.static_size}(Tuple(dx))
+
 function rrule(::Type{T}, x::Tuple) where {T<:SArray}
     project_x = ProjectTo(x)
     SArray_pullback(ȳ) = (NoTangent(), project_x(ȳ))

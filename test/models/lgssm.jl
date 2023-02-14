@@ -13,7 +13,7 @@ using Zygote, StaticArrays
 println("lgssm:")
 @testset "lgssm" begin
 
-    rng = MersenneTwister(123456)
+    rng = Xoshiro(123456)
 
     storages = (
         dense=(name="dense storage Float64", val=ArrayStorage(Float64)),
