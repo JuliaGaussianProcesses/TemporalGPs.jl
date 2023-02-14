@@ -53,19 +53,6 @@ function to_vec(::Missing)
     return Bool[], Missing_from_vec
 end
 
-function to_vec(x::AbstractVector{Union{T,Missing}}) where {T}
-    missing_is = findall(ismissing, x)
-    nonmissing_is = findall(!ismissing, x)
-    x_vec, back_vec = to_vec(x[nonmissing_is])
-    function MissingVector_from_vec(x_vec)
-        back_x = similar(x)
-        back_x[nonmissing_is] = back_vec(x_vec)
-        back_x[missing_is] .= missing
-        return back_x
-    end
-    return x_vec, MissingVector_from_vec
-end
-
 # I'M OVERRIDING FINITEDIFFERENCES DEFINITION HERE. THIS IS BAD.
 function to_vec(x::Diagonal)
     v, diag_from_vec = to_vec(x.diag)
