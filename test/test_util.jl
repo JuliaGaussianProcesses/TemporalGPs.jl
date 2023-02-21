@@ -27,6 +27,7 @@ using TemporalGPs:
     dim_out,
     dim_in,
     _filter
+using Test
 using Zygote
 
 
