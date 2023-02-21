@@ -121,6 +121,7 @@ function (project::ProjectTo{Fill})(dx::AbstractArray)
     for d in 1:max(ndims(dx), length(project.axes))
         size(dx, d) == length(get(project.axes, d, 1)) || throw(_projection_mismatch(axes_x, size(dx)))
     end
+    Fill(sum(dx), project.axes)
 end
 
 function (project::ProjectTo{Fill})(dx::Tangent{<:Fill})
@@ -135,7 +136,9 @@ end
 _map(f, args...) = map(f, args...) 
 
 function rrule(::Type{<:Fill}, x, sz)
-    Fill_rrule(Δ) = NoTangent(), mean(getindex_value(Δ)), NoTangent()
+    Fill_rrule(Δ) = begin
+        NoTangent(), FillArrays.getindex_value(unthunk(Δ)), NoTangent()
+    end
     Fill(x, sz), Fill_rrule 
 end
 

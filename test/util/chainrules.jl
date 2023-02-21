@@ -21,7 +21,7 @@ include("../test_util.jl")
                 (SMatrix{5, 4}, (ntuple(i -> 2.5i, 20))),
                 (SMatrix{1, 1}, (randn(),))
                 )
-                test_rrule(ZygoteRuleConfig(), f, x; rrule_f=rrule_via_ad, check_inferred=false)
+                test_rrule(ZygoteRuleConfig(), f, x; rrule_f=rrule_via_ad)
             end
         end
         @testset "collect(::SArray)" begin
@@ -38,18 +38,29 @@ include("../test_util.jl")
         A = randn(3, 3)
         test_rrule(time_exp, A ⊢ NoTangent(), 0.1)
     end
-    @testset "collect(::Fill)" begin
-        P = 11
-        Q = 3
-        @testset "$(typeof(x)) element" for x in [
-            randn(),
-            randn(1, 2),
-            SMatrix{1, 2}(randn(1, 2)),
-        ]
-            test_rrule(collect, Fill(x, P); check_inferred=true)
-            test_rrule(collect, Fill(x, P))
-            # The test rule does not work due to inconsistencies of FiniteDifferencies for FillArrays
-            test_rrule(collect, Fill(x, P, Q))
+    @testset "Fill" begin
+        @testset "Fill constructor" begin
+            for x in (
+                randn(),
+                randn(1, 2),
+                SMatrix{1, 2}(randn(1, 2)),
+            )
+                test_rrule(Fill, x, 3; check_inferred=false)
+                test_rrule(Fill, x, (3, 4); check_inferred=false)
+            end
+        end
+        @testset "collect(::Fill)" begin
+            P = 11
+            Q = 3
+            @testset "$(typeof(x)) element" for x in [
+                randn(),
+                randn(1, 2),
+                SMatrix{1, 2}(randn(1, 2)),
+            ]
+                test_rrule(collect, Fill(x, P))
+                # The test rule does not work due to inconsistencies of FiniteDifferencies for FillArrays
+                test_rrule(collect, Fill(x, P, Q))
+            end
         end
     end
 
@@ -62,14 +73,14 @@ include("../test_util.jl")
         X = map(N -> randn(N, N), [3, 4, 1])
         test_rrule(BlockDiagonal, X)
     end
-    @testset "map(f, x::Fill)" begin
+    @testset "_map(f, x::Fill)" begin
         x = Fill(randn(3, 4), 4)
         test_rrule(_map, sum, x; check_inferred=false)
         test_rrule(_map, x->map(sin, x), x; check_inferred=false)
         test_rrule(_map, x -> 2.0 * x, x; check_inferred=false)
         test_rrule(ZygoteRuleConfig(), (x,a)-> _map(x -> x * a, x), x, 2.0; check_inferred=false, rrule_f=rrule_via_ad)
     end
-    @testset "map(f, x1::Fill, x2::Fill)" begin
+    @testset "_map(f, x1::Fill, x2::Fill)" begin
         x1 = Fill(randn(3, 4), 3)
         x2 = Fill(randn(3, 4), 3)
 
