@@ -1,7 +1,7 @@
 using AbstractGPs
 using BlockDiagonals
 using ChainRulesCore: backing, ZeroTangent, Tangent
-using ChainRulesTestUtils: rand_tangent
+using ChainRulesTestUtils: ChainRulesTestUtils, test_approx, rand_tangent, test_rrule
 using FiniteDifferences
 using FillArrays
 using LinearAlgebra
@@ -11,6 +11,7 @@ using StructArrays
 using TemporalGPs
 using TemporalGPs:
     AbstractLGSSM,
+    ElementOfLGSSM,
     Gaussian,
     harmonise,
     Forward,
@@ -24,7 +25,8 @@ using TemporalGPs:
     conditional_rand,
     AbstractLGC,
     dim_out,
-    dim_in
+    dim_in,
+    _filter
 using Zygote
 
 
@@ -36,6 +38,14 @@ import FiniteDifferences: to_vec
 
 test_zygote_grad(f, args...; check_inferred=false, kwargs...) = test_rrule(Zygote.ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred, kwargs...) 
 
+function test_zygote_grad_finite_differences_compatible(f, args...; kwargs...)
+    x_vec, from_vec = to_vec(args)
+    function finite_diff_compatible_f(x_vec::AbstractVector)
+        return f(from_vec(x_vec)...)
+    end
+    test_zygote_grad(finite_diff_compatible_f, x_vec; kwargs...)
+end
+
 function to_vec(x::Fill)
     x_vec, back_vec = to_vec(FillArrays.getindex_value(x))
     function Fill_from_vec(x_vec)
@@ -46,11 +56,6 @@ end
 
 function to_vec(x::Union{Zeros, Ones})
     return Vector{eltype(x)}(undef, 0), _ -> x
-end
-
-function to_vec(::Missing)
-    Missing_from_vec(::Any) = missing
-    return Bool[], Missing_from_vec
 end
 
 # I'M OVERRIDING FINITEDIFFERENCES DEFINITION HERE. THIS IS BAD.
@@ -94,7 +99,7 @@ function to_vec(x::Tuple{})
 end
 
 function to_vec(x::StructArray{T}) where {T}
-    x_vec, x_fields_from_vec = to_vec(getfield(x, :components))
+    x_vec, x_fields_from_vec = to_vec(StructArrays.components(x))
     function StructArray_from_vec(x_vec)
         x_field_vecs = x_fields_from_vec(x_vec)
         return StructArray{T}(Tuple(x_field_vecs))
@@ -102,18 +107,25 @@ function to_vec(x::StructArray{T}) where {T}
     return x_vec, StructArray_from_vec
 end
 
-# Fallback method for `to_vec`. Won't always do what you wanted, but should be fine a decent
-# chunk of the time.
-to_vec(x) = generic_struct_to_vec(x)
+function to_vec(x::ElementOfLGSSM)
+    x_vec, from_vec = to_vec((x.transition, x.emission))
+    function ElementOfLGSSM_from_vec(x_vec)
+        (transition, emission) = from_vec(x_vec)
+        return ElementOfLGSSM(x.ordering, transition, emission)
+    end
+    return x_vec, ElementOfLGSSM_from_vec
+end
 
-function generic_struct_to_vec(x::T) where {T}
+# This is a copy from FiniteDifferences.jl without the try catch
+function to_vec(x::T) where {T}
     Base.isstructtype(T) || throw(error("Expected a struct type"))
+    isempty(fieldnames(T)) && return (Bool[], _ -> x) # Singleton types
 
     val_vecs_and_backs = map(name -> to_vec(getfield(x, name)), fieldnames(T))
     vals = first.(val_vecs_and_backs)
     backs = last.(val_vecs_and_backs)
     v, vals_from_vec = to_vec(vals)
-
+    Main.@infiltrate
     function structtype_from_vec(v::Vector{<:Real})
         val_vecs = vals_from_vec(v)
         vals = map((b, v) -> b(v), backs, val_vecs)
@@ -145,17 +157,10 @@ function to_vec(X::BlockDiagonal)
     return Xs_vec, BlockDiagonal_from_vec
 end
 
-function to_vec(::typeof(identity))
-    Identity_from_vec(v) = identity
-    return Bool[], Identity_from_vec
-end
-
 function to_vec(x::RegularSpacing)
     RegularSpacing_from_vec(v) = RegularSpacing(v[1], v[2], x.N)
     return [x.t0, x.Δt], RegularSpacing_from_vec
 end
-
-to_vec(::Nothing) = Bool[], _ -> nothing
 
 # Ensure that to_vec works for the types that we care about in this package.
 @testset "custom FiniteDifferences stuff" begin
@@ -434,7 +439,7 @@ end
 
 function test_interface(
     rng::AbstractRNG, conditional::AbstractLGC, x::Gaussian;
-    check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, kwargs...,
+    check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, atol, rtol, kwargs...,
 )
     x_val = rand(rng, x)
     y = conditional_rand(rng, conditional, x_val)
@@ -446,7 +451,7 @@ function test_interface(
         if check_adjoints
             test_zygote_grad(
                 conditional_rand, args...;
-                check_inferred, kwargs...,
+                check_inferred, rtol, atol,
             )
         end
         if check_allocs
@@ -504,7 +509,7 @@ consistent and implements the required interface.
 """
 function test_interface(
     rng::AbstractRNG, ssm::AbstractLGSSM;
-    check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, kwargs...
+    check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, rtol, atol, kwargs...
 )
     y_no_missing = rand(rng, ssm)
 
@@ -515,9 +520,13 @@ function test_interface(
         check_inferred && @inferred rand(rng, ssm)
         if check_adjoints
             adjoint_test(
-                ssm -> rand(Xoshiro(123456), ssm), (ssm, );
-                check_inferred, kwargs...,
+                ssm -> rand(Xoshiro(123456), ssm), (ssm,);
+                check_inferred, kwargs...
             )
+            # test_zygote_grad(
+                # ssm -> rand(Xoshiro(123456), ssm), ssm;
+                # check_inferred, rtol, atol,
+            # )
         end
         if check_allocs
             check_adjoint_allocations(rand, (rng, ssm); kwargs...)
@@ -536,7 +545,7 @@ function test_interface(
         @test length(xs) == length(ssm)
         check_inferred && @inferred marginals(ssm)
         if check_adjoints
-            test_zygote_grad(marginals, ssm; check_inferred, kwargs...)
+            test_zygote_grad(marginals, ssm; check_inferred, rtol, atol)
         end
         if check_allocs
             check_adjoint_allocations(marginals, (ssm, ); kwargs...)
@@ -585,6 +594,11 @@ function test_interface(
     end
 end
 
+# This is unfortunately needed to make ChainRulesTestUtils comparison works.
+# See https://github.com/JuliaDiff/ChainRulesTestUtils.jl/issues/271
+Base.zero(::Forward) = Forward()
+Base.zero(::Reverse) = Reverse()
+
 _diag(x) = diag(x)
 _diag(x::Real) = x
 
@@ -610,4 +624,8 @@ function LinearAlgebra.dot(A::Tangent, B::Tangent)
     else
         return sum(n -> dot(getproperty(A, n), getproperty(B, n)), mutual_names)
     end
+end
+
+function ChainRulesTestUtils.test_approx(actual::Tangent{T}, expected::StructArray, msg=""; kwargs...) where {T<:StructArray}
+    return test_approx(actual.components, expected; kwargs...)
 end

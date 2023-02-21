@@ -5,6 +5,7 @@ using TemporalGPs:
     transform_model_and_obs
 
 include("../test_util.jl")
+include("../models/model_test_utils.jl")
 
 println("missings:")
 @testset "missings" begin

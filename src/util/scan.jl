@@ -74,7 +74,6 @@ function rrule(config::RuleConfig, ::typeof(scan_emit), f, xs, init_state, idx)
             Δxs = _accum_at(Δxs, idx[1], Δx)
             return NoTangent(), NoTangent(), Δxs, Δstate, NoTangent()
         else
-            # Main.@infiltrate
             _, Δstate, Δx = step_pullback(
                 config, f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
             )
