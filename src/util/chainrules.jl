@@ -36,9 +36,10 @@ end
 (proj::ProjectTo{SArray})(dx::AbstractArray) = SArray{proj.static_size}(Tuple(dx))
 
 function rrule(::Type{T}, x::Tuple) where {T<:SArray}
-    project_x = ProjectTo(x)
-    SArray_pullback(ȳ) = (NoTangent(), project_x(ȳ))
-    return T(x), Array_pullback
+    SArray_rrule(Δ) = begin
+        (NoTangent(), Tangent{typeof(x)}(unthunk(Δ).data...))
+    end
+    return T(x), SArray_rrule
 end
 
 function rrule(::RuleConfig{>:HasReverseMode}, ::Type{SArray{S, T, N, L}}, x::NTuple{L, T}) where {S, T, N, L}
@@ -133,13 +134,8 @@ end
 # We have an alternative map to avoid Zygote untouchable specialisation on map.
 _map(f, args...) = map(f, args...) 
 
-function _projection_mismatch(axes_x::Tuple, size_dx::Tuple)
-    size_x = map(length, axes_x)
-    DimensionMismatch("variable with size(x) == $size_x cannot have a gradient with size(dx) == $size_dx")
-end
-
 function rrule(::Type{<:Fill}, x, sz)
-    Fill_rrule(Δ) = NoTangent(), Δ.value, NoTangent()
+    Fill_rrule(Δ) = NoTangent(), mean(getindex_value(Δ)), NoTangent()
     Fill(x, sz), Fill_rrule 
 end
 
@@ -147,7 +143,6 @@ function rrule(::typeof(Base.collect), x::Fill)
     y = collect(x)
     proj = ProjectTo(x)
     function collect_Fill_rrule(Δ)
-        @show Δ, proj(Δ)
         NoTangent(), proj(Δ)
     end
     return y, collect_Fill_rrule

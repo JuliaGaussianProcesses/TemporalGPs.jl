@@ -74,6 +74,7 @@ function rrule(config::RuleConfig, ::typeof(scan_emit), f, xs, init_state, idx)
             Δxs = _accum_at(Δxs, idx[1], Δx)
             return NoTangent(), NoTangent(), Δxs, Δstate, NoTangent()
         else
+            # Main.@infiltrate
             _, Δstate, Δx = step_pullback(
                 config, f, init_state, _getindex(xs, idx[1]), Δys[idx[1]], Δstate,
             )
@@ -103,7 +104,7 @@ __getindex(x::Tuple, idx::Int) = (_getindex(x[1], idx), __getindex(Base.tail(x),
 
 
 _get_zero_adjoint(::Any) = ZeroTangent()
-_get_zero_adjoint(x::AbstractArray) = fill(ZeroTangent(), length(x))
+_get_zero_adjoint(x::AbstractArray) = fill(ZeroTangent(), size(x))
 
 # Vector. In all probability, only one of these methods is necessary.
 
