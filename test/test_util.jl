@@ -126,7 +126,6 @@ function to_vec(x::T) where {T}
     vals = first.(val_vecs_and_backs)
     backs = last.(val_vecs_and_backs)
     v, vals_from_vec = to_vec(vals)
-    Main.@infiltrate
     function structtype_from_vec(v::Vector{<:Real})
         val_vecs = vals_from_vec(v)
         vals = map((b, v) -> b(v), backs, val_vecs)
