@@ -223,22 +223,6 @@ function stationary_distribution(::Matern52Kernel, ::SArrayStorage{T}) where {T<
     return Gaussian(m, P)
 end
 
-# Cosine
-
-function to_sde(kernel::CosineKernel, ::SArrayStorage{T}) where {T}
-    τ = first(kernel.r)
-    F = SMatrix{2, 2, T}(0, 1, 1, 0)
-    q = zero(T)
-    H = SVector{2, T}(1, 0)
-    return F, q, H
-end
-
-function stationary_distribution(::CosineKernel, ::SArrayStorage{T}) where {T<:Real}
-    m = SVector{2, T}(0, 0)
-    P = SMatrix{2, 2, T}(1, 0, 0, 1)
-    return Gaussian(m, P)
-end
-
 # Constant
 
 function TemporalGPs.to_sde(::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}

@@ -11,7 +11,6 @@ module TemporalGPs
     using StaticArrays
     using StructArrays
     using Zygote
-    using Zygote: @showgrad
 
     using FillArrays: AbstractFill
 
