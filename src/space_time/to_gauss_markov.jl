@@ -1,3 +1,4 @@
+using ChainRulesCore
 my_I(T, N) = Matrix{T}(I, N, N)
 ChainRulesCore.@non_differentiable my_I(args...)
 

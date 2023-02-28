@@ -6,7 +6,7 @@ ENV["TESTING"] = "TRUE"
 # ["test util", "test models" "test models-lgssm" "test gp" "test space_time"]
 # Select any of this to test a particular aspect.
 # To test everything, simply set GROUP to "all"
-ENV["GROUP"] = "test models"
+# ENV["GROUP"] = "test space_time"
 const GROUP = get(ENV, "GROUP", "test")
 OUTER_GROUP = first(split(GROUP, ' '))
 
@@ -86,7 +86,7 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
                 include(joinpath("gp", "posterior_lti_sde.jl"))
             end
         end
-
+        
         if TEST_GROUP == "space_time" || GROUP == "all"
             println("space_time:")
             @testset "space_time" begin
