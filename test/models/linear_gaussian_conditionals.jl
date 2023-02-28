@@ -26,7 +26,7 @@ println("linear_gaussian_conditionals:")
 
         println("SmallOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))")
 
-        rng = Xoshiro(123456)
+        rng = MersenneTwister(123456)
         x = random_gaussian(rng, Dlat, storage.val)
         model = random_small_output_lgc(rng, Dlat, Dobs, Q_type, storage.val)
 
@@ -74,7 +74,7 @@ println("linear_gaussian_conditionals:")
 
         println("LargeOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))")
 
-        rng = Xoshiro(123456)
+        rng = MersenneTwister(123456)
         x = random_gaussian(rng, Dlat, storage.val)
         model = random_large_output_lgc(rng, Dlat, Dobs, Q_type, storage.val)
 
@@ -129,7 +129,7 @@ println("linear_gaussian_conditionals:")
 
         println("ScalarOutputLGC (Dlat=$Dlat, ($storage.name))")
 
-        rng = Xoshiro(123456)
+        rng = MersenneTwister(123456)
         x = random_gaussian(rng, Dlat, storage.val)
         model = random_scalar_output_lgc(rng, Dlat, storage.val)
 
@@ -163,7 +163,7 @@ println("linear_gaussian_conditionals:")
         println("BottleneckLGC (Din=$Din, Dmid=$Dmid, Dout=$Dout, Q=$(Q_type))")
 
         storage = ArrayStorage(Float64)
-        rng = Xoshiro(123456)
+        rng = MersenneTwister(123456)
         x = random_gaussian(rng, Din, storage)
         model = random_bottleneck_lgc(rng, Din, Dmid, Dout, Q_type, storage)
 

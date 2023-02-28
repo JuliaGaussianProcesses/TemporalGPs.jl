@@ -5,7 +5,7 @@ using ChainRulesTestUtils: ChainRulesTestUtils, test_approx, rand_tangent, test_
 using FiniteDifferences
 using FillArrays
 using LinearAlgebra
-using Random: AbstractRNG, Xoshiro
+using Random: AbstractRNG, MersenneTwister
 using StaticArrays
 using StructArrays
 using TemporalGPs
@@ -534,11 +534,11 @@ function test_interface(
         check_inferred && @inferred rand(rng, ssm)
         if check_adjoints
             # adjoint_test(
-                # ssm -> rand(Xoshiro(123456), ssm), (ssm,);
+                # ssm -> rand(MersenneTwister(123456), ssm), (ssm,);
                 # check_inferred, kwargs...
             # ) # TODO fix this test
             # test_zygote_grad(
-                # ssm -> rand(Xoshiro(123456), ssm), ssm;
+                # ssm -> rand(MersenneTwister(123456), ssm), ssm;
                 # check_inferred, rtol, atol,
             # )
         end

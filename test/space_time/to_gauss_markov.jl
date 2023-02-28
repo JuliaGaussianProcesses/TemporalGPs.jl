@@ -1,7 +1,7 @@
 using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
 
 @testset "to_gauss_markov" begin
-    rng = Xoshiro(123456)
+    rng = MersenneTwister(123456)
     Nr = 3
     Nt = 5
     Nt_pr = 2
@@ -54,7 +54,7 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
 
         @test length(ft_sde) == length(x)
 
-        y = rand(Xoshiro(123456), ft_sde)
+        y = rand(MersenneTwister(123456), ft_sde)
 
         model = TemporalGPs.build_lgssm(ft_sde)
         @test all(

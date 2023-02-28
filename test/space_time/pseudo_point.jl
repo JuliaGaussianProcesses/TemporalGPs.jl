@@ -1,6 +1,6 @@
 using AbstractGPs: AbstractGPs, dtc
 using KernelFunctions
-using Random: Xoshiro, randperm
+using Random: MersenneTwister, randperm
 using StructArrays
 using TemporalGPs:
     TemporalGPs,
@@ -21,7 +21,7 @@ include("../models/model_test_utils.jl")
 
 @testset "pseudo_point" begin
 
-    rng = Xoshiro(123456)
+    rng = MersenneTwister(123456)
 
     @testset "dtcify" begin
         z = randn(rng, 3)

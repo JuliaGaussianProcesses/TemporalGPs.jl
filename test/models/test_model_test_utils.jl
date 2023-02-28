@@ -3,7 +3,7 @@
         (name="dense storage", val=ArrayStorage(Float64)),
         (name="static storage", val=SArrayStorage(Float64)),
     ]
-    rng = Xoshiro(123456)
+    rng = MersenneTwister(123456)
     @testset "storage = $(storage.name)" for storage in storages
         @testset "random_vector" begin
             a = random_vector(rng, 3, storage.val)

@@ -1,8 +1,8 @@
-using Random: Xoshiro
+using Random: MersenneTwister
 using LinearAlgebra: mul!
 
 @testset "mul" begin
-    rng = Xoshiro(123456)
+    rng = MersenneTwister(123456)
     P = 50
     Q = 60
     α = randn(rng)

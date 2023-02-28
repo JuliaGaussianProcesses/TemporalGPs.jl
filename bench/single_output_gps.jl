@@ -140,7 +140,7 @@ let
         x = range(-5.0; length=N, step=1e-2)
         σ², l, σ²_n = 1.0, 2.3, 0.5
         k = kernel.k
-        rng = Xoshiro(123456)
+        rng = MersenneTwister(123456)
         # y = rand(rng, build(Val(:stack), k, σ², l, x, σ²_n))
         y = rand(rng, build(impl.val, k, σ², l, x, σ²_n))
 

@@ -13,7 +13,7 @@ include("../models/model_test_utils.jl")
 @info "missings:"
 @testset "missings" begin
 
-    rng = Xoshiro(123456)
+    rng = MersenneTwister(123456)
 
     storages = (
         dense=(name="dense storage Float64", val=ArrayStorage(Float64)),
