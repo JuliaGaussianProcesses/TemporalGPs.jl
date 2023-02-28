@@ -126,9 +126,9 @@ end
 
 function (project::ProjectTo{Fill})(dx::Tangent{<:Fill})
     # This would need a definition for length(::NoTangent) to be safe:
-    for d in 1:max(length(dx.axes), length(project.axes))
-        length(get(dx.axes, d, 1)) == length(get(project.axes, d, 1)) || throw(_projection_mismatch(dx.axes, size(dx)))
-    end
+    # for d in 1:max(length(dx.axes), length(project.axes))
+        # length(get(dx.axes, d, 1)) == length(get(project.axes, d, 1)) || throw(_projection_mismatch(dx.axes, size(dx)))
+    # end
     Fill(dx.value / prod(length, project.axes), project.axes)
 end
 
@@ -136,8 +136,13 @@ end
 _map(f, args...) = map(f, args...) 
 
 function rrule(::Type{<:Fill}, x, sz)
-    Fill_rrule(Δ) = NoTangent(), FillArrays.getindex_value(unthunk(Δ)), NoTangent()
-    Fill_rrule(Δ::Tangent{T,NamedTuple{(:value, :axes)}}) where {T} = NoTangent(), Δ.value, NoTangent()
+    Fill_rrule(Δ::Union{Fill,Thunk}) = NoTangent(), FillArrays.getindex_value(unthunk(Δ)), NoTangent()
+    Fill_rrule(Δ::Tangent{T,<:NamedTuple{(:value, :axes)}}) where {T} = NoTangent(), Δ.value, NoTangent()
+    function Fill_rrule(Δ::AbstractArray)
+        @show Δ
+        all(==(first(Δ)), Δ) || error("Δ should be a vector of the same value")
+        return NoTangent(), first(Δ), NoTangent()
+    end
     Fill(x, sz), Fill_rrule 
 end
 
@@ -158,7 +163,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_ma
         Δf, Δx_el = back(first(Δ))
         NoTangent(), Δf, Fill(Δx_el, axes(x)) 
     end
-    function _map_Fill_rrule(Δ::Union{Thunk,Fill})
+    function _map_Fill_rrule(Δ::Union{Thunk,Fill,Tangent})
         Δf, Δx_el = back(unthunk(Δ).value)
         return NoTangent(), Δf, Fill(Δx_el, axes(x))
     end
@@ -341,21 +346,36 @@ end
 #   Zygote._pullback(cx, Zygote.literal_getindex, x, Val(f))
 
 
-ProjectTo(sa::StructArray{T}) where {T} = ProjectTo{StructArray{T}}(;axes=axes(sa))
+# ProjectTo(sa::StructArray{T}) where {T} = ProjectTo{StructArray{T}}(;axes=axes(sa))
 
-function (project::ProjectTo{StructArray{T}})(dx::AbstractArray{Y}) where {T,Y<:Union{T,Tangent{T}}}
-    fields = fieldnames(T)
-    components = ntuple(length(fields)) do i
-        getfield.(dx, fields[i])
-    end
-    StructArray{T}(backing.(components))
-end
-(proj::ProjectTo{StructArray{T}})(dx::Tangent{<:StructArray{T}}) where {T} = begin 
-    StructArray{T}(backing(dx.components))
-end
-function (project::ProjectTo{StructArray{T}})(dx::StructArray{Y}) where {T,Y<:Union{T,Tangent{T}}}
-    StructArray{T}(StructArrays.components(backing.(dx)))
-end
+# function (project::ProjectTo{StructArray{T}})(dx::AbstractArray{Y}) where {T,Y<:Union{T,Tangent{T}}}
+#     fields = fieldnames(T)
+#     components = ntuple(length(fields)) do i
+#         getfield.(dx, fields[i])
+#     end
+#     @show components
+#     StructArray{T}(backing.(components))
+# end
+# (proj::ProjectTo{StructArray{T}})(dx::Tangent{<:StructArray{T}}) where {T} = begin 
+#     @show dx.components
+#     # Main.@infiltrate
+#     components = backing(dx.components)
+#     # We fill with nothing such that StructArray can still be built
+#     # if any(x -> x isa AbstractZero, components)
+#     #     i = findfirst(x -> !(x isa AbstractZero), components)
+#     #     components = map(components) do c
+#     #         if c isa AbstractZero
+#     #             Fill(c, axes(components[i]))
+#     #         else
+#     #             c
+#     #         end
+#     #     end
+#     # end
+#     StructArray{T}(components)
+# end
+# function (project::ProjectTo{StructArray{T}})(dx::StructArray{Y}) where {T,Y<:Union{T,Tangent{T}}}
+#     StructArray{T}(StructArrays.components(backing.(dx)))
+# end
 
 function rrule(::Type{StructArray}, x::T) where {T<:Union{Tuple,NamedTuple}}
     y = StructArray(x)
