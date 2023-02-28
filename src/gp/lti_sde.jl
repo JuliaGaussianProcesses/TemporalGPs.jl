@@ -152,7 +152,7 @@ function lgssm_components(
     # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
     A = time_exp(F, T(step(t)))
     As = Fill(A, length(t))
-    as = Fill(Zeros{T}(size(F, 1)), length(t))
+    as = @ignore_derivatives(Fill(Zeros{T}(size(F, 1)), length(t)))
     Q = Symmetric(P) - A * Symmetric(P) * A'
     Qs = Fill(Q, length(t))
     Hs = Fill(H, length(t))

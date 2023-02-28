@@ -177,15 +177,9 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
     ident_M = my_I(eltype(storage), M)
 
     # Construct approximately low-rank model spatio-temporal LGSSM.
-    As = zygote_friendly_map(
-        ((I, A), ) -> kron(I, A),
-        zip(Fill(ident_M, N), As_t),
-    )
-    as = zygote_friendly_map(a -> repeat(a, M), as_t)
-    Qs = zygote_friendly_map(
-        ((K_space_z, Q), ) -> kron(K_space_z, Q),
-        zip(Fill(K_space_z, N), Qs_t),
-    )
+    As = _map(kron, Fill(ident_M, N), As_t)
+    as = _map(a -> repeat(a, M), as_t)
+    Qs = _map(kron, Fill(K_space_z, N), Qs_t)
     x_big = _reduce(vcat, x.vs)
     C__ = kernelmatrix(space_kernel, z_space, x_big)
     C = \(K_space_z_chol, C__)
