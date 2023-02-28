@@ -10,7 +10,7 @@ using Zygote: Context
 include("../test_util.jl")
 include("../models/model_test_utils.jl")
 
-println("missings:")
+@info "missings:"
 @testset "missings" begin
 
     rng = Xoshiro(123456)
@@ -185,4 +185,4 @@ println("missings:")
         test_zygote_grad_finite_differences_compatible(y -> logpdf(model, y) ⊢ NoTangent(), y_missing)
         @inferred posterior(model, y_missing)
     end
-end
+end;
