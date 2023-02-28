@@ -102,8 +102,6 @@ function step_rand(::Reverse, x::AbstractVector, ((ε_t, ε_e), model))
     return y, x_next
 end
 
-
-
 """
     marginals(model::LGSSM)
 
