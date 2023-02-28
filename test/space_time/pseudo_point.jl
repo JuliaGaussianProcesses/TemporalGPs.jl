@@ -1,6 +1,6 @@
 using AbstractGPs: AbstractGPs, dtc
 using KernelFunctions
-using Random: Xoshiro
+using Random: Xoshiro, randperm
 using StructArrays
 using TemporalGPs:
     TemporalGPs,
@@ -104,12 +104,13 @@ include("../models/model_test_utils.jl")
         elbo_sde = elbo(fx, y, z_r)
         @test elbo_naive ≈ elbo_sde rtol=1e-6
 
-        adjoint_test(
-            (y, z_r) -> elbo(fx, y, z_r), (y, z_r);
-            rtol=1e-7,
-            context=Zygote.Context(),
-            check_inferred=false,
-        )
+        test_zygote_grad(elbo, fx, y, z_r)
+        # adjoint_test(
+            # (y, z_r) -> elbo(fx, y, z_r), (y, z_r);
+            # rtol=1e-7,
+            # context=Zygote.Context(),
+            # check_inferred=false,
+        # )
 
         # Compute approximate posterior marginals naively.
         f_approx_post_naive = posterior(VFE(f_naive(z_naive)), fx_naive, y)
@@ -155,17 +156,17 @@ include("../models/model_test_utils.jl")
             fx_naive = f_naive(naive_inputs_missings, 0.1)
 
             # Compute DTC using both approaches.
-            dtc_naive = dtc(fx_naive, naive_y_missings, f_naive(z_naive))
+            dtc_naive = dtc(VFE(f_naive(z_naive)), fx_naive, naive_y_missings)
             dtc_sde = dtc(fx, y_missing, z_r)
             @test dtc_naive ≈ dtc_sde rtol=1e-7 atol=1e-7
 
-            elbo_naive = elbo(fx_naive, naive_y_missings, f_naive(z_naive))
+            elbo_naive = elbo(VFE(f_naive(z_naive)), fx_naive, naive_y_missings)
             elbo_sde = elbo(fx, y_missing, z_r)
             @test elbo_naive ≈ elbo_sde rtol=1e-7 atol=1e-7
 
             # Compute approximate posterior marginals naively with missings.
-            f_approx_post_naive = approx_posterior(
-                VFE(), fx_naive, naive_y_missings, f_naive(z_naive),
+            f_approx_post_naive = posterior(
+                VFE(f_naive(z_naive)), fx_naive, naive_y_missings,
             )
             naive_approx_post_marginals = marginals(f_approx_post_naive(collect(x_pr)))
 
