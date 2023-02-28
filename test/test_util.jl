@@ -140,11 +140,14 @@ to_vec(x::TemporalGPs.RectilinearGrid) = generic_struct_to_vec(x)
 function to_vec(f::GP)
     gp_vec, t_from_vec = to_vec((f.mean, f.kernel))
     function GP_from_vec(v)
-        (m, k) = t_from_vec(v)
+        m, k = t_from_vec(v)
         return GP(m, k)
     end
     return gp_vec, GP_from_vec
 end
+
+Base.zero(x::AbstractGPs.ZeroMean) = x
+Base.zero(x::Kernel) = x
 
 function to_vec(X::BlockDiagonal)
     Xs = blocks(X)

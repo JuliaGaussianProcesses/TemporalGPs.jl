@@ -154,7 +154,12 @@ end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f, x::Fill)
     y_el, back = ChainRulesCore.rrule_via_ad(config, f, x.value)
-    function _map_Fill_rrule(Δ)
+    function _map_Fill_rrule(Δ::AbstractArray)
+        all(==(first(Δ)), Δ) || error("Δ should be a vector of the same value")
+        Δf, Δx_el = back(first(Δ))
+        NoTangent(), Δf, Fill(Δx_el, axes(x)) 
+    end
+    function _map_Fill_rrule(Δ::Union{Thunk,Fill})
         Δf, Δx_el = back(unthunk(Δ).value)
         return NoTangent(), Δf, Fill(Δx_el, axes(x))
     end
