@@ -17,14 +17,13 @@ using Zygote # Algorithmic Differentiation
 # Declare model parameters using `ParameterHandling.jl` types.
 # var_kernel is the variance of the kernel, λ the inverse length scale, and var_noise the
 # variance of the observation noise. Note that they're all constrained to be positive.
-flat_initial_params, unflatten = ParameterHandling.flatten((
+flat_initial_params, unpack = ParameterHandling.value_flatten((
     var_kernel = positive(0.6),
     λ = positive(0.1),
     var_noise = positive(2.0),
 ));
 
-# Construct a function to unpack flattened parameters and pull out the raw values.
-unpack = ParameterHandling.value ∘ unflatten;
+# Pull out the raw values.
 params = unpack(flat_initial_params);
 
 function build_gp(params)
@@ -33,7 +32,7 @@ function build_gp(params)
 end
 
 # Specify a collection of inputs. Must be increasing.
-T = 1_000;
+T = 1_000_000;
 x = RegularSpacing(0.0, 1e-4, T);
 
 # Generate some noisy synthetic data from the GP.
