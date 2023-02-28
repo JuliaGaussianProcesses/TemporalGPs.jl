@@ -41,8 +41,8 @@ test_zygote_grad(f, args...; check_inferred=false, kwargs...) = test_rrule(Zygot
 
 function test_zygote_grad_finite_differences_compatible(f, args...; kwargs...)
     x_vec, from_vec = to_vec(args)
-    function finite_diff_compatible_f(x_vec::AbstractVector)
-        return f(from_vec(x_vec)...)
+    function finite_diff_compatible_f(x::AbstractVector)
+        return f(from_vec(x)...)
     end
     test_zygote_grad(finite_diff_compatible_f, x_vec; kwargs...)
 end
@@ -66,18 +66,18 @@ function to_vec(x::Diagonal)
     return v, Diagonal_from_vec
 end
 
-function to_vec(x::T) where {T<:NamedTuple}
-    isempty(fieldnames(T)) && throw(error("Expected some fields. None found."))
-    vecs_and_backs = map(name->to_vec(getfield(x, name)), fieldnames(T))
-    vecs, backs = first.(vecs_and_backs), last.(vecs_and_backs)
-    x_vec, back = to_vec(vecs)
-    function namedtuple_to_vec(x′_vec)
-        vecs′ = back(x′_vec)
-        x′s = map((back, vec)->back(vec), backs, vecs′)
-        return (; zip(fieldnames(T), x′s)...)
-    end
-    return x_vec, namedtuple_to_vec
-end
+# function to_vec(x::T) where {T<:NamedTuple}
+#     isempty(fieldnames(T)) && throw(error("Expected some fields. None found."))
+#     vecs_and_backs = map(name->to_vec(getfield(x, name)), fieldnames(T))
+#     vecs, backs = first.(vecs_and_backs), last.(vecs_and_backs)
+#     x_vec, back = to_vec(vecs)
+#     function namedtuple_to_vec(x′_vec)
+#         vecs′ = back(x′_vec)
+#         x′s = map((back, vec)->back(vec), backs, vecs′)
+#         return (; zip(fieldnames(T), x′s)...)
+#     end
+#     return x_vec, namedtuple_to_vec
+# end
 
 function to_vec(x::T) where {T<:StaticArray}
     x_dense = collect(x)
@@ -94,8 +94,8 @@ function to_vec(x::Adjoint{<:Any, T}) where {T<:StaticVector}
     return x_vec, Adjoint_from_vec
 end
 
-function to_vec(x::Tuple{})
-    empty_tuple_from_vec(v) = x
+function to_vec(::Tuple{})
+    empty_tuple_from_vec(::AbstractVector) = ()
     return Bool[], empty_tuple_from_vec
 end
 
@@ -117,11 +117,12 @@ function to_vec(x::ElementOfLGSSM)
     return x_vec, ElementOfLGSSM_from_vec
 end
 
+to_vec(x::T) where {T} = generic_struct_to_vec(x)
+
 # This is a copy from FiniteDifferences.jl without the try catch
-function to_vec(x::T) where {T}
+function generic_struct_to_vec(x::T) where {T}
     Base.isstructtype(T) || throw(error("Expected a struct type"))
     isempty(fieldnames(T)) && return (Bool[], _ -> x) # Singleton types
-
     val_vecs_and_backs = map(name -> to_vec(getfield(x, name)), fieldnames(T))
     vals = first.(val_vecs_and_backs)
     backs = last.(val_vecs_and_backs)
