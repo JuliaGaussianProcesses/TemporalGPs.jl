@@ -52,8 +52,6 @@ function objective(params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
-Zygote.gradient(objective ∘ unpack, flat_initial_params)
-
 # Optimise using Optim. Takes a little while to compile because Zygote.
 training_results = Optim.optimize(
     objective ∘ unpack,
