@@ -443,7 +443,7 @@ end
 
 function test_interface(
     rng::AbstractRNG, conditional::AbstractLGC, x::Gaussian;
-    check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, atol, rtol, kwargs...,
+    check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, atol=1e-6, rtol=1e-6, kwargs...,
 )
     x_val = rand(rng, x)
     y = conditional_rand(rng, conditional, x_val)
