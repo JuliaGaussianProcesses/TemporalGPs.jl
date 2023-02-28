@@ -33,7 +33,7 @@ Base.eachindex(model::LGSSM) = eachindex(transitions(model))
 
 storage_type(model::LGSSM) = storage_type(transitions(model))
 
-ChainRulesCore.@non_differentiable storage_type
+ChainRulesCore.@non_differentiable storage_type(x)
 
 function is_of_storage_type(model::LGSSM, s::StorageType)
     return is_of_storage_type((transitions(model), emissions(model)), s)

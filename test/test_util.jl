@@ -1,7 +1,7 @@
 using AbstractGPs
 using BlockDiagonals
-using ChainRulesCore: backing, ZeroTangent, Tangent
-using ChainRulesTestUtils: ChainRulesTestUtils, test_approx, rand_tangent, test_rrule
+using ChainRulesCore: backing, ZeroTangent, NoTangent, Tangent
+using ChainRulesTestUtils: ChainRulesTestUtils, test_approx, rand_tangent, test_rrule, @ignore_derivatives
 using FiniteDifferences
 using FillArrays
 using LinearAlgebra
@@ -42,9 +42,9 @@ test_zygote_grad(f, args...; check_inferred=false, kwargs...) = test_rrule(Zygot
 function test_zygote_grad_finite_differences_compatible(f, args...; kwargs...)
     x_vec, from_vec = to_vec(args)
     function finite_diff_compatible_f(x::AbstractVector)
-        return f(from_vec(x)...)
+        return @ignore_derivatives(f)(from_vec(x)...)
     end
-    test_zygote_grad(finite_diff_compatible_f, x_vec; kwargs...)
+    test_zygote_grad(finite_diff_compatible_f ⊢ NoTangent(), x_vec; kwargs...)
 end
 
 function to_vec(x::Fill)
@@ -106,6 +106,15 @@ function to_vec(x::StructArray{T}) where {T}
         return StructArray{T}(Tuple(x_field_vecs))
     end
     return x_vec, StructArray_from_vec
+end
+
+function to_vec(x::TemporalGPs.LGSSM)
+    x_vec, from_vec = to_vec((x.transitions, x.emissions))
+    function LGSSM_from_vec(x_vec)
+        (transition, emission) = from_vec(x_vec)
+        return LGSSM(transition, emission)
+    end
+    return x_vec, LGSSM_from_vec
 end
 
 function to_vec(x::ElementOfLGSSM)

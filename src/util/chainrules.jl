@@ -358,7 +358,6 @@ end
 # end
 # (proj::ProjectTo{StructArray{T}})(dx::Tangent{<:StructArray{T}}) where {T} = begin 
 #     @show dx.components
-#     # Main.@infiltrate
 #     components = backing(dx.components)
 #     # We fill with nothing such that StructArray can still be built
 #     # if any(x -> x isa AbstractZero, components)
