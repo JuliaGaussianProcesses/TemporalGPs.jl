@@ -138,10 +138,12 @@ _map(f, args...) = map(f, args...)
 function rrule(::Type{<:Fill}, x, sz)
     Fill_rrule(Δ::Union{Fill,Thunk}) = NoTangent(), FillArrays.getindex_value(unthunk(Δ)), NoTangent()
     Fill_rrule(Δ::Tangent{T,<:NamedTuple{(:value, :axes)}}) where {T} = NoTangent(), Δ.value, NoTangent()
+    Fill_rrule(::AbstractZero) = NoTangent(), NoTangent(), NoTangent()
     function Fill_rrule(Δ::AbstractArray)
-        @show Δ
-        all(==(first(Δ)), Δ) || error("Δ should be a vector of the same value")
-        return NoTangent(), first(Δ), NoTangent()
+        # all(==(first(Δ)), Δ) || error("Δ should be a vector of the same value")
+        # sum(Δ)
+        # TODO Fix this rule, or what seems to be a downstream bug.
+        return NoTangent(), sum(Δ), NoTangent()
     end
     Fill(x, sz), Fill_rrule 
 end
@@ -167,6 +169,7 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_ma
         Δf, Δx_el = back(unthunk(Δ).value)
         return NoTangent(), Δf, Fill(Δx_el, axes(x))
     end
+    _map_Fill_rrule(::AbstractZero) = NoTangent(), NoTangent(), NoTangent()
     return Fill(y_el, axes(x)), _map_Fill_rrule
 end
 
