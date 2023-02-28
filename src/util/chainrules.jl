@@ -136,9 +136,8 @@ end
 _map(f, args...) = map(f, args...) 
 
 function rrule(::Type{<:Fill}, x, sz)
-    Fill_rrule(Δ) = begin
-        NoTangent(), FillArrays.getindex_value(unthunk(Δ)), NoTangent()
-    end
+    Fill_rrule(Δ) = NoTangent(), FillArrays.getindex_value(unthunk(Δ)), NoTangent()
+    Fill_rrule(Δ::Tangent{T,NamedTuple{(:value, :axes)}}) where {T} = NoTangent(), Δ.value, NoTangent()
     Fill(x, sz), Fill_rrule 
 end
 
