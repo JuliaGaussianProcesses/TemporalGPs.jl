@@ -1,6 +1,7 @@
 module TemporalGPs
 
     using AbstractGPs
+    using Bessels: besseli
     using BlockDiagonals
     using ChainRulesCore
     import ChainRulesCore: rrule
