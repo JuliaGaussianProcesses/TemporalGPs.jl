@@ -36,6 +36,7 @@ println("lti_sde:")
             Matern32Kernel(),
             Matern52Kernel(),
             ConstantKernel(c=1.5),
+            CosineKernel(),
         ]
 
         @testset "$kernel, $(storage.name)" for kernel in kernels, storage in storages

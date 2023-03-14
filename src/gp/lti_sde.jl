@@ -223,6 +223,67 @@ function stationary_distribution(::Matern52Kernel, ::SArrayStorage{T}) where {T<
     return Gaussian(m, P)
 end
 
+# Cosine
+
+function to_sde(::CosineKernel, ::SArrayStorage{T}) where {T}
+    F = SMatrix{2, 2, T}(0, 1, -1, 0)
+    q = zero(T)
+    H = SVector{2, T}(1, 0)
+    return F, q, H
+end
+    
+function stationary_distribution(::CosineKernel, ::SArrayStorage{T}) where {T<:Real}
+    m = SVector{2, T}(0, 0)
+    P = SMatrix{2, 2, T}(1, 0, 0, 1)
+    return Gaussian(m, P)
+end
+
+# Approximate Periodic Kernel
+# The periodic kernel is approximated by a sum of cosine kernels with different frequencies.
+function lgssm_components(kernel::PeriodicKernel, ts::AbstractVector, storage::StorageType{T}) where {T}
+    r = kernel.r
+    length(r) == 1 || error("the state-space version of the `PeriodicKernel` only supports 1-dimensional inputs.")
+    l⁻² = inv(4 * only(r))
+    x0 = stationary_distribution(CosineKernel(), storage)
+    P = x0.P
+    F, _, H = to_sde(CosineKernel(), storage)
+    # We follow "State Space approximation of Gaussian Processes for time series forecasting"
+    # by Alessio Benavoli1 and Giorgio Corani and take 7 Cosine Kernel terms
+    N = 7
+    qs = ntuple(N) do i
+        (1 + (i !== 1) ) * besseli(i - 1, l⁻²) / exp(l⁻²)
+    end
+    Fs = _map(q -> q * F, qs)
+    Ps = _map(q -> q * P, qs) 
+    t = vcat([first(ts) - 1], t)
+    nt = length(diff(t))
+    As = _map(F -> _map(Δt -> time_exp(F, T(Δt)), diff(t)), Fs)
+    as = Fill(Fill(Zeros{T}(size(first(first(As)), 1)), nt), N)
+    Qs = _map((P, A) -> _map(A -> Symmetric(P) - A * Symmetric(P) * A', A), Ps, As)
+    H = Fill(H, nt)
+    h = Fill(zero(T), nt)
+    As = reduce(As) do As, A
+        _map(blk_diag, As, A)
+    end
+    as = reduce(as) do as, a
+        _map(vcat, as, a)
+    end
+    Qs = reduce(Qs) do Qs, Q
+        _map(blk_diag, Qs, Q)
+    end
+    Hs = reduce(Fill(H, N)) do Hs, H
+        _map(vcat, Hs, H)
+    end
+    m = reduce(Fill(x0.m, N)) do ms, m
+        _map(vcat, ms, m)
+    end
+    P = reduce(Ps) do Ps, P
+        _map(blk_diag, Ps, P)
+    end
+    x0 = Gaussian(m, P)
+    return As, as, Qs, (Hs, h), x0
+end
+
 # Constant
 
 function TemporalGPs.to_sde(::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
