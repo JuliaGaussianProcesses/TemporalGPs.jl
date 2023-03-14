@@ -235,25 +235,11 @@ function rrule(::typeof(cholesky), S::Symmetric{<:Real, <:StaticMatrix{N, N}}) w
     return cholesky_rrule(S)
 end
 
-# Not used anywhere
-# function logdet_pullback(C::Cholesky)
-#     return logdet(C), function(Δ)
-#         return ((uplo=nothing, info=nothing, factors=Diagonal(2 .* Δ ./ diag(C.factors))),)
-#     end
-# end
-
 function Zygote.accum(a::UpperTriangular, b::UpperTriangular)
     return UpperTriangular(Zygote.accum(a.data, b.data))
 end
 
-function Zygote.accum(D::Diagonal{<:Real}, U::UpperTriangular{<:Real, <:SMatrix})
-    return UpperTriangular(D + U.data)
-end
-
-function Zygote.accum(a::Diagonal, b::UpperTriangular)
-    return UpperTriangular(a + b.data)
-end
-
+Zygote.accum(D::Diagonal{<:Real}, U::UpperTriangular{<:Real}) = UpperTriangular(D + U.data)
 Zygote.accum(a::UpperTriangular, b::Diagonal) = Zygote.accum(b, a)
 
 Zygote._symmetric_back(Δ::UpperTriangular{<:Any, <:SArray}, uplo) = Δ
@@ -264,7 +250,6 @@ function Zygote._symmetric_back(Δ::SMatrix{N, N}, uplo) where {N}
         return SMatrix{N, N}(LowerTriangular(Δ) + LowerTriangular(Δ') - Diagonal(Δ))
     end
 end
-
 
 # Temporary hacks.
 
@@ -322,67 +307,14 @@ function ChainRulesCore.rrule(::Type{Symmetric}, X::StridedMatrix{<:Real}, uplo=
     return Symmetric(X, uplo), Symmetric_rrule
 end
 
-# function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}) where i
-#   y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
-#   back(::Nothing) = nothing
-#   back(ȳ) = b(ȳ[1])
-#   (y, i+1), back
-# end
-
-# function Zygote._pullback(cx::AContext, ::typeof(literal_indexed_iterate), xs::Tuple, ::Val{i}, st) where i
-#   y, b = Zygote._pullback(cx, literal_getindex, xs, Val(i))
-#   back(::Nothing) = nothing
-#   back(ȳ) = (b(ȳ[1])..., nothing)
-#   (y, i+1), back
-# end
-
-# Zygote._pullback(cx::AContext, ::typeof(getproperty), x, f::Symbol) =
-#   Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
-
-# Zygote._pullback(cx::AContext, ::typeof(getfield), x, f::Symbol) =
-#   Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
-
-# Zygote._pullback(cx::AContext, ::typeof(literal_getindex), x::NamedTuple, ::Val{f}) where f =
-#   Zygote._pullback(cx, Zygote.literal_getproperty, x, Val(f))
-
-# Zygote._pullback(cx::AContext, ::typeof(literal_getproperty), x::Tuple, ::Val{f}) where f =
-#   Zygote._pullback(cx, Zygote.literal_getindex, x, Val(f))
-
-
-# ProjectTo(sa::StructArray{T}) where {T} = ProjectTo{StructArray{T}}(;axes=axes(sa))
-
-# function (project::ProjectTo{StructArray{T}})(dx::AbstractArray{Y}) where {T,Y<:Union{T,Tangent{T}}}
-#     fields = fieldnames(T)
-#     components = ntuple(length(fields)) do i
-#         getfield.(dx, fields[i])
-#     end
-#     @show components
-#     StructArray{T}(backing.(components))
-# end
-# (proj::ProjectTo{StructArray{T}})(dx::Tangent{<:StructArray{T}}) where {T} = begin 
-#     @show dx.components
-#     components = backing(dx.components)
-#     # We fill with nothing such that StructArray can still be built
-#     # if any(x -> x isa AbstractZero, components)
-#     #     i = findfirst(x -> !(x isa AbstractZero), components)
-#     #     components = map(components) do c
-#     #         if c isa AbstractZero
-#     #             Fill(c, axes(components[i]))
-#     #         else
-#     #             c
-#     #         end
-#     #     end
-#     # end
-#     StructArray{T}(components)
-# end
-# function (project::ProjectTo{StructArray{T}})(dx::StructArray{Y}) where {T,Y<:Union{T,Tangent{T}}}
-#     StructArray{T}(StructArrays.components(backing.(dx)))
-# end
-
 function rrule(::Type{StructArray}, x::T) where {T<:Union{Tuple,NamedTuple}}
     y = StructArray(x)
+    StructArray_rrule(Δ::Thunk) = StructArray_rrule(unthunk(Δ))
     function StructArray_rrule(Δ)
         return NoTangent(), Tangent{T}(StructArrays.components(backing.(Δ))...)
+    end
+    function StructArray_rrule(Δ::AbstractArray)
+        return NoTangent(), Tangent{T}((getproperty.(Δ, p) for p in propertynames(y))...)
     end
     return y, StructArray_rrule
 end
