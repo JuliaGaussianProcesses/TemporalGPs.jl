@@ -86,7 +86,7 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
                 include(joinpath("gp", "posterior_lti_sde.jl"))
             end
         end
-        
+
         if TEST_GROUP == "space_time" || GROUP == "all"
             println("space_time:")
             @testset "space_time" begin
@@ -99,8 +99,6 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
         end
     end
 end
-
-
 
 # Run the examples.
 if GROUP == "examples"
