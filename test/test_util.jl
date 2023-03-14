@@ -44,7 +44,7 @@ function test_zygote_grad_finite_differences_compatible(f, args...; kwargs...)
     function finite_diff_compatible_f(x::AbstractVector)
         return @ignore_derivatives(f)(from_vec(x)...)
     end
-    test_zygote_grad(finite_diff_compatible_f ⊢ NoTangent(), x_vec; kwargs...)
+    test_zygote_grad(finite_diff_compatible_f ⊢ NoTangent(), x_vec; testset_name="test_rrule: $(f) on $(typeof.(args))", kwargs...)
 end
 
 function to_vec(x::Fill)
