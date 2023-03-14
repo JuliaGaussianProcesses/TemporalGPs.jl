@@ -344,16 +344,15 @@ end
 # Sum
 
 function lgssm_components(k::KernelSum, ts::AbstractVector, storage_type::StorageType)
-    As_l, as_l, Qs_l, emission_proj_l, x0_l = lgssm_components(k.kernels[1], ts, storage_type)
-    As_r, as_r, Qs_r, emission_proj_r, x0_r = lgssm_components(k.kernels[2], ts, storage_type)
+    return reduce(map(kernel -> lgssm_components(kernel, ts, storage_type), k.kernels)) do (As_l, as_l, Qs_l, emission_proj_l, x0_l), (As_r, as_r, Qs_r, emission_proj_r, x0_r)
+        As = _map(blk_diag, As_l, As_r)
+        as = _map(vcat, as_l, as_r)
+        Qs = _map(blk_diag, Qs_l, Qs_r)
+        emission_projections = _sum_emission_projections(emission_proj_l, emission_proj_r)
+        x0 = Gaussian(vcat(x0_l.m, x0_r.m), blk_diag(x0_l.P, x0_r.P))
 
-    As = _map(blk_diag, As_l, As_r)
-    as = _map(vcat, as_l, as_r)
-    Qs = _map(blk_diag, Qs_l, Qs_r)
-    emission_projections = _sum_emission_projections(emission_proj_l, emission_proj_r)
-    x0 = Gaussian(vcat(x0_l.m, x0_r.m), blk_diag(x0_l.P, x0_r.P))
-
-    return As, as, Qs, emission_projections, x0
+        return As, as, Qs, emission_projections, x0
+    end
 end
 
 function _sum_emission_projections(
