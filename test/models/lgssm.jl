@@ -20,7 +20,6 @@ using TemporalGPs:
 using KernelFunctions
 using Test
 using Random: MersenneTwister
-using Statistics
 using LinearAlgebra
 using StructArrays
 using Zygote, StaticArrays
