@@ -119,23 +119,12 @@ end
 end
 
 # If there's nothing, there's nothing to do.
-
 _accum_at(::AbstractZero, ::Int, ::AbstractZero) = NoTangent()
 
 # Zip
 function get_adjoint_storage(x::Base.Iterators.Zip, n::Int, Δx::Tangent)
     return (is=map((x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), x.is, backing(Δx)),)
 end
-
-# function _accum_at(Δxs::NamedTuple{(:is,)}, n::Int, Δx::Tuple)
-#     return (is=map((Δxs_, Δx_) -> _accum_at(Δxs_, n, Δx_), Δxs.is, Δx), )
-# end
-
-# function _accum_at(Δxs::NamedTuple{(:is,)}, n::Int, Δx::Tuple{Any, Any})
-#     return (is=(_accum_at(Δxs[1], n, Δx[1]), _accum_at(Δxs[2], n, Δx[2])), )
-#     # return (is=map((Δxs_, Δx_) -> _accum_at(Δxs_, n, Δx_), Δxs.is, Δx), )
-# end
-
 
 # This is a work-around for `map` not inferring for some unknown reason. Very odd...
 function _accum_at(Δxs::NamedTuple{(:is, )}, n::Int, Δx::Tangent)
