@@ -97,15 +97,18 @@ include("../test_util.jl")
         a = randn(5)
         b = rand(5)
         # This test is broken due to FiniteDifferences returning the wrong Tangent.
+        @test_broken 1 == 0
         # test_rrule(StructArray, (a, b); check_inferred=false)
 
         xs = [Gaussian(randn(1), randn(1, 1)) for _ in 1:2]
         ms = getfield.(xs, :m)
         Ps = getfield.(xs, :P)
         # Same here.
+        @test_broken 1 == 0
         # test_rrule(StructArray{eltype(xs)}, (ms, Ps))
         xs_sa = StructArray{eltype(xs)}((ms, Ps))
         # And here.
+        @test_broken 1 == 0
         # test_zygote_grad(getproperty, xs_sa, :m)
     end
 end
