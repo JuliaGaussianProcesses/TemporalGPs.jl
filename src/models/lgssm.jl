@@ -266,8 +266,7 @@ ChainRulesCore.@non_differentiable ident_eps(args...)
 
 _collect(U::Adjoint{<:Any, <:Matrix}) = collect(U)
 _collect(U::SMatrix) = U
-
-
+_collect(U::BlockDiagonal) = U
 
 # AD stuff. No need to understand this unless you're really plumbing the depths...
 

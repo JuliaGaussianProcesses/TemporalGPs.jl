@@ -280,21 +280,20 @@ function _reduce_sum_cosine_kernel_lgssm(As, Ps, H, x0, N, nt, T)
     Qs = _map((P, A) -> _map(A -> Symmetric(P) - A * Symmetric(P) * A', A), Ps, As)
     H = Fill(H, nt)
     h = Fill(zero(T), nt)
-    As = map(As...) do As...
-        BlockDiagonal(As...)
+    As = map(As...) do A...
+        BlockDiagonal(collect(A))
     end
     as = reduce(as) do as, a
         _map(vcat, as, a)
     end
-    Qs = reduce(Qs) do Qs, Q
-        _map(blk_diag, Qs, Q)
+    Qs = map(Qs...) do Q...
+        BlockDiagonal(collect(Q))
     end
     Hs = reduce(Fill(H, N)) do Hs, H
         _map(vcat, Hs, H)
     end
     m = reduce(vcat, Fill(x0.m, N))
-    # Main.@infiltrate
-    P = reduce(blk_diag, Ps)
+    P = BlockDiagonal(collect(Ps))
     x0 = Gaussian(m, P)
     return As, as, Qs, (Hs, h), x0
 end
