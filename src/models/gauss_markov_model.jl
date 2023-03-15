@@ -76,6 +76,7 @@ function get_adjoint_storage(x::GaussMarkovModel, n::Int, Δx::Tangent{T,<:Named
         x0 = NoTangent(),
     )
 end
+get_adjoint_storage(::GaussMarkovModel, ::Int, ::AbstractZero) = NoTangent()
 
 function _accum_at(
     Δxs::NamedTuple{(:ordering, :As, :as, :Qs, :x0)},

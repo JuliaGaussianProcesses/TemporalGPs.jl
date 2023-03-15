@@ -1,4 +1,5 @@
 using TemporalGPs:
+    TemporalGPs,
     predict,
     step_marginals,
     step_logpdf,
@@ -6,9 +7,26 @@ using TemporalGPs:
     invert_dynamics,
     step_posterior,
     storage_type,
-    is_of_storage_type
-
+    is_of_storage_type,
+    ArrayStorage,
+    SArrayStorage,
+    SmallOutputLGC,
+    LargeOutputLGC,
+    ScalarOutputLGC,
+    Forward,
+    Reverse,
+    ordering,
+    NoContext
+using KernelFunctions
+using Test
+using Random: MersenneTwister
+using Statistics
+using LinearAlgebra
+using StructArrays
 using Zygote, StaticArrays
+
+include("model_test_utils.jl")
+include("../test_util.jl")
 
 println("lgssm:")
 @testset "lgssm" begin
