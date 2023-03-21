@@ -151,22 +151,6 @@ function posterior_and_lml(
     return x_post, lml_raw + _logpdf_volume_compensation(y)
 end
 
-# # Required for type-stability. This is a technical detail.
-# function Zygote._pullback(::NoContext, ::Type{<:SmallOutputLGC}, A, a, Q)
-#     SmallOutputLGC_pullback(::Nothing) = nothing
-#     SmallOutputLGC_pullback(Δ) = nothing, Δ.A, Δ.a, Δ.Q
-#     return SmallOutputLGC(A, a, Q), SmallOutputLGC_pullback
-# end
-
-# # Required for type-stability. This is a technical detail.
-# function Zygote._pullback(::NoContext, ::typeof(+), A::Matrix{<:Real}, D::Diagonal{<:Real})
-#     plus_pullback(Δ::Nothing) = nothing
-#     plus_pullback(Δ) = (nothing, Δ, (diag=diag(Δ),))
-#     return A + D, plus_pullback
-# end
-
-
-
 """
     LargeOutputLGC{
         TA<:AbstractMatrix, Ta<:AbstractVector, TQ<:AbstractMatrix,

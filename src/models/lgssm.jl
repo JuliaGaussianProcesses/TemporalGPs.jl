@@ -77,7 +77,7 @@ end
 function AbstractGPs.rand(rng::AbstractRNG, model::LGSSM)
     iterable = zip(ε_randn(rng, model), model)
     init = rand(rng, x0(model))
-    return scan_emit(step_rand, iterable, init, eachindex(model))[1]
+    return first(scan_emit(step_rand, iterable, init, eachindex(model)))
 end
 
 # Generate randomness used only once so that checkpointing works.
@@ -109,7 +109,7 @@ Compute the complete marginals at each point in time. These are returned as a `V
 length `length(model)`, each element of which is a dense `Gaussian`.
 """
 function AbstractGPs.marginals(model::LGSSM)
-    return scan_emit(step_marginals, model, x0(model), eachindex(model))[1]
+    return first(scan_emit(step_marginals, model, x0(model), eachindex(model)))
 end
 
 step_marginals(x::Gaussian, model) = step_marginals(ordering(model), x, model)

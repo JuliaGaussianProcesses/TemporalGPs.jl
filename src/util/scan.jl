@@ -103,7 +103,6 @@ __getindex(x::Tuple, idx::Int) = (_getindex(x[1], idx), __getindex(Base.tail(x),
 
 
 _get_zero_adjoint(::Any) = ZeroTangent()
-_get_zero_adjoint(x::AbstractArray) = fill(ZeroTangent(), size(x))
 
 # Vector. In all probability, only one of these methods is necessary.
 
@@ -113,32 +112,17 @@ function get_adjoint_storage(x::Array, n::Int, Δx::T) where {T}
     return x̄
 end
 
-# function get_adjoint_storage(x::Vector{T}, n::Int, Δx::T) where {T<:Real}
-#     x̄ = Vector{T}(undef, length(x))
-#     x̄[n] = Δx
-#     return x̄
-# end
-
-# function get_adjoint_storage(x::Vector, n::Int, init::T) where {T<:AbstractVecOrMat{<:Real}}
-#     Δx = Vector{T}(undef, length(x))
-#     Δx[n] = init
-#     return Δx
-# end
-
-# function get_adjoint_storage(x::Vector, n::Int, init::T) where {T<:NamedTuple{(:diag,)}}
-#     Δx = Vector{T}(undef, length(x))
-#     Δx[n] = init
-#     return Δx
-# end
-
-# Diagonal type constraint for the compiler's benefit.
-@inline function _accum_at(Δxs::Vector{T}, n::Int, Δx) where {T}
+@inline function _accum_at(Δxs::Vector{T}, n::Int, Δx::T) where {T}
     Δxs[n] = Δx
     return Δxs
 end
 
-# If there's nothing, there's nothing to do.
+@inline function _accum_at(Δxs::Vector{T}, n::Int, Δx::AbstractMatrix) where {T<:AbstractMatrix}
+    Δxs[n] = convert(T, Δx)
+    return Δxs
+end 
 
+# If there's nothing, there's nothing to do.
 _accum_at(::AbstractZero, ::Int, ::AbstractZero) = NoTangent()
 
 # Zip
@@ -146,29 +130,14 @@ function get_adjoint_storage(x::Base.Iterators.Zip, n::Int, Δx::Tangent)
     return (is=map((x_, Δx_) -> get_adjoint_storage(x_, n, Δx_), x.is, backing(Δx)),)
 end
 
-# function _accum_at(Δxs::NamedTuple{(:is,)}, n::Int, Δx::Tuple)
-#     return (is=map((Δxs_, Δx_) -> _accum_at(Δxs_, n, Δx_), Δxs.is, Δx), )
-# end
-
-# function _accum_at(Δxs::NamedTuple{(:is,)}, n::Int, Δx::Tuple{Any, Any})
-#     return (is=(_accum_at(Δxs[1], n, Δx[1]), _accum_at(Δxs[2], n, Δx[2])), )
-#     # return (is=map((Δxs_, Δx_) -> _accum_at(Δxs_, n, Δx_), Δxs.is, Δx), )
-# end
-
-
 # This is a work-around for `map` not inferring for some unknown reason. Very odd...
 function _accum_at(Δxs::NamedTuple{(:is, )}, n::Int, Δx::Tangent)
     return (is=__accum_at(Δxs.is, n, backing(Δx)), )
 end
 __accum_at(Δxs::Tuple{Any}, n::Int, Δx::Tuple{Any}) = (_accum_at(Δxs[1], n, Δx[1]), )
-# __accum_at(Δxs::Vector{Any}, n::Int, Δx::Tangent) = (_accum_at(Δxs[1], n, Δx[1]), )
 function __accum_at(Δxs::Tuple, n::Int, Δx::Tuple)
     return (_accum_at(Δxs[1], n, Δx[1]), __accum_at(Base.tail(Δxs), n, Base.tail(Δx))...)
 end
-# function __accum_at(Δxs::Tuple, n, Δxs::Tuple)
-    # return (_accum_at(Δxs[1], n, Δx[1]), __accum_at(Base.tail(Δxs), n, Base.tail(backing(Δx)))...)
-# end
-
 # Fill
 
 get_adjoint_storage(::Fill, ::Int, init) = (value=init, axes=NoTangent())

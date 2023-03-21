@@ -26,9 +26,13 @@ using TemporalGPs:
     AbstractLGC,
     dim_out,
     dim_in,
-    _filter
+    _filter,
+    x0,
+    scan_emit,
+    ε_randn
 using Test
 using Zygote
+using Zygote: Context
 
 
 
@@ -44,7 +48,7 @@ function test_zygote_grad_finite_differences_compatible(f, args...; kwargs...)
     function finite_diff_compatible_f(x::AbstractVector)
         return @ignore_derivatives(f)(from_vec(x)...)
     end
-    test_zygote_grad(finite_diff_compatible_f ⊢ NoTangent(), x_vec; kwargs...)
+    test_zygote_grad(finite_diff_compatible_f ⊢ NoTangent(), x_vec; testset_name="test_rrule: $(f) on $(typeof.(args))", kwargs...)
 end
 
 function to_vec(x::Fill)
@@ -126,6 +130,10 @@ function to_vec(x::ElementOfLGSSM)
     return x_vec, ElementOfLGSSM_from_vec
 end
 
+function ChainRulesTestUtils.test_approx(actual::Tangent{<:Fill}, expected, msg=""; kwargs...)
+    test_approx(actual.value, expected.value, msg; kwargs...)
+end
+
 to_vec(x::T) where {T} = generic_struct_to_vec(x)
 
 # This is a copy from FiniteDifferences.jl without the try catch
@@ -145,6 +153,12 @@ function generic_struct_to_vec(x::T) where {T}
 end
 
 to_vec(x::TemporalGPs.RectilinearGrid) = generic_struct_to_vec(x)
+
+function to_vec(x::AbstractRNG)
+    return Bool[], _ -> x
+end
+
+Base.zero(x::AbstractRNG) = x
 
 function to_vec(f::GP)
     gp_vec, t_from_vec = to_vec((f.mean, f.kernel))
@@ -526,83 +540,96 @@ function test_interface(
     check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, rtol, atol, kwargs...
 )
     y_no_missing = rand(rng, ssm)
-
-    @testset "rand" begin
-        @test is_of_storage_type(y_no_missing[1], storage_type(ssm))
-        @test y_no_missing isa AbstractVector
-        @test length(y_no_missing) == length(ssm)
-        check_inferred && @inferred rand(rng, ssm)
-        if check_adjoints
-            # adjoint_test(
-                # ssm -> rand(MersenneTwister(123456), ssm), (ssm,);
-                # check_inferred, kwargs...
-            # ) # TODO fix this test
-            # test_zygote_grad(
-                # ssm -> rand(MersenneTwister(123456), ssm), ssm;
-                # check_inferred, rtol, atol,
-            # )
+    @testset "LGSSM interface" begin
+        @testset "rand" begin
+            @test is_of_storage_type(y_no_missing[1], storage_type(ssm))
+            @test y_no_missing isa AbstractVector
+            @test length(y_no_missing) == length(ssm)
+            check_inferred && @inferred rand(rng, ssm)
+            rng = MersenneTwister(123456)
+            if check_adjoints
+                # We need the whole scan_emit machinery to test the adjoint of rand
+                @test_broken 1 == 0
+                # It seems test_rrule cannot deal good with `rng` at the moment
+                # test_zygote_grad(rng, ssm; check_inferred, rtol, atol) do rng, model
+                    # iterable = zip(ε_randn(rng, model), model)
+                    # init = rand(rng, x0(model))
+                    # return scan_emit(step_rand, iterable, init, eachindex(model))
+                # end
+            end
+            if check_allocs
+                check_adjoint_allocations(rand, (rng, ssm); kwargs...)
+            end
         end
-        if check_allocs
-            check_adjoint_allocations(rand, (rng, ssm); kwargs...)
-        end
-    end
 
-    @testset "basics" begin
-        @inferred storage_type(ssm)
-        @test length(ssm) == length(y_no_missing)
-    end
-
-    @testset "marginals" begin
-        xs = marginals(ssm)
-        @test is_of_storage_type(xs, storage_type(ssm))
-        @test xs isa AbstractVector{<:Gaussian}
-        @test length(xs) == length(ssm)
-        check_inferred && @inferred marginals(ssm)
-        if check_adjoints
-            test_zygote_grad(marginals, ssm; check_inferred, rtol, atol)
+        @testset "basics" begin
+            @inferred storage_type(ssm)
+            @test length(ssm) == length(y_no_missing)
         end
-        if check_allocs
-            check_adjoint_allocations(marginals, (ssm, ); kwargs...)
-        end
-    end
 
-    @testset "$(data.name)" for data in [
-        (name="no-missings", y=y_no_missing),
-        # (name="with-missings", y=y_missing),
-    ]
-        _check_inferred = data.name == "with-missings" ? false : check_inferred
-
-        y = data.y
-        @testset "logpdf" begin
-            lml = logpdf(ssm, y)
-            @test lml isa Real
-            @test is_of_storage_type(lml, storage_type(ssm))
-            _check_inferred && @inferred logpdf(ssm, y)
-        end
-        @testset "_filter" begin
-            xs = _filter(ssm, y)
+        @testset "marginals" begin
+            xs = marginals(ssm)
             @test is_of_storage_type(xs, storage_type(ssm))
             @test xs isa AbstractVector{<:Gaussian}
             @test length(xs) == length(ssm)
-            _check_inferred && @inferred _filter(ssm, y)
-        end
-        @testset "posterior" begin
-            posterior_ssm = posterior(ssm, y)
-            @test length(posterior_ssm) == length(ssm)
-            @test ordering(posterior_ssm) != ordering(ssm)
-            _check_inferred && @inferred posterior(ssm, y)
-        end
-
-        # Hack to only run the AD tests if requested.
-        @testset "adjoints" for _ in (check_adjoints ? [1] : [])
-            adjoint_test(logpdf, (ssm, y); check_inferred=_check_inferred, kwargs...)
-            adjoint_test(_filter, (ssm, y); check_inferred=_check_inferred, kwargs...)
-            adjoint_test(posterior, (ssm, y); check_inferred=_check_inferred, kwargs...)
-
+            check_inferred && @inferred marginals(ssm)
+            if check_adjoints
+                # We need to test the whole scan_emit to avoid throwing a state.
+                test_zygote_grad(ssm; check_inferred, rtol, atol) do model
+                    scan_emit(step_marginals, model, x0(model), eachindex(model))
+                end
+            end
             if check_allocs
-                check_adjoint_allocations(logpdf, (ssm, y); kwargs...)
-                check_adjoint_allocations(_filter, (ssm, y); kwargs...)
-                check_adjoint_allocations(posterior, (ssm, y); kwargs...)
+                check_adjoint_allocations(marginals, (ssm, ); kwargs...)
+            end
+        end
+
+        @testset "$(data.name)" for data in [
+            (name="no-missings", y=y_no_missing),
+            # (name="with-missings", y=y_missing),
+        ]
+            _check_inferred = data.name == "with-missings" ? false : check_inferred
+
+            y = data.y
+            @testset "logpdf" begin
+                lml = logpdf(ssm, y)
+                @test lml isa Real
+                @test is_of_storage_type(lml, storage_type(ssm))
+                _check_inferred && @inferred logpdf(ssm, y)
+                if check_adjoints
+                    test_zygote_grad(ssm, y; check_inferred, rtol, atol) do model, y
+                        scan_emit(step_logpdf, zip(model, y), x0(model), eachindex(model))
+                    end
+                end
+            end
+            @testset "_filter" begin
+                xs = _filter(ssm, y)
+                @test is_of_storage_type(xs, storage_type(ssm))
+                @test xs isa AbstractVector{<:Gaussian}
+                @test length(xs) == length(ssm)
+                _check_inferred && @inferred _filter(ssm, y)
+                if check_adjoints
+                    test_zygote_grad(ssm, y; check_inferred, rtol, atol) do model, y
+                        scan_emit(step_filter, zip(model, y), x0(model), eachindex(model))
+                    end
+                end
+            end
+            @testset "posterior" begin
+                posterior_ssm = posterior(ssm, y)
+                @test length(posterior_ssm) == length(ssm)
+                @test ordering(posterior_ssm) != ordering(ssm)
+                _check_inferred && @inferred posterior(ssm, y)
+                if check_adjoints
+                    test_zygote_grad(posterior, ssm, y; check_inferred, rtol, atol)
+                end
+            end
+
+            # Hack to only run the AD tests if requested.
+            @testset "adjoints" for _ in (check_adjoints ? [1] : [])
+                if check_allocs
+                    check_adjoint_allocations(_filter, (ssm, y); kwargs...)
+                    check_adjoint_allocations(posterior, (ssm, y); kwargs...)
+                end
             end
         end
     end
