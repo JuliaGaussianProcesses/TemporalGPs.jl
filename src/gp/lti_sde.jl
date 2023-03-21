@@ -1,5 +1,5 @@
 """
-    LTISDE
+    LTISDE (Linear Time-Invariant Stochastic Differential Equation)
 
 A lightweight wrapper around a `GP` `f` that tells this package to handle inference in `f`.
 Can be constructed via the `to_sde` function.
@@ -14,8 +14,6 @@ function to_sde(f::GP{<:AbstractGPs.ZeroMean}, storage_type=ArrayStorage(Float64
 end
 
 storage_type(f::LTISDE) = f.storage
-
-
 
 """
     const FiniteLTISDE = FiniteGP{<:LTISDE}
@@ -41,9 +39,9 @@ function AbstractGPs.mean_and_var(ft::FiniteLTISDE)
     return map(mean, ms), map(var, ms)
 end
 
-AbstractGPs.mean(ft::FiniteLTISDE) = mean_and_var(ft)[1]
+AbstractGPs.mean(ft::FiniteLTISDE) = first(mean_and_var(ft))
 
-AbstractGPs.var(ft::FiniteLTISDE) = mean_and_var(ft)[2]
+AbstractGPs.var(ft::FiniteLTISDE) = last(mean_and_var(ft))
 
 AbstractGPs.cov(ft::FiniteLTISDE) = cov(FiniteGP(ft.f.f, ft.x, ft.Σy))
 
@@ -69,9 +67,7 @@ function _logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
     return logpdf(build_lgssm(ft), observations_to_time_form(ft.x, y))
 end
 
-
-
-# Converting GPs into LGSSMs.
+# Converting GPs into LGSSMs (Linear Gaussian State-Space Models).
 
 function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)
     k = get_kernel(f)
@@ -95,7 +91,7 @@ get_kernel(f::GP) = Zygote.literal_getfield(f, Val(:kernel))
 function build_emissions(
     (Hs, hs)::Tuple{AbstractVector, AbstractVector}, Σs::AbstractVector,
 )
-    Hst = map(adjoint, Hs)
+    Hst = _map(adjoint, Hs)
     return StructArray{get_type(Hst, hs, Σs)}((Hst, hs, Σs))
 end
 
@@ -130,13 +126,13 @@ function lgssm_components(
     # Compute stationary distribution and sde.
     x0 = stationary_distribution(k, storage)
     P = x0.P
-    F, q, H = to_sde(k, storage)
+    F, _, H = to_sde(k, storage)
 
     # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
     t = vcat([first(t) - 1], t)
-    As = map(Δt -> time_exp(F, T(Δt)), diff(t))
+    As = _map(Δt -> time_exp(F, T(Δt)), diff(t))
     as = Fill(Zeros{T}(size(first(As), 1)), length(As))
-    Qs = map(A -> Symmetric(P) - A * Symmetric(P) * A', As)
+    Qs = _map(A -> Symmetric(P) - A * Symmetric(P) * A', As)
     Hs = Fill(H, length(As))
     hs = Fill(zero(T), length(As))
     emission_projections = (Hs, hs)
@@ -151,12 +147,12 @@ function lgssm_components(
     # Compute stationary distribution and sde.
     x0 = stationary_distribution(k, storage_type)
     P = x0.P
-    F, q, H = to_sde(k, storage_type)
+    F, _, H = to_sde(k, storage_type)
 
     # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
     A = time_exp(F, T(step(t)))
     As = Fill(A, length(t))
-    as = Fill(Zeros{T}(size(F, 1)), length(t))
+    as = @ignore_derivatives(Fill(Zeros{T}(size(F, 1)), length(t)))
     Q = Symmetric(P) - A * Symmetric(P) * A'
     Qs = Fill(Q, length(t))
     Hs = Fill(H, length(t))
@@ -177,29 +173,25 @@ function stationary_distribution(k::SimpleKernel, ::ArrayStorage{T}) where {T<:R
     return Gaussian(collect(x.m), collect(x.P))
 end
 
-
-
 # Matern-1/2
 
-function to_sde(k::Matern12Kernel, s::SArrayStorage{T}) where {T<:Real}
+function to_sde(::Matern12Kernel, ::SArrayStorage{T}) where {T<:Real}
     F = SMatrix{1, 1, T}(-1)
     q = convert(T, 2)
     H = SVector{1, T}(1)
     return F, q, H
 end
 
-function stationary_distribution(k::Matern12Kernel, s::SArrayStorage{T}) where {T<:Real}
+function stationary_distribution(::Matern12Kernel, ::SArrayStorage{T}) where {T<:Real}
     return Gaussian(
         SVector{1, T}(0),
         SMatrix{1, 1, T}(1),
     )
 end
 
-
-
 # Matern - 3/2
 
-function to_sde(k::Matern32Kernel, ::SArrayStorage{T}) where {T<:Real}
+function to_sde(::Matern32Kernel, ::SArrayStorage{T}) where {T<:Real}
     λ = sqrt(3)
     F = SMatrix{2, 2, T}(0, -3, 1, -2λ)
     q = convert(T, 4 * λ^3)
@@ -207,18 +199,16 @@ function to_sde(k::Matern32Kernel, ::SArrayStorage{T}) where {T<:Real}
     return F, q, H
 end
 
-function stationary_distribution(k::Matern32Kernel, ::SArrayStorage{T}) where {T<:Real}
+function stationary_distribution(::Matern32Kernel, ::SArrayStorage{T}) where {T<:Real}
     return Gaussian(
         SVector{2, T}(0, 0),
         SMatrix{2, 2, T}(1, 0, 0, 3),
     )
 end
 
-
-
 # Matern - 5/2
 
-function to_sde(k::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
+function to_sde(::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
     λ = sqrt(5)
     F = SMatrix{3, 3, T}(0, 0, -λ^3, 1, 0, -3λ^2, 0, 1, -3λ)
     q = convert(T, 8 * λ^5 / 3)
@@ -226,18 +216,16 @@ function to_sde(k::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
     return F, q, H
 end
 
-function stationary_distribution(k::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
+function stationary_distribution(::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
     κ = 5 / 3
     m = SVector{3, T}(0, 0, 0)
     P = SMatrix{3, 3, T}(1, 0, -κ, 0, κ, 0, -κ, 0, 25)
     return Gaussian(m, P)
 end
 
-
-
 # Constant
 
-function TemporalGPs.to_sde(k::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
+function TemporalGPs.to_sde(::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
     F = SMatrix{1, 1, T}(0)
     q = convert(T, 0)
     H = SVector{1, T}(1)
@@ -251,8 +239,6 @@ function TemporalGPs.stationary_distribution(k::ConstantKernel, ::SArrayStorage{
     )
 end
 
-
-
 # Scaled
 
 function lgssm_components(k::ScaledKernel, ts::AbstractVector, storage_type::StorageType)
@@ -263,15 +249,13 @@ function lgssm_components(k::ScaledKernel, ts::AbstractVector, storage_type::Sto
     return As, as, Qs, _scale_emission_projections(emission_proj, σ), x0
 end
 
-function _scale_emission_projections((Hs, hs)::Tuple{AbstractVector, AbstractVector}, σ)
-    return (map(H->σ * H, Hs), map(h->σ * h, hs))
+function _scale_emission_projections((Hs, hs)::Tuple{AbstractVector, AbstractVector}, σ::Real)
+    return _map(H->σ * H, Hs), _map(h->σ * h, hs)
 end
 
 function _scale_emission_projections((Cs, cs, Hs, hs), σ)
-    return (Cs, cs, map(H->σ * H, Hs), map(h->σ * h, hs))
+    return (Cs, cs, _map(H -> σ * H, Hs), _map(h -> σ * h, hs))
 end
-
-
 
 # Stretched
 
@@ -296,17 +280,15 @@ function apply_stretch(a, ts::RegularSpacing)
     return RegularSpacing(a * t0, a * Δt, N)
 end
 
-
-
 # Sum
 
 function lgssm_components(k::KernelSum, ts::AbstractVector, storage_type::StorageType)
     As_l, as_l, Qs_l, emission_proj_l, x0_l = lgssm_components(k.kernels[1], ts, storage_type)
     As_r, as_r, Qs_r, emission_proj_r, x0_r = lgssm_components(k.kernels[2], ts, storage_type)
 
-    As = map(blk_diag, As_l, As_r)
-    as = map(vcat, as_l, as_r)
-    Qs = map(blk_diag, Qs_l, Qs_r)
+    As = _map(blk_diag, As_l, As_r)
+    as = _map(vcat, as_l, as_r)
+    Qs = _map(blk_diag, Qs_l, Qs_r)
     emission_projections = _sum_emission_projections(emission_proj_l, emission_proj_r)
     x0 = Gaussian(vcat(x0_l.m, x0_r.m), blk_diag(x0_l.P, x0_r.P))
 
@@ -317,18 +299,18 @@ function _sum_emission_projections(
     (Hs_l, hs_l)::Tuple{AbstractVector, AbstractVector},
     (Hs_r, hs_r)::Tuple{AbstractVector, AbstractVector},
 )
-    return (map(vcat, Hs_l, Hs_r), hs_l + hs_r)
+    return map(vcat, Hs_l, Hs_r), hs_l + hs_r
 end
 
 function _sum_emission_projections(
     (Cs_l, cs_l, Hs_l, hs_l)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
     (Cs_r, cs_r, Hs_r, hs_r)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
 )
-    Cs = map(vcat, Cs_l, Cs_r)
+    Cs = _map(vcat, Cs_l, Cs_r)
     cs = cs_l + cs_r
-    Hs = map(blk_diag, Hs_l, Hs_r)
-    hs = map(vcat, hs_l, hs_r)
-    return (Cs, cs, Hs, hs)
+    Hs = _map(blk_diag, Hs_l, Hs_r)
+    hs = _map(vcat, hs_l, hs_r)
+    return Cs, cs, Hs, hs
 end
 
 Base.vcat(x::Zeros{T, 1}, y::Zeros{T, 1}) where {T} = Zeros{T}(length(x) + length(y))
@@ -340,13 +322,14 @@ function blk_diag(A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T}
     )
 end
 
-Zygote.@adjoint function blk_diag(A, B)
-    function blk_diag_adjoint(Δ)
+function ChainRulesCore.rrule(::typeof(blk_diag), A, B)
+    blk_diag_rrule(Δ::AbstractThunk) = blk_diag_rrule(unthunk(Δ))
+    function blk_diag_rrule(Δ)
         ΔA = Δ[1:size(A, 1), 1:size(A, 2)]
         ΔB = Δ[size(A, 1)+1:end, size(A, 2)+1:end]
-        return (ΔA, ΔB)
+        return NoTangent(), ΔA, ΔB
     end
-    return blk_diag(A, B), blk_diag_adjoint
+    return blk_diag(A, B), blk_diag_rrule
 end
 
 function blk_diag(A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T}
@@ -355,13 +338,11 @@ function blk_diag(A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T
     return [[A zero_AB]; [zero_BA B]]
 end
 
-Zygote.@adjoint function blk_diag(
-    A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T},
-) where {DA, DB, T}
-    function blk_diag_adjoint(Δ::SMatrix)
+function ChainRulesCore.rrule(::typeof(blk_diag), A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T}
+    function blk_diag_adjoint(Δ)
         ΔA = Δ[SVector{DA}(1:DA), SVector{DA}(1:DA)]
         ΔB = Δ[SVector{DB}((DA+1):(DA+DB)), SVector{DB}((DA+1):(DA+DB))]
-        return ΔA, ΔB
+        return NoTangent(), ΔA, ΔB
     end
     return blk_diag(A, B), blk_diag_adjoint
 end

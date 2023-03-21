@@ -32,9 +32,9 @@ struct GaussMarkovModel{
 end
 
 # Helps Zygote out with some type-stability issues. Why this helps is unclear.
-function Zygote._pullback(::AContext, ::Type{<:GaussMarkovModel}, ordering, As, as, Qs, x0)
+function ChainRulesCore.rrule(::Type{<:GaussMarkovModel}, ordering, As, as, Qs, x0)
     function GaussMarkovModel_pullback(Δ)
-        return (nothing, nothing, Δ.As, Δ.as, Δ.Qs, Δ.x0)
+        return NoTangent(), NoTangent(), Δ.As, Δ.as, Δ.Qs, Δ.x0
     end
     return GaussMarkovModel(ordering, As, as, Qs, x0), GaussMarkovModel_pullback
 end
@@ -67,26 +67,26 @@ end
 
 x0(model::GaussMarkovModel) = Zygote.literal_getfield(model, Val(:x0))
 
-function get_adjoint_storage(x::GaussMarkovModel, n::Int, Δx::NamedTuple{(:A, :a, :Q)})
+function get_adjoint_storage(x::GaussMarkovModel, n::Int, Δx::Tangent{T,<:NamedTuple{(:A, :a, :Q)}}) where {T}
     return (
-        ordering = nothing,
+        ordering = NoTangent(),
         As = get_adjoint_storage(x.As, n, Δx.A),
         as = get_adjoint_storage(x.as, n, Δx.a),
         Qs = get_adjoint_storage(x.Qs, n, Δx.Q),
-        x0 = nothing,
+        x0 = NoTangent(),
     )
 end
 
 function _accum_at(
     Δxs::NamedTuple{(:ordering, :As, :as, :Qs, :x0)},
     n::Int,
-    Δx::NamedTuple{(:A, :a, :Q)},
-)
+    Δx::Tangent{T, <:NamedTuple{(:A, :a, :Q)}},
+) where {T}
     return (
-        ordering = nothing,
+        ordering = NoTangent(),
         As = _accum_at(Δxs.As, n, Δx.A),
         as = _accum_at(Δxs.as, n, Δx.a),
         Qs = _accum_at(Δxs.Qs, n, Δx.Q),
-        x0 = nothing,
+        x0 = NoTangent(),
     )
 end

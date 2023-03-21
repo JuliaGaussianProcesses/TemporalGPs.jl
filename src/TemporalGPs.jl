@@ -3,6 +3,7 @@ module TemporalGPs
     using AbstractGPs
     using BlockDiagonals
     using ChainRulesCore
+    import ChainRulesCore: rrule
     using FillArrays
     using LinearAlgebra
     using KernelFunctions
@@ -10,10 +11,8 @@ module TemporalGPs
     using StaticArrays
     using StructArrays
     using Zygote
-    using ZygoteRules
 
     using FillArrays: AbstractFill
-    using Zygote: _pullback, AContext
 
     import AbstractGPs: mean, cov, logpdf, FiniteGP, AbstractGP, posterior, dtc, elbo
 
@@ -39,7 +38,8 @@ module TemporalGPs
     include(joinpath("util", "linear_algebra.jl"))
     include(joinpath("util", "scan.jl"))
     include(joinpath("util", "zygote_friendly_map.jl"))
-    include(joinpath("util", "zygote_rules.jl"))
+
+    include(joinpath("util", "chainrules.jl"))
     include(joinpath("util", "gaussian.jl"))
     include(joinpath("util", "mul.jl"))
     include(joinpath("util", "storage_types.jl"))

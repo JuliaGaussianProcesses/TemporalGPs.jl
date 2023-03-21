@@ -40,7 +40,7 @@ function predict(x::Gaussian, f::AbstractLGC)
     A, a, Q = get_fields(f)
     m, P = get_fields(x)
     # Symmetric wrapper needed for numerical stability. Do not unwrap.
-    return Gaussian(A * m + a, A * symmetric(P) * A' + Q)
+    return Gaussian(A * m + a, (A * symmetric(P)) * A' + Q)
 end
 
 """
@@ -67,7 +67,7 @@ Sample from the conditional distribution `y | x`. `ε` is the randomness needed 
 this sample. If `rng` is provided, it will be used to construct `ε` via `ε_randn`.
 
 If implementing a new `AbstractLGC`, implement the `ε` method as it avoids randomness, which
-means that it plays nicely with `scan_emit`'s checkpointed pullback.
+means that it plays nicely with `scan_emit`'s checkpointed rrule.
 """
 function conditional_rand(rng::AbstractRNG, f::AbstractLGC, x::AbstractVector)
     return conditional_rand(ε_randn(rng, f), f, x)
@@ -85,18 +85,16 @@ Generate the vector of random numbers needed inside `conditional_rand`.
 """
 ε_randn(rng::AbstractRNG, f::AbstractLGC) = ε_randn(rng, f.A)
 ε_randn(rng::AbstractRNG, A::AbstractMatrix{T}) where {T<:Real} = randn(rng, T, size(A, 1))
-function ε_randn(rng::AbstractRNG, A::SMatrix{Dout, Din, T}) where {Dout, Din, T<:Real}
+function ε_randn(rng::AbstractRNG, ::SMatrix{Dout, Din, T}) where {Dout, Din, T<:Real}
     return randn(rng, SVector{Dout, T})
 end
 
-Zygote._pullback(::AContext, ::typeof(ε_randn), args...) = ε_randn(args...), nograd_pullback
+ChainRulesCore.@non_differentiable ε_randn(args...)
 
-scalar_type(x::AbstractVector{T}) where {T} = T
-scalar_type(x::T) where {T<:Real} = T
+scalar_type(::AbstractVector{T}) where {T} = T
+scalar_type(::T) where {T<:Real} = T
 
-Zygote._pullback(::AContext, ::typeof(scalar_type), x) = scalar_type(x), nograd_pullback
-
-
+ChainRulesCore.@non_differentiable scalar_type(x)
 
 """
     SmallOutputLGC{
@@ -153,22 +151,6 @@ function posterior_and_lml(
     return x_post, lml_raw + _logpdf_volume_compensation(y)
 end
 
-# Required for type-stability. This is a technical detail.
-function Zygote._pullback(::NoContext, ::Type{<:SmallOutputLGC}, A, a, Q)
-    SmallOutputLGC_pullback(::Nothing) = nothing
-    SmallOutputLGC_pullback(Δ) = nothing, Δ.A, Δ.a, Δ.Q
-    return SmallOutputLGC(A, a, Q), SmallOutputLGC_pullback
-end
-
-# Required for type-stability. This is a technical detail.
-function Zygote._pullback(::NoContext, ::typeof(+), A::Matrix{<:Real}, D::Diagonal{<:Real})
-    plus_pullback(Δ::Nothing) = nothing
-    plus_pullback(Δ) = (nothing, Δ, (diag=diag(Δ),))
-    return A + D, plus_pullback
-end
-
-
-
 """
     LargeOutputLGC{
         TA<:AbstractMatrix, Ta<:AbstractVector, TQ<:AbstractMatrix,
@@ -187,14 +169,13 @@ struct LargeOutputLGC{
     Q::TQ
 end
 
-function Zygote._pullback(
-    ::AContext,
+function ChainRulesCore.rrule(
     ::Type{<:LargeOutputLGC},
     A::AbstractMatrix,
     a::AbstractVector,
     Q::AbstractMatrix,
 )
-    LargeOutputLGC_pullback(Δ) = nothing, Δ.A, Δ.a, Δ.Q
+    LargeOutputLGC_pullback(Δ) = NoTangent(), Δ.A, Δ.a, Δ.Q
     return LargeOutputLGC(A, a, Q), LargeOutputLGC_pullback
 end
 
@@ -221,7 +202,7 @@ function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y::AbstractVector{<:R
     Bt = Q.U' \ A * P.U'
     F = cholesky(symmetric(Bt' * Bt + UniformScaling(1.0)))
     G = F.U' \ P.U
-    P_post = G'G
+    P_post = G' * G
 
     # Compute posterior mean.
     δ = Q.U' \ (y - (A * m + a))

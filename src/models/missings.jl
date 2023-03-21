@@ -55,9 +55,7 @@ function _logpdf_volume_compensation(y::AbstractVector{<:Union{Missing, <:Real}}
 end
 
 
-function Zygote._pullback(::AContext, ::typeof(_logpdf_volume_compensation), y)
-    return _logpdf_volume_compensation(y), nograd_pullback
-end
+ChainRulesCore.@non_differentiable _logpdf_volume_compensation(y)
 
 function fill_in_missings(Σs::Vector, y::AbstractVector{Union{Missing, T}}) where {T}
     return _fill_in_missings(Σs, y)
@@ -86,31 +84,28 @@ function fill_in_missings(Σ::Diagonal, y::AbstractVector{<:Union{Missing, <:Rea
 end
 
 # We need to densify anyway, might as well do it here and save having to implement the
-# pullback twice.
+# rrule twice.
 function fill_in_missings(Σs::Fill, y::AbstractVector{Union{Missing, T}}) where {T}
     return fill_in_missings(collect(Σs), y)
 end
 
 fill_in_missings(Σ::Diagonal, y::AbstractVector{<:Real}) = (Σ, y)
 
-function Zygote._pullback(
-    ::AContext,
+function ChainRulesCore.rrule(
     ::typeof(_fill_in_missings),
     Σs::Vector,
     y::AbstractVector{Union{T, Missing}},
 ) where {T}
-    pullback_fill_in_missings(Δ::Nothing) = nothing
-    function pullback_fill_in_missings(Δ)
-        ΔΣs_filled_in = Δ[1]
-        Δy_filled_in = Δ[2]
+    function _fill_in_missings_rrule(Δ::Tangent)
+        ΔΣs, Δy_filled = Δ
 
         # The cotangent of a `Missing` doesn't make sense, so should be a `NoTangent`.
-        Δy = if Δy_filled_in === nothing
-            nothing
+        Δy = if Δy_filled isa AbstractZero
+            ZeroTangent()
         else
-            Δy = Vector{Union{eltype(Δy_filled_in), NoTangent}}(undef, length(y))
+            Δy = Vector{Union{eltype(Δy_filled), ZeroTangent}}(undef, length(y))
             map!(
-                n -> y[n] === missing ? NoTangent() : Δy_filled_in[n],
+                n -> y[n] === missing ? ZeroTangent() : Δy_filled[n],
                 Δy, eachindex(y),
             )
             Δy
@@ -119,14 +114,13 @@ function Zygote._pullback(
         # Fill in missing locations with zeros. Opting for type-stability to keep things
         # simple.
         ΔΣs = map(
-            n -> y[n] === missing ? zero(Σs[n]) : ΔΣs_filled_in[n],
+            n -> y[n] === missing ? zero(Σs[n]) : ΔΣs[n],
             eachindex(y),
         )
 
-        # return nothing, ΔΣs, Δy
-        return nothing, ΔΣs, Δy
+        return NoTangent(), ΔΣs, Δy
     end
-    return fill_in_missings(Σs, y), pullback_fill_in_missings
+    return fill_in_missings(Σs, y), _fill_in_missings_rrule
 end
 
 get_zero(D::Int, ::Type{Vector{T}}) where {T} = zeros(T, D)

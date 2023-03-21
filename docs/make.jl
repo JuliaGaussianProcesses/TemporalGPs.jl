@@ -6,12 +6,12 @@ makedocs(;
     pages=[
         "Home" => "index.md",
     ],
-    repo="https://github.com/willtebbutt/TemporalGPs.jl/blob/{commit}{path}#L{line}",
+    repo="https://github.com/JuliaGaussianProcesses/TemporalGPs.jl/blob/{commit}{path}#L{line}",
     sitename="TemporalGPs.jl",
     authors="willtebbutt <wt0881@my.bristol.ac.uk>",
     assets=String[],
 )
 
 deploydocs(;
-    repo="github.com/willtebbutt/TemporalGPs.jl",
+    repo="github.com/JuliaGaussianProcesses/TemporalGPs.jl",
 )

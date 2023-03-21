@@ -1,9 +1,17 @@
 using Test
 
 ENV["TESTING"] = "TRUE"
-const GROUP = get(ENV, "GROUP", "test")
 
+# GROUP is an env variable from CI which can take the following values
+# ["test util", "test models" "test models-lgssm" "test gp" "test space_time"]
+# Select any of this to test a particular aspect.
+# To test everything, simply set GROUP to "all"
+# ENV["GROUP"] = "test space_time"
+const GROUP = get(ENV, "GROUP", "test")
 OUTER_GROUP = first(split(GROUP, ' '))
+
+const TEST_TYPE_INFER = false # Test type stability over the tests
+const TEST_ALLOC = false # Test allocations over the tests
 
 # Run the tests.
 if OUTER_GROUP == "test" || OUTER_GROUP == "all"
@@ -15,6 +23,7 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
     using AbstractGPs
     using BlockDiagonals
     using ChainRulesCore
+    using ChainRulesTestUtils
     using FillArrays
     using FiniteDifferences
     using LinearAlgebra
@@ -26,7 +35,6 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
 
     using Zygote
 
-    using FiniteDifferences: rand_tangent
     using AbstractGPs: var
     using TemporalGPs: AbstractLGSSM, _filter, NoContext
     using Zygote: Context, _pullback
@@ -43,7 +51,7 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
                 include(joinpath("util", "harmonise.jl"))
                 include(joinpath("util", "scan.jl"))
                 include(joinpath("util", "zygote_friendly_map.jl"))
-                include(joinpath("util", "zygote_rules.jl"))
+                include(joinpath("util", "chainrules.jl"))
                 include(joinpath("util", "gaussian.jl"))
                 include(joinpath("util", "mul.jl"))
                 include(joinpath("util", "regular_data.jl"))
@@ -92,23 +100,21 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
     end
 end
 
-
-
 # Run the examples.
 if GROUP == "examples"
 
     using Pkg
-
-    Pkg.activate(joinpath("..", "examples"))
-    Pkg.develop(path="..")
+    pkgpath = joinpath(@__DIR__, "..")
+    Pkg.activate(joinpath(pkgpath, "examples"))
+    Pkg.develop(path=pkgpath)
     Pkg.resolve()
     Pkg.instantiate()
 
-    include(joinpath("..", "examples", "exact_time_inference.jl"))
-    include(joinpath("..", "examples", "exact_time_learning.jl"))
-    include(joinpath("..", "examples", "exact_space_time_inference.jl"))
-    include(joinpath("..", "examples", "exact_space_time_learning.jl"))
-    include(joinpath("..", "examples", "approx_space_time_inference.jl"))
-    include(joinpath("..", "examples", "approx_space_time_learning.jl"))
-    include(joinpath("..", "examples", "augmented_inference.jl"))
+    include(joinpath(pkgpath, "examples", "exact_time_inference.jl"))
+    include(joinpath(pkgpath, "examples", "exact_time_learning.jl"))
+    include(joinpath(pkgpath, "examples", "exact_space_time_inference.jl"))
+    include(joinpath(pkgpath, "examples", "exact_space_time_learning.jl"))
+    include(joinpath(pkgpath, "examples", "approx_space_time_inference.jl"))
+    include(joinpath(pkgpath, "examples", "approx_space_time_learning.jl"))
+    include(joinpath(pkgpath, "examples", "augmented_inference.jl"))
 end

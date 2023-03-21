@@ -17,14 +17,13 @@ using Zygote # Algorithmic Differentiation
 # Declare model parameters using `ParameterHandling.jl` types.
 # var_kernel is the variance of the kernel, λ the inverse length scale, and var_noise the
 # variance of the observation noise. Note that they're all constrained to be positive.
-flat_initial_params, unflatten = ParameterHandling.flatten((
+flat_initial_params, unpack = ParameterHandling.value_flatten((
     var_kernel = positive(0.6),
     λ = positive(0.1),
     var_noise = positive(2.0),
 ));
 
-# Construct a function to unpack flattened parameters and pull out the raw values.
-unpack = ParameterHandling.value ∘ unflatten;
+# Pull out the raw values.
 params = unpack(flat_initial_params);
 
 function build_gp(params)
@@ -37,6 +36,7 @@ T = 1_000_000;
 x = RegularSpacing(0.0, 1e-4, T);
 
 # Generate some noisy synthetic data from the GP.
+f = build_gp(params)
 y = rand(f(x, params.var_noise));
 
 # Specify an objective function for Optim to minimise in terms of x and y.
@@ -60,7 +60,7 @@ training_results = Optim.optimize(
 );
 
 # Extracting the final values of the parameters. Should be moderately close to truth.
-final_params = unpack(training_results.minimizer);
+final_params = unpack(training_results.minimizer)
 
 # Construct the posterior as per usual.
 f_final = build_gp(final_params)
@@ -84,6 +84,6 @@ if get(ENV, "TESTING", "FALSE") == "FALSE"
     plt = plot();
     scatter!(plt, x, y; label="", markersize=0.1, alpha=0.1);
     plot!(plt, f_post(x_pr); ribbon_scale=3.0, label="");
-    plot!(x_pr, f_post_samples; color=:red, label="");
+    plot!(plt, x_pr, f_post_samples; color=:red, label="");
     savefig(plt, "posterior.png");
 end

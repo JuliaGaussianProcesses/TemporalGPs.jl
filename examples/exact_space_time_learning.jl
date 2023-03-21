@@ -67,7 +67,7 @@ training_results = Optim.optimize(
 
 # Extracting the final values of the parameters.
 # Should be close to truth.
-final_params = unpack(training_results.minimizer);
+final_params = unpack(training_results.minimizer)
 
 # Construct the posterior as per usual.
 f_post = posterior(build_gp(final_params)(x, final_params.var_noise), y);

@@ -103,6 +103,13 @@ function harmonise(a::Tangent{<:Any, <:NamedTuple}, b)
     )
 end
 
+harmonise(x::AbstractMatrix, y::NamedTuple{(:diag,)}) = (diag(x), y.diag)
+function harmonise(x::AbstractVector, y::NamedTuple{(:value,:axes)})
+    x = reduce(Zygote.accum, x)
+    (x, y.value)
+end
+
+
 harmonise(a::Tangent{<:Any, <:NamedTuple}, b::AbstractZero) = (a, b)
 
 harmonise(a, b::Tangent{<:Any, <:NamedTuple}) = reverse(harmonise(b, a))

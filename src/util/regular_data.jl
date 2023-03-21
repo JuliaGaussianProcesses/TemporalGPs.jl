@@ -24,13 +24,10 @@ Base.getindex(x::RegularSpacing, n::Int) = x.t0 + (n - 1) * x.Δt
 
 Base.step(x::RegularSpacing) = x.Δt
 
-ZygoteRules.@adjoint function (::Type{TR})(t0::T, Δt::T, N::Int) where {TR<:RegularSpacing, T<:Real}
-    function pullback_RegularSpacing(Δ::TΔ) where {TΔ<:NamedTuple}
-        return (
-            hasfield(TΔ, :t0) ? Δ.t0 : nothing,
-            hasfield(TΔ, :Δt) ? Δ.Δt : nothing,
-            nothing,
-        )
+function ChainRulesCore.rrule(::Type{TR}, t0::T, Δt::T, N::Int) where {TR<:RegularSpacing, T<:Real}
+    function RegularSpacing_rrule(Δ)
+        Δ = unthunk(Δ)
+        return NoTangent(), Δ.t0, Δ.Δt, NoTangent()
     end
-    return RegularSpacing(t0, Δt, N), pullback_RegularSpacing
+    return RegularSpacing(t0, Δt, N), RegularSpacing_rrule
 end

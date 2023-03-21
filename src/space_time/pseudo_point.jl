@@ -50,14 +50,12 @@ WARNING: this API is unstable, and subject to change in future versions of Tempo
 was thrown together quickly in pursuit of a conference deadline, and has yet to receive the
 attention it deserves.
 """
-function dtc(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
+function AbstractGPs.dtc(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
     return logpdf(dtcify(z_r, fx), y)
 end
 
-# This stupid pullback saves an absurb amount of compute time.
-function Zygote._pullback(::AContext, ::typeof(count), ::typeof(ismissing), yn)
-    return count(ismissing, yn), nograd_pullback
-end
+# This stupid rule saves an absurb amount of compute time.
+ChainRulesCore.@non_differentiable count(::typeof(ismissing), yn)
 
 """
     elbo(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)
@@ -147,12 +145,12 @@ function lgssm_components(k_dtc::DTCSeparable, x::SpaceTimeGrid, storage::Storag
     Λu_Cuf = cholesky(Symmetric(K_space_z + 1e-12I)) \ K_space_zx
 
     # Construct approximately low-rank model spatio-temporal LGSSM.
-    As = map(A -> kron(ident_M, A), As_t)
-    as = map(a -> repeat(a, M), as_t)
-    Qs = map(Q -> kron(K_space_z, Q), Qs_t)
+    As = _map(A -> kron(ident_M, A), As_t)
+    as = _map(a -> repeat(a, M), as_t)
+    Qs = _map(Q -> kron(K_space_z, Q), Qs_t)
     Cs = Fill(Λu_Cuf, length(ts))
-    cs = map(h -> Fill(h, N), hs_t) # This should currently be zero.
-    Hs = map(H -> kron(ident_M, H), Hs_t)
+    cs = _map(h -> Fill(h, N), hs_t) # This should currently be zero.
+    Hs = _map(H -> kron(ident_M, H), Hs_t)
     hs = Fill(Zeros(M), length(ts))
     x0 = Gaussian(repeat(x0_t.m, M), kron(K_space_z, x0_t.P))
     return As, as, Qs, (Cs, cs, Hs, hs), x0
@@ -179,22 +177,16 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
     ident_M = my_I(eltype(storage), M)
 
     # Construct approximately low-rank model spatio-temporal LGSSM.
-    As = zygote_friendly_map(
-        ((I, A), ) -> kron(I, A),
-        zip(Fill(ident_M, N), As_t),
-    )
-    as = zygote_friendly_map(a -> repeat(a, M), as_t)
-    Qs = zygote_friendly_map(
-        ((K_space_z, Q), ) -> kron(K_space_z, Q),
-        zip(Fill(K_space_z, N), Qs_t),
-    )
+    As = _map(kron, Fill(ident_M, N), As_t)
+    as = _map(a -> repeat(a, M), as_t)
+    Qs = _map(kron, Fill(K_space_z, N), Qs_t)
     x_big = _reduce(vcat, x.vs)
     C__ = kernelmatrix(space_kernel, z_space, x_big)
     C = \(K_space_z_chol, C__)
-    Cs = partition(Zygote.dropgrad(map(length, x.vs)), C)
+    Cs = partition(ChainRulesCore.ignore_derivatives(map(length, x.vs)), C)
 
-    cs = map((h, v) -> fill(h, length(v)), hs_t, x.vs) # This should currently be zero.
-    Hs = zygote_friendly_map(
+    cs = _map((h, v) -> fill(h, length(v)), hs_t, x.vs) # This should currently be zero.
+    Hs = _map(
         ((I, H_t), ) -> kron(I, H_t),
         zip(Fill(ident_M, N), Hs_t),
     )
@@ -218,14 +210,13 @@ function partition(lengths::AbstractVector{<:Integer}, A::Matrix{<:Real})
     return map((s, d) -> collect(view(A, :, s:s+d-1)), starts, lengths)
 end
 
-function Zygote._pullback(
-    ctx::AContext,
+function ChainRulesCore.rrule(
     ::typeof(partition),
     lengths::AbstractVector{<:Integer},
     A::Matrix{<:Real},
 )
-    partition_pullback(::Nothing) = nothing
-    partition_pullback(Δ::Vector) = nothing, nothing, reduce(hcat, Δ)
+    partition_pullback(::NoTangent) = NoTangent(), NoTangent(), NoTangent()
+    partition_pullback(Δ::Vector) = NoTangent(), NoTangent(), reduce(hcat, Δ)
     return partition(lengths, A), partition_pullback
 end
 
@@ -233,8 +224,8 @@ function build_emissions(
     (Cs, cs, Hs, hs)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
     Σs::AbstractVector,
 )
-    Hst = map(adjoint, Hs)
-    Cst = map(adjoint, Cs)
+    Hst = _map(adjoint, Hs)
+    Cst = _map(adjoint, Cs)
     fan_outs = StructArray{LargeOutputLGC{eltype(Cs), eltype(cs), eltype(Σs)}}((Cst, cs, Σs))
     return StructArray{BottleneckLGC{eltype(Hst), eltype(hs), eltype(fan_outs)}}((Hst, hs, fan_outs))
 end
@@ -388,15 +379,15 @@ end
 function dtc_post_emissions(k::ScaledKernel, x_new::AbstractVector, storage::StorageType)
     (Cs, cs, Hs, hs), Σs = dtc_post_emissions(k.kernel, x_new, storage)
     σ = sqrt(convert(eltype(storage_type), only(k.σ²)))
-    return (Cs, cs, map(H->σ * H, Hs), map(h->σ * h, hs)), map(Σ->σ^2 * Σ, Σs)
+    return (Cs, cs, _map(H->σ * H, Hs), _map(h->σ * h, hs)), _map(Σ->σ^2 * Σ, Σs)
 end
 
 function dtc_post_emissions(k::KernelSum, x_new::AbstractVector, storage::StorageType)
     (Cs_l, cs_l, Hs_l, hs_l), Σs_l = dtc_post_emissions(k.kernels[1], x_new, storage)
     (Cs_r, cs_r, Hs_r, hs_r), Σs_r = dtc_post_emissions(k.kernels[2], x_new, storage)
-    Cs = map(vcat, Cs_l, Cs_r)
+    Cs = _map(vcat, Cs_l, Cs_r)
     cs = cs_l + cs_r
-    Hs = map(blk_diag, Hs_l, Hs_r)
-    hs = map(vcat, hs_l, hs_r)
-    return (Cs, cs, Hs, hs), map(+, Σs_l, Σs_r)
+    Hs = _map(blk_diag, Hs_l, Hs_r)
+    hs = _map(vcat, hs_l, hs_r)
+    return (Cs, cs, Hs, hs), _map(+, Σs_l, Σs_r)
 end

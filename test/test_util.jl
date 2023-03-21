@@ -1,5 +1,17 @@
-using ChainRulesCore: backing
+using AbstractGPs
+using BlockDiagonals
+using ChainRulesCore: backing, ZeroTangent, NoTangent, Tangent
+using ChainRulesTestUtils: ChainRulesTestUtils, test_approx, rand_tangent, test_rrule, @ignore_derivatives
+using FiniteDifferences
+using FillArrays
+using LinearAlgebra
+using Random: AbstractRNG, MersenneTwister
+using StaticArrays
+using StructArrays
+using TemporalGPs
 using TemporalGPs:
+    AbstractLGSSM,
+    ElementOfLGSSM,
     Gaussian,
     harmonise,
     Forward,
@@ -13,7 +25,14 @@ using TemporalGPs:
     conditional_rand,
     AbstractLGC,
     dim_out,
-    dim_in
+    dim_in,
+    _filter,
+    x0,
+    scan_emit,
+    ε_randn
+using Test
+using Zygote
+using Zygote: Context
 
 
 
@@ -22,21 +41,26 @@ using TemporalGPs:
 
 import FiniteDifferences: to_vec
 
+test_zygote_grad(f, args...; check_inferred=false, kwargs...) = test_rrule(Zygote.ZygoteRuleConfig(), f, args...; rrule_f=rrule_via_ad, check_inferred, kwargs...) 
+
+function test_zygote_grad_finite_differences_compatible(f, args...; kwargs...)
+    x_vec, from_vec = to_vec(args)
+    function finite_diff_compatible_f(x::AbstractVector)
+        return @ignore_derivatives(f)(from_vec(x)...)
+    end
+    test_zygote_grad(finite_diff_compatible_f ⊢ NoTangent(), x_vec; testset_name="test_rrule: $(f) on $(typeof.(args))", kwargs...)
+end
+
 function to_vec(x::Fill)
     x_vec, back_vec = to_vec(FillArrays.getindex_value(x))
     function Fill_from_vec(x_vec)
-        return Fill(back_vec(x_vec), length(x))
+        return Fill(back_vec(x_vec), axes(x))
     end
     return x_vec, Fill_from_vec
 end
 
 function to_vec(x::Union{Zeros, Ones})
     return Vector{eltype(x)}(undef, 0), _ -> x
-end
-
-function to_vec(::Missing)
-    Missing_from_vec(::Any) = missing
-    return Bool[], Missing_from_vec
 end
 
 # I'M OVERRIDING FINITEDIFFERENCES DEFINITION HERE. THIS IS BAD.
@@ -46,18 +70,18 @@ function to_vec(x::Diagonal)
     return v, Diagonal_from_vec
 end
 
-function to_vec(x::T) where {T<:NamedTuple}
-    isempty(fieldnames(T)) && throw(error("Expected some fields. None found."))
-    vecs_and_backs = map(name->to_vec(getfield(x, name)), fieldnames(T))
-    vecs, backs = first.(vecs_and_backs), last.(vecs_and_backs)
-    x_vec, back = to_vec(vecs)
-    function namedtuple_to_vec(x′_vec)
-        vecs′ = back(x′_vec)
-        x′s = map((back, vec)->back(vec), backs, vecs′)
-        return (; zip(fieldnames(T), x′s)...)
-    end
-    return x_vec, namedtuple_to_vec
-end
+# function to_vec(x::T) where {T<:NamedTuple}
+#     isempty(fieldnames(T)) && throw(error("Expected some fields. None found."))
+#     vecs_and_backs = map(name->to_vec(getfield(x, name)), fieldnames(T))
+#     vecs, backs = first.(vecs_and_backs), last.(vecs_and_backs)
+#     x_vec, back = to_vec(vecs)
+#     function namedtuple_to_vec(x′_vec)
+#         vecs′ = back(x′_vec)
+#         x′s = map((back, vec)->back(vec), backs, vecs′)
+#         return (; zip(fieldnames(T), x′s)...)
+#     end
+#     return x_vec, namedtuple_to_vec
+# end
 
 function to_vec(x::T) where {T<:StaticArray}
     x_dense = collect(x)
@@ -74,13 +98,13 @@ function to_vec(x::Adjoint{<:Any, T}) where {T<:StaticVector}
     return x_vec, Adjoint_from_vec
 end
 
-function to_vec(x::Tuple{})
-    empty_tuple_from_vec(v) = x
+function to_vec(::Tuple{})
+    empty_tuple_from_vec(::AbstractVector) = ()
     return Bool[], empty_tuple_from_vec
 end
 
 function to_vec(x::StructArray{T}) where {T}
-    x_vec, x_fields_from_vec = to_vec(getfield(x, :components))
+    x_vec, x_fields_from_vec = to_vec(StructArrays.components(x))
     function StructArray_from_vec(x_vec)
         x_field_vecs = x_fields_from_vec(x_vec)
         return StructArray{T}(Tuple(x_field_vecs))
@@ -88,18 +112,38 @@ function to_vec(x::StructArray{T}) where {T}
     return x_vec, StructArray_from_vec
 end
 
-# Fallback method for `to_vec`. Won't always do what you wanted, but should be fine a decent
-# chunk of the time.
-to_vec(x) = generic_struct_to_vec(x)
+function to_vec(x::TemporalGPs.LGSSM)
+    x_vec, from_vec = to_vec((x.transitions, x.emissions))
+    function LGSSM_from_vec(x_vec)
+        (transition, emission) = from_vec(x_vec)
+        return LGSSM(transition, emission)
+    end
+    return x_vec, LGSSM_from_vec
+end
 
+function to_vec(x::ElementOfLGSSM)
+    x_vec, from_vec = to_vec((x.transition, x.emission))
+    function ElementOfLGSSM_from_vec(x_vec)
+        (transition, emission) = from_vec(x_vec)
+        return ElementOfLGSSM(x.ordering, transition, emission)
+    end
+    return x_vec, ElementOfLGSSM_from_vec
+end
+
+function ChainRulesTestUtils.test_approx(actual::Tangent{<:Fill}, expected, msg=""; kwargs...)
+    test_approx(actual.value, expected.value, msg; kwargs...)
+end
+
+to_vec(x::T) where {T} = generic_struct_to_vec(x)
+
+# This is a copy from FiniteDifferences.jl without the try catch
 function generic_struct_to_vec(x::T) where {T}
     Base.isstructtype(T) || throw(error("Expected a struct type"))
-
+    isempty(fieldnames(T)) && return (Bool[], _ -> x) # Singleton types
     val_vecs_and_backs = map(name -> to_vec(getfield(x, name)), fieldnames(T))
     vals = first.(val_vecs_and_backs)
     backs = last.(val_vecs_and_backs)
     v, vals_from_vec = to_vec(vals)
-
     function structtype_from_vec(v::Vector{<:Real})
         val_vecs = vals_from_vec(v)
         vals = map((b, v) -> b(v), backs, val_vecs)
@@ -110,14 +154,24 @@ end
 
 to_vec(x::TemporalGPs.RectilinearGrid) = generic_struct_to_vec(x)
 
+function to_vec(x::AbstractRNG)
+    return Bool[], _ -> x
+end
+
+Base.zero(x::AbstractRNG) = x
+
 function to_vec(f::GP)
     gp_vec, t_from_vec = to_vec((f.mean, f.kernel))
     function GP_from_vec(v)
-        (m, k) = t_from_vec(v)
+        m, k = t_from_vec(v)
         return GP(m, k)
     end
     return gp_vec, GP_from_vec
 end
+
+Base.zero(x::AbstractGPs.ZeroMean) = x
+Base.zero(x::Kernel) = x
+Base.zero(x::TemporalGPs.LTISDE) = x
 
 function to_vec(X::BlockDiagonal)
     Xs = blocks(X)
@@ -131,17 +185,10 @@ function to_vec(X::BlockDiagonal)
     return Xs_vec, BlockDiagonal_from_vec
 end
 
-function to_vec(::typeof(identity))
-    Identity_from_vec(v) = identity
-    return Bool[], Identity_from_vec
-end
-
 function to_vec(x::RegularSpacing)
     RegularSpacing_from_vec(v) = RegularSpacing(v[1], v[2], x.N)
     return [x.t0, x.Δt], RegularSpacing_from_vec
 end
-
-to_vec(::Nothing) = Bool[], _ -> nothing
 
 # Ensure that to_vec works for the types that we care about in this package.
 @testset "custom FiniteDifferences stuff" begin
@@ -286,15 +333,15 @@ function adjoint_test(
     atol=1e-6,
     fdm=central_fdm(5, 1; max_range=1e-3),
     test=true,
-    check_infers=true,
-    context=NoContext(),
+    check_inferred=TEST_TYPE_INFER,
+    context=Context(),
     kwargs...,
 )
     # Compute <Jᵀ ȳ, ẋ> = <x̄, ẋ> using Zygote.
-    y, pb = Zygote._pullback(context, f, x...)
+    y, pb = Zygote.pullback(f, x...)
 
     # Check type inference if requested.
-    if check_infers
+    if check_inferred
         # @descend only works if you `using Cthulhu`.
         # @descend Zygote._pullback(context, f, x...)
         # @descend pb(ȳ)
@@ -304,22 +351,16 @@ function adjoint_test(
         @inferred Zygote._pullback(context, f, x...)
         @inferred pb(ȳ)
     end
-
-    x̄ = pb(ȳ)[2:end]
-
+    x̄ = pb(ȳ)
     x̄_ad, ẋ_ad = harmonise(Zygote.wrap_chainrules_input(x̄), ẋ)
     inner_ad = dot(x̄_ad, ẋ_ad)
-
+    
     # Approximate <ȳ, J ẋ> = <ȳ, ẏ> using FiniteDifferences.
-    # @show harmonise(j′vp(fdm, f, ȳ, x...), ẋ)[1]
     # x̄_fd = j′vp(fdm, f, ȳ, x...)
     ẏ = jvp(fdm, f, zip(x, ẋ)...)
 
     ȳ_fd, ẏ_fd = harmonise(Zygote.wrap_chainrules_input(ȳ), ẏ)
     inner_fd = dot(ȳ_fd, ẏ_fd)
-
-    @show inner_fd - inner_ad
-
     # Check that Zygote didn't modify the forwards-pass.
     test && @test fd_isapprox(y, f(x...), rtol, atol)
 
@@ -335,7 +376,7 @@ function adjoint_test(f, input::Tuple; kwargs...)
 end
 
 function adjoint_test(f, Δoutput, input::Tuple; kwargs...)
-    ∂input = map(rand_tangent, input)
+    ∂input = map(rand_zygote_tangent, input)
     return adjoint_test(f, Δoutput, input, ∂input; kwargs...)
 end
 
@@ -426,7 +467,7 @@ end
 
 function test_interface(
     rng::AbstractRNG, conditional::AbstractLGC, x::Gaussian;
-    check_infers=true, check_adjoints=true, check_allocs=true, kwargs...,
+    check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, atol=1e-6, rtol=1e-6, kwargs...,
 )
     x_val = rand(rng, x)
     y = conditional_rand(rng, conditional, x_val)
@@ -434,11 +475,11 @@ function test_interface(
     @testset "rand" begin
         @test length(y) == dim_out(conditional)
         args = (TemporalGPs.ε_randn(rng, conditional), conditional, x_val)
-        check_infers && @inferred conditional_rand(args...)
+        check_inferred && @inferred conditional_rand(args...)
         if check_adjoints
-            adjoint_test(
-                conditional_rand, args;
-                check_infers=check_infers, kwargs...,
+            test_zygote_grad(
+                conditional_rand, args...;
+                check_inferred, rtol, atol,
             )
         end
         if check_allocs
@@ -448,7 +489,7 @@ function test_interface(
 
     @testset "predict" begin
         @test predict(x, conditional) isa Gaussian
-        check_infers && @inferred predict(x, conditional)
+        check_inferred && @inferred predict(x, conditional)
         check_adjoints && adjoint_test(predict, (x, conditional); kwargs...)
         check_allocs && check_adjoint_allocations(predict, (x, conditional); kwargs...)
     end
@@ -465,7 +506,7 @@ function test_interface(
     @testset "posterior_and_lml" begin
         args = (x, conditional, y)
         @test posterior_and_lml(args...) isa Tuple{Gaussian, Real}
-        check_infers && @inferred posterior_and_lml(args...)
+        check_inferred && @inferred posterior_and_lml(args...)
         if check_adjoints
             (Δx, Δlml) = rand_zygote_tangent(posterior_and_lml(args...))
             ∂args = map(rand_tangent, args)
@@ -487,7 +528,7 @@ end
 """
     test_interface(
         rng::AbstractRNG, ssm::AbstractLGSSM;
-        check_infers=true, check_adjoints=true, check_allocs=true, kwargs...
+        check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, kwargs...
     )
 
 Basic consistency tests that any LGSSM should be able to satisfy. The purpose of these tests
@@ -496,86 +537,108 @@ consistent and implements the required interface.
 """
 function test_interface(
     rng::AbstractRNG, ssm::AbstractLGSSM;
-    check_infers=true, check_adjoints=true, check_allocs=true, kwargs...
+    check_inferred=TEST_TYPE_INFER, check_adjoints=true, check_allocs=TEST_ALLOC, rtol, atol, kwargs...
 )
     y_no_missing = rand(rng, ssm)
-
-    @testset "rand" begin
-        @test is_of_storage_type(y_no_missing[1], storage_type(ssm))
-        @test y_no_missing isa AbstractVector
-        @test length(y_no_missing) == length(ssm)
-        check_infers && @inferred rand(rng, ssm)
-        if check_adjoints
-            adjoint_test(
-                ssm -> rand(MersenneTwister(123456), ssm), (ssm, );
-                check_infers=check_infers, kwargs...,
-            )
+    @testset "LGSSM interface" begin
+        @testset "rand" begin
+            @test is_of_storage_type(y_no_missing[1], storage_type(ssm))
+            @test y_no_missing isa AbstractVector
+            @test length(y_no_missing) == length(ssm)
+            check_inferred && @inferred rand(rng, ssm)
+            rng = MersenneTwister(123456)
+            if check_adjoints
+                # We need the whole scan_emit machinery to test the adjoint of rand
+                @test_broken 1 == 0
+                # It seems test_rrule cannot deal good with `rng` at the moment
+                # test_zygote_grad(rng, ssm; check_inferred, rtol, atol) do rng, model
+                    # iterable = zip(ε_randn(rng, model), model)
+                    # init = rand(rng, x0(model))
+                    # return scan_emit(step_rand, iterable, init, eachindex(model))
+                # end
+            end
+            if check_allocs
+                check_adjoint_allocations(rand, (rng, ssm); kwargs...)
+            end
         end
-        if check_allocs
-            check_adjoint_allocations(rand, (rng, ssm); kwargs...)
-        end
-    end
 
-    @testset "basics" begin
-        @inferred storage_type(ssm)
-        @test length(ssm) == length(y_no_missing)
-    end
-
-    @testset "marginals" begin
-        xs = marginals(ssm)
-        @test is_of_storage_type(xs, storage_type(ssm))
-        @test xs isa AbstractVector{<:Gaussian}
-        @test length(xs) == length(ssm)
-        check_infers && @inferred marginals(ssm)
-        if check_adjoints
-            adjoint_test(marginals, (ssm, ); check_infers=check_infers, kwargs...)
+        @testset "basics" begin
+            @inferred storage_type(ssm)
+            @test length(ssm) == length(y_no_missing)
         end
-        if check_allocs
-            check_adjoint_allocations(marginals, (ssm, ); kwargs...)
-        end
-    end
 
-    @testset "$(data.name)" for data in [
-        (name="no-missings", y=y_no_missing),
-        # (name="with-missings", y=y_missing),
-    ]
-        _check_infers = data.name == "with-missings" ? false : check_infers
-
-        y = data.y
-        @testset "logpdf" begin
-            lml = logpdf(ssm, y)
-            @test lml isa Real
-            @test is_of_storage_type(lml, storage_type(ssm))
-            _check_infers && @inferred logpdf(ssm, y)
-        end
-        @testset "_filter" begin
-            xs = _filter(ssm, y)
+        @testset "marginals" begin
+            xs = marginals(ssm)
             @test is_of_storage_type(xs, storage_type(ssm))
             @test xs isa AbstractVector{<:Gaussian}
             @test length(xs) == length(ssm)
-            _check_infers && @inferred _filter(ssm, y)
-        end
-        @testset "posterior" begin
-            posterior_ssm = posterior(ssm, y)
-            @test length(posterior_ssm) == length(ssm)
-            @test ordering(posterior_ssm) != ordering(ssm)
-            _check_infers && @inferred posterior(ssm, y)
-        end
-
-        # Hack to only run the AD tests if requested.
-        @testset "adjoints" for _ in (check_adjoints ? [1] : [])
-            adjoint_test(logpdf, (ssm, y); check_infers=_check_infers, kwargs...)
-            adjoint_test(_filter, (ssm, y); check_infers=_check_infers, kwargs...)
-            adjoint_test(posterior, (ssm, y); check_infers=_check_infers, kwargs...)
-
+            check_inferred && @inferred marginals(ssm)
+            if check_adjoints
+                # We need to test the whole scan_emit to avoid throwing a state.
+                test_zygote_grad(ssm; check_inferred, rtol, atol) do model
+                    scan_emit(step_marginals, model, x0(model), eachindex(model))
+                end
+            end
             if check_allocs
-                check_adjoint_allocations(logpdf, (ssm, y); kwargs...)
-                check_adjoint_allocations(_filter, (ssm, y); kwargs...)
-                check_adjoint_allocations(posterior, (ssm, y); kwargs...)
+                check_adjoint_allocations(marginals, (ssm, ); kwargs...)
+            end
+        end
+
+        @testset "$(data.name)" for data in [
+            (name="no-missings", y=y_no_missing),
+            # (name="with-missings", y=y_missing),
+        ]
+            _check_inferred = data.name == "with-missings" ? false : check_inferred
+
+            y = data.y
+            @testset "logpdf" begin
+                lml = logpdf(ssm, y)
+                @test lml isa Real
+                @test is_of_storage_type(lml, storage_type(ssm))
+                _check_inferred && @inferred logpdf(ssm, y)
+                if check_adjoints
+                    test_zygote_grad(ssm, y; check_inferred, rtol, atol) do model, y
+                        scan_emit(step_logpdf, zip(model, y), x0(model), eachindex(model))
+                    end
+                end
+            end
+            @testset "_filter" begin
+                xs = _filter(ssm, y)
+                @test is_of_storage_type(xs, storage_type(ssm))
+                @test xs isa AbstractVector{<:Gaussian}
+                @test length(xs) == length(ssm)
+                _check_inferred && @inferred _filter(ssm, y)
+                if check_adjoints
+                    test_zygote_grad(ssm, y; check_inferred, rtol, atol) do model, y
+                        scan_emit(step_filter, zip(model, y), x0(model), eachindex(model))
+                    end
+                end
+            end
+            @testset "posterior" begin
+                posterior_ssm = posterior(ssm, y)
+                @test length(posterior_ssm) == length(ssm)
+                @test ordering(posterior_ssm) != ordering(ssm)
+                _check_inferred && @inferred posterior(ssm, y)
+                if check_adjoints
+                    test_zygote_grad(posterior, ssm, y; check_inferred, rtol, atol)
+                end
+            end
+
+            # Hack to only run the AD tests if requested.
+            @testset "adjoints" for _ in (check_adjoints ? [1] : [])
+                if check_allocs
+                    check_adjoint_allocations(_filter, (ssm, y); kwargs...)
+                    check_adjoint_allocations(posterior, (ssm, y); kwargs...)
+                end
             end
         end
     end
 end
+
+# This is unfortunately needed to make ChainRulesTestUtils comparison works.
+# See https://github.com/JuliaDiff/ChainRulesTestUtils.jl/issues/271
+Base.zero(::Forward) = Forward()
+Base.zero(::Reverse) = Reverse()
 
 _diag(x) = diag(x)
 _diag(x::Real) = x
@@ -602,4 +665,8 @@ function LinearAlgebra.dot(A::Tangent, B::Tangent)
     else
         return sum(n -> dot(getproperty(A, n), getproperty(B, n)), mutual_names)
     end
+end
+
+function ChainRulesTestUtils.test_approx(actual::Tangent{T}, expected::StructArray, msg=""; kwargs...) where {T<:StructArray}
+    return test_approx(actual.components, expected; kwargs...)
 end

@@ -3,7 +3,7 @@ abstract type AbstractLGSSM end
 """
     LGSSM{Ttransitions<:GaussMarkovModel, Temissions<:StructArray} <: AbstractLGSSM
 
-A linear-Gaussian state-space model. Represented in terms of a Gauss-Markov model
+A Linear-Gaussian State-Space model. Represented in terms of a Gauss-Markov model
 `transitions` and collection of emission dynamics `emissions`.
 """
 struct LGSSM{Ttransitions<:GaussMarkovModel, Temissions<:StructArray} <: AbstractLGSSM
@@ -20,20 +20,20 @@ end
 end
 
 @inline ordering(model::LGSSM) = ordering(transitions(model))
-
-Zygote._pullback(::AContext, ::typeof(ordering), model) = ordering(model), nograd_pullback
+ChainRulesCore.@non_differentiable ordering(model)
 
 function Base.:(==)(x::LGSSM, y::LGSSM)
     return (transitions(x) == transitions(y)) && (emissions(x) == emissions(y))
 end
 
 Base.length(model::LGSSM) = length(transitions(model))
+Base.size(model::LGSSM) = (length(model),)
 
 Base.eachindex(model::LGSSM) = eachindex(transitions(model))
 
 storage_type(model::LGSSM) = storage_type(transitions(model))
 
-Zygote.@nograd storage_type
+ChainRulesCore.@non_differentiable storage_type(x)
 
 function is_of_storage_type(model::LGSSM, s::StorageType)
     return is_of_storage_type((transitions(model), emissions(model)), s)
@@ -77,7 +77,7 @@ end
 function AbstractGPs.rand(rng::AbstractRNG, model::LGSSM)
     iterable = zip(ε_randn(rng, model), model)
     init = rand(rng, x0(model))
-    return scan_emit(step_rand, iterable, init, eachindex(model))[1]
+    return first(scan_emit(step_rand, iterable, init, eachindex(model)))
 end
 
 # Generate randomness used only once so that checkpointing works.
@@ -102,8 +102,6 @@ function step_rand(::Reverse, x::AbstractVector, ((ε_t, ε_e), model))
     return y, x_next
 end
 
-
-
 """
     marginals(model::LGSSM)
 
@@ -111,7 +109,7 @@ Compute the complete marginals at each point in time. These are returned as a `V
 length `length(model)`, each element of which is a dense `Gaussian`.
 """
 function AbstractGPs.marginals(model::LGSSM)
-    return scan_emit(step_marginals, model, x0(model), eachindex(model))[1]
+    return first(scan_emit(step_marginals, model, x0(model), eachindex(model)))
 end
 
 step_marginals(x::Gaussian, model) = step_marginals(ordering(model), x, model)
@@ -264,9 +262,7 @@ ident_eps(ε::Real) = UniformScaling(ε)
 
 ident_eps(x::ColVecs, ε::Real) = UniformScaling(convert(eltype(x.X), ε))
 
-function Zygote._pullback(::NoContext, ::typeof(ident_eps), args...)
-    return ident_eps(args...), nograd_pullback
-end
+ChainRulesCore.@non_differentiable ident_eps(args...)
 
 _collect(U::Adjoint{<:Any, <:Matrix}) = collect(U)
 _collect(U::SMatrix) = U
@@ -276,20 +272,20 @@ _collect(U::SMatrix) = U
 # AD stuff. No need to understand this unless you're really plumbing the depths...
 
 function get_adjoint_storage(
-    x::LGSSM, n::Int, Δx::NamedTuple{(:ordering, :transition, :emission)},
-)
-    return (
+    x::LGSSM, n::Int, Δx::Tangent{T,<:NamedTuple{(:ordering,:transition,:emission)}},
+) where {T}
+    return Tangent{typeof(x)}(
         transitions = get_adjoint_storage(x.transitions, n, Δx.transition),
         emissions = get_adjoint_storage(x.emissions, n, Δx.emission)
     )
 end
 
 function _accum_at(
-    Δxs::NamedTuple{(:transitions, :emissions)},
+    Δxs::Tangent{X},
     n::Int,
-    Δx::NamedTuple{(:ordering, :transition, :emission)},
-)
-    return (
+    Δx::Tangent{T,<:NamedTuple{(:ordering,:transition,:emission)}},
+) where {X<:LGSSM, T}
+    return Tangent{X}(
         transitions = _accum_at(Δxs.transitions, n, Δx.transition),
         emissions = _accum_at(Δxs.emissions, n, Δx.emission),
     )

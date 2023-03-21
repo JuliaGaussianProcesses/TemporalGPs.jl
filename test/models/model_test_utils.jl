@@ -1,5 +1,12 @@
+using ChainRulesTestUtils: ChainRulesTestUtils, rand_tangent
+using FillArrays
+using Random: AbstractRNG
 using TemporalGPs:
+    ArrayStorage,
+    SArrayStorage,
     GaussMarkovModel,
+    Forward,
+    Reverse,
     dim,
     LGSSM,
     Gaussian,
@@ -11,6 +18,7 @@ using TemporalGPs:
     ScalarOutputLGC,
     LargeOutputLGC,
     BottleneckLGC
+
 
 
 
@@ -84,7 +92,7 @@ function random_gaussian(rng::AbstractRNG, dim::Int, s::StorageType)
     return Gaussian(random_vector(rng, dim, s), random_nice_psd_matrix(rng, dim, s))
 end
 
-function FiniteDifferences.rand_tangent(rng::AbstractRNG, d::T) where {T<:Gaussian}
+function ChainRulesTestUtils.rand_tangent(rng::AbstractRNG, d::T) where {T<:Gaussian}
     return Tangent{T}(
         m=rand_tangent(rng, d.m),
         P=random_nice_psd_matrix(rng, length(d.m), storage_type(d)),
@@ -177,7 +185,7 @@ function random_ti_gmm(rng::AbstractRNG, ordering, Dlat::Int, N::Int, s::Storage
     return GaussMarkovModel(ordering, As, as, Qs, x0)
 end
 
-function FiniteDifferences.rand_tangent(rng::AbstractRNG, gmm::T) where {T<:GaussMarkovModel}
+function ChainRulesTestUtils.rand_tangent(rng::AbstractRNG, gmm::T) where {T<:GaussMarkovModel}
     return Tangent{T}(
         ordering = nothing,
         As = rand_tangent(rng, gmm.As),
@@ -294,7 +302,7 @@ function random_lgssm(
     return LGSSM(transitions, emissions)
 end
 
-function FiniteDifferences.rand_tangent(rng::AbstractRNG, ssm::T) where {T<:LGSSM}
+function ChainRulesTestUtils.rand_tangent(rng::AbstractRNG, ssm::T) where {T<:LGSSM}
     Hs = ssm.emissions.A
     hs = ssm.emissions.a
     Σs = ssm.emissions.Q

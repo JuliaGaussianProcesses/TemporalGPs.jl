@@ -3,8 +3,14 @@ using TemporalGPs:
     fill_in_missings,
     replace_observation_noise_cov,
     transform_model_and_obs
+using Random: randperm
+using ChainRulesTestUtils
+using Zygote: Context
 
-println("missings:")
+include("../test_util.jl")
+include("../models/model_test_utils.jl")
+
+@info "missings:"
 @testset "missings" begin
 
     rng = MersenneTwister(123456)
@@ -176,7 +182,7 @@ println("missings:")
 
         # Check logpdf and inference run, infer, and play nicely with AD.
         @inferred logpdf(model, y_missing)
-        adjoint_test(y_missing -> logpdf(model, y_missing), (y_missing, ))
+        test_zygote_grad_finite_differences_compatible(y -> logpdf(model, y) ⊢ NoTangent(), y_missing)
         @inferred posterior(model, y_missing)
     end
-end
+end;

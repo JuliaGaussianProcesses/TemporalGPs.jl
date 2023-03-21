@@ -1,13 +1,23 @@
+using AbstractGPs: AbstractGPs, dtc
+using KernelFunctions
+using Random: MersenneTwister, randperm
+using StructArrays
 using TemporalGPs:
+    TemporalGPs,
     dtc,
     dtcify,
     DTCSeparable,
     RectilinearGrid,
     RegularInTime,
+    RegularSpacing,
+    to_sde,
     get_times,
     get_space,
     Separable,
     approx_posterior_marginals
+using Test
+include("../test_util.jl")
+include("../models/model_test_utils.jl")
 
 @testset "pseudo_point" begin
 
@@ -64,8 +74,6 @@ using TemporalGPs:
 
     @testset "kernel=$(k.name), x=$(x.name)" for k in kernels, x in xs
 
-
-
         # Compute pseudo-input locations. These have to share time points with `x`.
         t = get_times(x.val)
         z = RectilinearGrid(z_r, t)
@@ -88,23 +96,18 @@ using TemporalGPs:
         validate_dims(lgssm)
 
         # The two approaches to DTC computation should be equivalent up to roundoff error.
-        dtc_naive = dtc(fx_naive, y, f_naive(z_naive))
+        dtc_naive = dtc(VFE(f_naive(z_naive)), fx_naive, y)
         dtc_sde = dtc(fx, y, z_r)
         @test dtc_naive ≈ dtc_sde rtol=1e-6
 
-        elbo_naive = elbo(fx_naive, y, f_naive(z_naive))
+        elbo_naive = elbo(VFE(f_naive(z_naive)), fx_naive, y)
         elbo_sde = elbo(fx, y, z_r)
         @test elbo_naive ≈ elbo_sde rtol=1e-6
 
-        adjoint_test(
-            (y, z_r) -> elbo(fx, y, z_r), (y, z_r);
-            rtol=1e-7,
-            context=Zygote.Context(),
-            check_infers=false,
-        )
+        test_zygote_grad_finite_differences_compatible((y, z_r) -> elbo(fx, y, z_r), y, z_r)
 
         # Compute approximate posterior marginals naively.
-        f_approx_post_naive = approx_posterior(VFE(), fx_naive, y, f_naive(z_naive))
+        f_approx_post_naive = posterior(VFE(f_naive(z_naive)), fx_naive, y)
         x_pr = RectilinearGrid(x_pr_r, get_times(x.val))
         naive_approx_post_marginals = marginals(f_approx_post_naive(collect(x_pr)))
 
@@ -147,17 +150,17 @@ using TemporalGPs:
             fx_naive = f_naive(naive_inputs_missings, 0.1)
 
             # Compute DTC using both approaches.
-            dtc_naive = dtc(fx_naive, naive_y_missings, f_naive(z_naive))
+            dtc_naive = dtc(VFE(f_naive(z_naive)), fx_naive, naive_y_missings)
             dtc_sde = dtc(fx, y_missing, z_r)
             @test dtc_naive ≈ dtc_sde rtol=1e-7 atol=1e-7
 
-            elbo_naive = elbo(fx_naive, naive_y_missings, f_naive(z_naive))
+            elbo_naive = elbo(VFE(f_naive(z_naive)), fx_naive, naive_y_missings)
             elbo_sde = elbo(fx, y_missing, z_r)
             @test elbo_naive ≈ elbo_sde rtol=1e-7 atol=1e-7
 
             # Compute approximate posterior marginals naively with missings.
-            f_approx_post_naive = approx_posterior(
-                VFE(), fx_naive, naive_y_missings, f_naive(z_naive),
+            f_approx_post_naive = posterior(
+                VFE(f_naive(z_naive)), fx_naive, naive_y_missings,
             )
             naive_approx_post_marginals = marginals(f_approx_post_naive(collect(x_pr)))
 
