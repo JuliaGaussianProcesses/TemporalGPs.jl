@@ -45,10 +45,10 @@ println("lgssm:")
     settings = [
         (tv=:time_varying, N=1, Dlat=3, Dobs=2, storage=storages.dense),
         (tv=:time_varying, N=49, Dlat=3, Dobs=2, storage=storages.dense),
-        (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.dense),
+        # (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.dense),
         (tv=:time_varying, N=49, Dlat=1, Dobs=1, storage=storages.dense),
         (tv=:time_varying, N=1, Dlat=3, Dobs=2, storage=storages.static),
-        (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.static),
+        # (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.static),
     ]
     orderings = [
         Forward(),

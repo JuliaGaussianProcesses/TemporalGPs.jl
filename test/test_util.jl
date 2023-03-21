@@ -130,6 +130,10 @@ function to_vec(x::ElementOfLGSSM)
     return x_vec, ElementOfLGSSM_from_vec
 end
 
+function ChainRulesTestUtils.test_approx(actual::Tangent{<:Fill}, expected, msg=""; kwargs...)
+    test_approx(actual.value, expected.value, msg; kwargs...)
+end
+
 to_vec(x::T) where {T} = generic_struct_to_vec(x)
 
 # This is a copy from FiniteDifferences.jl without the try catch

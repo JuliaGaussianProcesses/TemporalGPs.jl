@@ -132,6 +132,11 @@ function (project::ProjectTo{Fill})(dx::Tangent{<:Fill})
     Fill(dx.value / prod(length, project.axes), project.axes)
 end
 
+# Yet another thing that should not happen
+function Zygote.accum(x::Fill, y::NamedTuple{(:value, :axes)})
+    Fill(x.value + y.value, x.axes)
+end
+
 # We have an alternative map to avoid Zygote untouchable specialisation on map.
 _map(f, args...) = map(f, args...) 
 
