@@ -240,7 +240,7 @@ end
 
 # Approximate Periodic Kernel
 # The periodic kernel is approximated by a sum of cosine kernels with different frequencies.
-struct ApproxPeriodicKernel{N,K<:PeriodicKernel} <: SimpleKernel
+struct ApproxPeriodicKernel{N,K<:PeriodicKernel} <: KernelFunctions.SimpleKernel
     kernel::K
     function ApproxPeriodicKernel{N}(kernel::K) where {N,K<:PeriodicKernel}
         return new{N,K}(kernel)
@@ -249,6 +249,11 @@ end
 # We follow "State Space approximation of Gaussian Processes for time series forecasting"
 # by Alessio Benavoli1 and Giorgio Corani and use a default of 7 Cosine Kernel terms
 ApproxPeriodicKernel(kernel=PeriodicKernel()) = ApproxPeriodicKernel{7}(kernel)
+KernelFunctions.kappa(k::ApproxPeriodicKernel, x) = kappa(k.kernel, x)
+KernelFunctions.metric(k::ApproxPeriodicKernel) = metric(k.kernel)
+function Base.show(io::IO, κ::ApproxPeriodicKernel{N}) where {N}
+    return print(io, "Approximate Periodic Kernel, length(r) = $(length(κ.kernel.r)) approximated with $N cosine kernels")
+end
 
 
 function lgssm_components(approx::ApproxPeriodicKernel{N}, t::Union{StepRangeLen, RegularSpacing}, storage::StorageType{T}) where {N,T<:Real}
