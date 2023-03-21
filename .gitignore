@@ -4,11 +4,11 @@
 .DS_Store
 /Manifest.toml
 /test/Manifest.toml
-/examples/Manifest.toml
 /dev/
 /test/dev
 /docs/build/
 /docs/site/
+/docs/Manifest.toml
 .vscode/
 
 # Things in bench that shouldn't be tracked because they may contain large files.
