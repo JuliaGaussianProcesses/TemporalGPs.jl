@@ -240,19 +240,28 @@ end
 
 # Approximate Periodic Kernel
 # The periodic kernel is approximated by a sum of cosine kernels with different frequencies.
+struct ApproxPeriodicKernel{N,K<:PeriodicKernel} <: SimpleKernel
+    kernel::K
+    function ApproxPeriodicKernel{N}(kernel::K) where {N,K<:PeriodicKernel}
+        return new{N,K}(kernel)
+    end
+end
+# We follow "State Space approximation of Gaussian Processes for time series forecasting"
+# by Alessio Benavoli1 and Giorgio Corani and use a default of 7 Cosine Kernel terms
+ApproxPeriodicKernel(kernel=PeriodicKernel()) = ApproxPeriodicKernel{7}(kernel)
 
-function lgssm_components(kernel::PeriodicKernel, t::Union{StepRangeLen, RegularSpacing}, storage::StorageType{T}) where {T<:Real}
-    N = 7
-    Fs, Ps, H, x0 = _init_periodic_kernel_lgssm(kernel, storage, N)
+
+function lgssm_components(approx::ApproxPeriodicKernel{N}, t::Union{StepRangeLen, RegularSpacing}, storage::StorageType{T}) where {N,T<:Real}
+    Fs, Ps, H, x0 = _init_periodic_kernel_lgssm(approx.kernel, storage, N)
     nt = length(t)
     As = map(F -> Fill(time_exp(F, T(step(t))), nt), Fs)
     return _reduce_sum_cosine_kernel_lgssm(As, Ps, H, x0, N, nt, T)
 end
 
 
-function lgssm_components(kernel::PeriodicKernel, t::AbstractVector{<:Real}, storage::StorageType{T}) where {T<:Real}
+function lgssm_components(approx::ApproxPeriodicKernel{N}, t::AbstractVector{<:Real}, storage::StorageType{T}) where {N,T<:Real}
     N = 7
-    Fs, Ps, H, x0 = _init_periodic_kernel_lgssm(kernel, storage, N)
+    Fs, Ps, H, x0 = _init_periodic_kernel_lgssm(approx.kernel, storage, N)
     t = vcat([first(t) - 1], t)
     nt = length(diff(t))
     As = _map(F -> _map(Δt -> time_exp(F, T(Δt)), diff(t)), Fs)
@@ -265,8 +274,6 @@ function _init_periodic_kernel_lgssm(kernel::PeriodicKernel, storage, N::Int=7)
     x0 = stationary_distribution(CosineKernel(), storage)
     P = x0.P
     F, _, H = to_sde(CosineKernel(), storage)
-    # We follow "State Space approximation of Gaussian Processes for time series forecasting"
-    # by Alessio Benavoli1 and Giorgio Corani and take 7 Cosine Kernel terms
     qs = ntuple(N) do i
         (1 + (i !== 1) ) * besseli(i - 1, l⁻²) / exp(l⁻²)
     end
@@ -281,19 +288,19 @@ function _reduce_sum_cosine_kernel_lgssm(As, Ps, H, x0, N, nt, T)
     H = Fill(H, nt)
     h = Fill(zero(T), nt)
     As = map(As...) do A...
-        BlockDiagonal(collect(A))
+        collect(BlockDiagonal(collect(A)))
     end
     as = reduce(as) do as, a
         _map(vcat, as, a)
     end
     Qs = map(Qs...) do Q...
-        BlockDiagonal(collect(Q))
+        collect(BlockDiagonal(collect(Q)))
     end
     Hs = reduce(Fill(H, N)) do Hs, H
         _map(vcat, Hs, H)
     end
     m = reduce(vcat, Fill(x0.m, N))
-    P = BlockDiagonal(collect(Ps))
+    P = collect(BlockDiagonal(collect(Ps)))
     x0 = Gaussian(m, P)
     return As, as, Qs, (Hs, h), x0
 end

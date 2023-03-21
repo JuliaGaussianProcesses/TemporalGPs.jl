@@ -32,7 +32,8 @@ module TemporalGPs
         checkpointed,
         posterior,
         logpdf_and_rand,
-        Separable
+        Separable,
+        ApproxPeriodicKernel
 
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "harmonise.jl"))
