@@ -1,0 +1,4 @@
+[deps]
+AbstractGPs = "99985d1d-32ba-4be9-9821-2ec096f28918"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+TemporalGPs = "e155a3c4-0841-43e1-8b83-a0e4f03cc18f"
