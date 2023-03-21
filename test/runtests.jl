@@ -110,11 +110,11 @@ if GROUP == "examples"
     Pkg.resolve()
     Pkg.instantiate()
 
-    include(joinpath(pkgpath, "examples", "exact_time_inference.jl"))
-    include(joinpath(pkgpath, "examples", "exact_time_learning.jl"))
-    include(joinpath(pkgpath, "examples", "exact_space_time_inference.jl"))
-    include(joinpath(pkgpath, "examples", "exact_space_time_learning.jl"))
-    include(joinpath(pkgpath, "examples", "approx_space_time_inference.jl"))
-    include(joinpath(pkgpath, "examples", "approx_space_time_learning.jl"))
-    include(joinpath(pkgpath, "examples", "augmented_inference.jl"))
+    include(joinpath(pkgpath, "examples", "exact_time_inference", "script.jl"))
+    include(joinpath(pkgpath, "examples", "exact_time_learning", "script.jl"))
+    include(joinpath(pkgpath, "examples", "exact_space_time_inference", "script.jl"))
+    include(joinpath(pkgpath, "examples", "exact_space_time_learning", "script.jl"))
+    include(joinpath(pkgpath, "examples", "approx_space_time_inference", "script.jl"))
+    include(joinpath(pkgpath, "examples", "approx_space_time_learning", "script.jl"))
+    include(joinpath(pkgpath, "examples", "augmented_inference", "script.jl"))
 end
