@@ -1,5 +1,8 @@
-using TemporalGPs: build_lgssm, StorageType, is_of_storage_type
 using KernelFunctions
+using KernelFunctions: kappa
+using ChainRulesTestUtils
+using TemporalGPs: build_lgssm, StorageType, is_of_storage_type, lgssm_components
+using Test
 include("../test_util.jl")
 include("../models/model_test_utils.jl")
 _logistic(x) = 1 / (1 + exp(-x))
@@ -10,6 +13,31 @@ function _construction_tester(f_naive::GP, storage::StorageType, σ², t::Abstra
     f = to_sde(f_naive, storage)
     fx = f(t, σ²...)
     return build_lgssm(fx)
+end
+
+@testset "ApproxPeriodicKernel" begin
+    k = ApproxPeriodicKernel()
+    @test k isa ApproxPeriodicKernel{7}
+    # Test that it behaves like a normal PeriodicKernel
+    k_base = PeriodicKernel()
+    x = rand()
+    @test kappa(k, x) == kappa(k_base, x)
+    x = rand(3)
+    @test kernelmatrix(k, x) ≈ kernelmatrix(k_base, x)
+    # Test dimensionality of LGSSM components
+    Nt = 10
+    @testset "$(typeof(t)), $storage, $N" for t in (sort(rand(Nt)), RegularSpacing(0.0, 0.1, Nt)),
+        storage in (SArrayStorage{Float64}(), ArrayStorage{Float64}()),
+        N in (5, 8)
+        k = ApproxPeriodicKernel{N}()
+        As, as, Qs, emission_projections, x0 = lgssm_components(k, t, storage)
+        @test length(As) == Nt
+        @test all(x -> size(x) == (N * 2, N * 2), As) 
+        @test length(as) == Nt
+        @test all(x -> size(x) == (N * 2,), as)
+        @test length(Qs) == Nt
+        @test all(x -> size(x) == (N * 2, N * 2), Qs)
+    end
 end
 
 println("lti_sde:")
@@ -72,6 +100,10 @@ println("lti_sde:")
                 (name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ))
             end,
 
+            # Approx periodic kernels
+            map([7, 11]) do N
+                (name="approx-periodic-N=$N", val=ApproxPeriodicKernel{N}())
+            end,
             # Summed kernels.
             # (
                 # name="sum-Matern12Kernel-Matern32Kernel",
