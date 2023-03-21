@@ -134,6 +134,14 @@ function ChainRulesTestUtils.test_approx(actual::Tangent{<:Fill}, expected, msg=
     test_approx(actual.value, expected.value, msg; kwargs...)
 end
 
+function to_vec(x::PeriodicKernel)
+    x, to_r = to_vec(x.r)
+    function PeriodicKernel_from_vec(x)
+        return PeriodicKernel(;r=to_r(x))
+    end
+    x, PeriodicKernel_from_vec
+end
+
 to_vec(x::T) where {T} = generic_struct_to_vec(x)
 
 # This is a copy from FiniteDifferences.jl without the try catch

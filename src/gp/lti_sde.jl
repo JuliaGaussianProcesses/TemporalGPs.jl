@@ -242,15 +242,14 @@ end
 # The periodic kernel is approximated by a sum of cosine kernels with different frequencies.
 struct ApproxPeriodicKernel{N,K<:PeriodicKernel} <: KernelFunctions.SimpleKernel
     kernel::K
-    function ApproxPeriodicKernel{N}(kernel::K) where {N,K<:PeriodicKernel}
-        return new{N,K}(kernel)
-    end
 end
 # We follow "State Space approximation of Gaussian Processes for time series forecasting"
 # by Alessio Benavoli1 and Giorgio Corani and use a default of 7 Cosine Kernel terms
 ApproxPeriodicKernel(kernel=PeriodicKernel()) = ApproxPeriodicKernel{7}(kernel)
-KernelFunctions.kappa(k::ApproxPeriodicKernel, x) = kappa(k.kernel, x)
-KernelFunctions.metric(k::ApproxPeriodicKernel) = metric(k.kernel)
+ApproxPeriodicKernel{N}(kernel::K=PeriodicKernel()) where {N,K<:PeriodicKernel} = ApproxPeriodicKernel{N,K}(kernel)
+KernelFunctions.kappa(k::ApproxPeriodicKernel, x) = KernelFunctions.kappa(k.kernel, x)
+KernelFunctions.metric(k::ApproxPeriodicKernel) = KernelFunctions.metric(k.kernel)
+
 function Base.show(io::IO, κ::ApproxPeriodicKernel{N}) where {N}
     return print(io, "Approximate Periodic Kernel, length(r) = $(length(κ.kernel.r)) approximated with $N cosine kernels")
 end
@@ -262,16 +261,14 @@ function lgssm_components(approx::ApproxPeriodicKernel{N}, t::Union{StepRangeLen
     As = map(F -> Fill(time_exp(F, T(step(t))), nt), Fs)
     return _reduce_sum_cosine_kernel_lgssm(As, Ps, H, x0, N, nt, T)
 end
-
-
 function lgssm_components(approx::ApproxPeriodicKernel{N}, t::AbstractVector{<:Real}, storage::StorageType{T}) where {N,T<:Real}
-    N = 7
     Fs, Ps, H, x0 = _init_periodic_kernel_lgssm(approx.kernel, storage, N)
     t = vcat([first(t) - 1], t)
     nt = length(diff(t))
     As = _map(F -> _map(Δt -> time_exp(F, T(Δt)), diff(t)), Fs)
     return _reduce_sum_cosine_kernel_lgssm(As, Ps, H, x0, N, nt, T)
 end
+
 function _init_periodic_kernel_lgssm(kernel::PeriodicKernel, storage, N::Int=7)
     r = kernel.r
     length(r) == 1 || error("the state-space version of the `PeriodicKernel` only supports 1-dimensional inputs.")
