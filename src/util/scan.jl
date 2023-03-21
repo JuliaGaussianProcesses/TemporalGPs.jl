@@ -112,11 +112,15 @@ function get_adjoint_storage(x::Array, n::Int, Δx::T) where {T}
     return x̄
 end
 
-# Diagonal type constraint for the compiler's benefit.
 @inline function _accum_at(Δxs::Vector{T}, n::Int, Δx::T) where {T}
     Δxs[n] = Δx
     return Δxs
 end
+
+@inline function _accum_at(Δxs::Vector{T}, n::Int, Δx::AbstractMatrix) where {T<:AbstractMatrix}
+    Δxs[n] = convert(T, Δx)
+    return Δxs
+end 
 
 # If there's nothing, there's nothing to do.
 _accum_at(::AbstractZero, ::Int, ::AbstractZero) = NoTangent()
