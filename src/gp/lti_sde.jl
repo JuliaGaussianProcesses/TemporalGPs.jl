@@ -4,12 +4,12 @@
 A lightweight wrapper around a `GP` `f` that tells this package to handle inference in `f`.
 Can be constructed via the `to_sde` function.
 """
-struct LTISDE{Tf<:GP{<:AbstractGPs.ZeroMean}, Tstorage<:StorageType} <: AbstractGP
+struct LTISDE{Tf<:GP, Tstorage<:StorageType} <: AbstractGP
     f::Tf
     storage::Tstorage
 end
 
-function to_sde(f::GP{<:AbstractGPs.ZeroMean}, storage_type=ArrayStorage(Float64))
+function to_sde(f::GP, storage_type=ArrayStorage(Float64))
     return LTISDE(f, storage_type)
 end
 
@@ -70,9 +70,10 @@ end
 # Converting GPs into LGSSMs (Linear Gaussian State-Space Models).
 
 function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)
+    m = get_mean(f)
     k = get_kernel(f)
     s = Zygote.literal_getfield(f, Val(:storage))
-    As, as, Qs, emission_proj, x0 = lgssm_components(k, x, s)
+    As, as, Qs, emission_proj, x0 = lgssm_components(m, k, x, s)
     return LGSSM(
         GaussMarkovModel(Forward(), As, as, Qs, x0), build_emissions(emission_proj, Σys),
     )
@@ -84,6 +85,9 @@ function build_lgssm(ft::FiniteLTISDE)
     Σys = noise_var_to_time_form(x, Zygote.literal_getfield(ft, Val(:Σy)))
     return build_lgssm(f, x, Σys)
 end
+
+get_mean(f::LTISDE) = get_mean(Zygote.literal_getfield(f, Val(:f)))
+get_mean(f::GP) = Zygote.literal_getfield(f, Val(:mean))
 
 get_kernel(f::LTISDE) = get_kernel(Zygote.literal_getfield(f, Val(:f)))
 get_kernel(f::GP) = Zygote.literal_getfield(f, Val(:kernel))
@@ -113,6 +117,49 @@ end
 
 @inline function Zygote.wrap_chainrules_output(x::NamedTuple)
     return map(Zygote.wrap_chainrules_output, x)
+end
+
+
+
+# Constructor for combining kernel and mean functions
+
+function lgssm_components(
+    m::MeanFunction, k::Kernel, t::AbstractVector{<:Real}, storage_type::StorageType
+)
+    As_l, as_l, Qs_l, emission_proj_l, x0_l = lgssm_components(k, t, storage_type)
+    As_r, as_r, Qs_r, emission_proj_r, x0_r = lgssm_components(m, t, storage_type)
+
+    As = _map(blk_diag, As_l, As_r)
+    as = _map(vcat, as_l, as_r)
+    Qs = _map(blk_diag, Qs_l, Qs_r)
+    emission_projections = _sum_emission_projections(emission_proj_l, emission_proj_r)
+    x0 = Gaussian(vcat(x0_l.m, x0_r.m), blk_diag(x0_l.P, x0_r.P))
+
+    return As, as, Qs, emission_projections, x0
+end
+
+
+# Generic constructor for mean function
+
+function lgssm_components(
+    m::MeanFunction, t::AbstractVector{<:Real}, storage::StorageType{T},
+) where {T<:Real}
+
+    # Compute stationary distribution and sde.
+    x0 = stationary_distribution(m, storage)
+    ms = _map_meanfunction(m, t)
+
+    # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
+    A = SMatrix{1, 1, T}(0)
+    As = Fill(A, length(t))
+    as = [SVector{1, T}(mᵢ) for mᵢ in ms]
+    Q = Zeros{T}(1, 1)
+    Qs = Fill(Q, length(t))
+    Hs = Fill(SVector{1, T}(1), length(t))
+    hs = Fill(zero(T), length(As))
+    emission_projections = (Hs, hs)
+
+    return As, as, Qs, emission_projections, x0
 end
 
 
@@ -160,6 +207,11 @@ function lgssm_components(
     emission_projections = (Hs, hs)
 
     return As, as, Qs, emission_projections, x0
+end
+
+# Fallback definition for mean functions
+function stationary_distribution(::MeanFunction, ::StorageType{T}) where {T<:Real}
+    return Gaussian(Zeros{T}(1), Zeros{T}(1, 1))
 end
 
 # Fallback definitions for most base kernels.

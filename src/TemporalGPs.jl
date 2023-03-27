@@ -13,6 +13,7 @@ module TemporalGPs
     using Zygote
 
     using FillArrays: AbstractFill
+    using AbstractGPs: _map_meanfunction, MeanFunction
 
     import AbstractGPs: mean, cov, logpdf, FiniteGP, AbstractGP, posterior, dtc, elbo
 
