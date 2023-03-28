@@ -18,6 +18,7 @@ using Zygote # Algorithmic Differentiation
 # var_kernel is the variance of the kernel, λ the inverse length scale, and var_noise the
 # variance of the observation noise. Note that they're all constrained to be positive.
 flat_initial_params, unpack = ParameterHandling.value_flatten((
+    mean = 3.0,
     var_kernel = positive(0.6),
     λ = positive(0.1),
     var_noise = positive(2.0),
@@ -28,7 +29,7 @@ params = unpack(flat_initial_params);
 
 function build_gp(params)
     k = params.var_kernel * Matern52Kernel() ∘ ScaleTransform(params.λ)
-    return to_sde(GP(k), SArrayStorage(Float64))
+    return to_sde(GP(ConstMean(params.mean), k), SArrayStorage(Float64))
 end
 
 # Specify a collection of inputs. Must be increasing.
@@ -50,7 +51,7 @@ end
 training_results = Optim.optimize(
     objective ∘ unpack,
     θ -> only(Zygote.gradient(objective ∘ unpack, θ)),
-    flat_initial_params + randn(3), # Perturb the parameters to make learning non-trivial
+    flat_initial_params .+ randn.(), # Perturb the parameters to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),
         linesearch = Optim.LineSearches.BackTracking(),
