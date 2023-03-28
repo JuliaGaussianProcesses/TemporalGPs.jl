@@ -128,14 +128,18 @@ lgssm_components(::AbstractGPs.ZeroMean, k::Kernel, t::AbstractVector{<:Real}, s
 function lgssm_components(
     m::MeanFunction, k::Kernel, t::AbstractVector{<:Real}, storage_type::StorageType
 )
-    as_m = mean_to_time(m, t, storage_type)
-    As, as, Qs, emission_proj, x0 = lgssm_components(k, t, storage_type)
-    as = add_shit_map(vcat, as_l, as_r)
+    m = mean_to_time(m, t, storage_type)
+    As, as, Qs, (Hs, hs), x0 = lgssm_components(k, t, storage_type)
+    hs = add_proj_mean!(hs, m)
 
-    return As, as, Qs, emission_proj, x0
+    return As, as, Qs, (Hs, hs), x0
 end
 
-
+add_proj_mean!(hs::AbstractVector{<:Real}, m) = hs .+= m
+add_proj_mean!(hs::AbstractVector, m) = map(hs, m) do h, m
+    h[1] += m
+    h
+end
 
 # Generic constructor for mean function
 

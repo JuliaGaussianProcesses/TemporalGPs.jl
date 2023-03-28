@@ -34,7 +34,7 @@ Base.:(==)(x::AbstractLGC, y::AbstractLGC) = (x.A == y.A) && (x.a == y.a) && (x.
 Base.eltype(f::AbstractLGC) = eltype(f.A)
 
 """
-    predict(x::Gaussian, f::AbstractLGC)
+    predict(x::Gaussian, f::AbstractLGC)::Gaussian{Tm,Matrix}
 
 Compute the distribution "predicted" by this conditional given a [`Gaussian`](@ref) input `x`. Will
 be equivalent to
@@ -51,7 +51,7 @@ function predict(x::Gaussian, f::AbstractLGC)
 end
 
 """
-    predict_marginals(x::Gaussian, f::AbstractLGC)
+    predict_marginals(x::Gaussian, f::AbstractLGC)::Gaussian{Tm,Diagonal}
 
 Equivalent to
 ```julia
@@ -70,7 +70,7 @@ end
     conditional_rand(rng::AbstractRNG, f::AbstractLGC, x::AbstractVector)
     conditional_rand(ε::AbstractVector, f::AbstractLGC, x::AbstractVector)
 
-Sample from the conditional distribution `xꜝ⁺¹ | xꜝ`. `ε` is the randomness needed to generate
+Sample from the conditional distribution `y | x`. `ε` is the randomness needed to generate
 this sample. If `rng` is provided, it will be used to construct `ε` via [`ε_randn`](@ref).
 
 If implementing a new `AbstractLGC`, implement the `ε` method as it avoids randomness, which
