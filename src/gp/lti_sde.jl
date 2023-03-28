@@ -140,29 +140,6 @@ add_proj_mean!!(hs::AbstractVector, m) = map(hs, m) do h, m
     h
 end
 
-# Generic constructor for mean function
-
-function lgssm_components(
-    m::MeanFunction, t::AbstractVector{<:Real}, storage::StorageType{T},
-) where {T<:Real}
-
-    # Compute stationary distribution and sde.
-    x0 = stationary_distribution(m, storage)
-    ms = _map_meanfunction(m, t)
-
-    # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
-    A = SMatrix{1, 1, T}(0)
-    As = Fill(A, length(t))
-    as = [SVector{1, T}(mᵢ) for mᵢ in ms]
-    Q = Zeros{T}(1, 1)
-    Qs = Fill(Q, length(t))
-    Hs = Fill(SVector{1, T}(1), length(t))
-    hs = Fill(zero(T), length(As))
-    emission_projections = (Hs, hs)
-
-    return As, as, Qs, emission_projections, x0
-end
-
 # Generic constructors for base kernels.
 
 function lgssm_components(
