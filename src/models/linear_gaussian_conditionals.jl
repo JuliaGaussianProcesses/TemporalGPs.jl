@@ -1,16 +1,22 @@
 """
-    abstract type AbstractLGC end
+    AbstractLGC
 
 Represents a Gaussian conditional distribution:
+
 ```julia
-y | x ∼ Gaussian(A * x + a, Q)
+y | x ∼ Gaussian(A * xᵗ + a, Q)
 ```
+
+Note that this can be used in two contexts:
+
+- Transition: `y` is the next state, `x` is the current state.
+- Emission: `y` is the observation, `x` is the state.
 
 Subtypes have discretion over how to implement the interface for this type. In particular
 `A`, `a`, and `Q` may not be represented explicitly so that structure can be exploited to
 accelerate computations.
 
-# Interface:
+## Interface:
 - `==`
 - `eltype`
 - `dim_out`
@@ -30,8 +36,9 @@ Base.eltype(f::AbstractLGC) = eltype(f.A)
 """
     predict(x::Gaussian, f::AbstractLGC)
 
-Compute the distribution "predicted" by this conditional given a `Gaussian` input `x`. Will
+Compute the distribution "predicted" by this conditional given a [`Gaussian`](@ref) input `x`. Will
 be equivalent to
+
 ```julia
     Gaussian(f.A * x.m + f.a, f.A * x.P * f.A' + f.Q)
 ```
@@ -48,8 +55,8 @@ end
 
 Equivalent to
 ```julia
-    y = predict(x, f)
-    Gaussian(mean(y), Diagonal(cov(y)))
+    xꜝ⁺¹ = predict(xꜝ, f)
+    Gaussian(mean(xꜝ⁺¹), Diagonal(cov(xꜝ⁺¹)))
 ```
 """
 function predict_marginals(x::Gaussian, f::AbstractLGC)
@@ -63,8 +70,8 @@ end
     conditional_rand(rng::AbstractRNG, f::AbstractLGC, x::AbstractVector)
     conditional_rand(ε::AbstractVector, f::AbstractLGC, x::AbstractVector)
 
-Sample from the conditional distribution `y | x`. `ε` is the randomness needed to generate
-this sample. If `rng` is provided, it will be used to construct `ε` via `ε_randn`.
+Sample from the conditional distribution `xꜝ⁺¹ | xꜝ`. `ε` is the randomness needed to generate
+this sample. If `rng` is provided, it will be used to construct `ε` via [`ε_randn`](@ref).
 
 If implementing a new `AbstractLGC`, implement the `ε` method as it avoids randomness, which
 means that it plays nicely with `scan_emit`'s checkpointed rrule.
@@ -81,7 +88,7 @@ end
 """
     ε_randn(rng::AbstractRNG, f::AbstractLGC)
 
-Generate the vector of random numbers needed inside `conditional_rand`.
+Generate the vector of random numbers needed inside [`conditional_rand`](@ref).
 """
 ε_randn(rng::AbstractRNG, f::AbstractLGC) = ε_randn(rng, f.A)
 ε_randn(rng::AbstractRNG, A::AbstractMatrix{T}) where {T<:Real} = randn(rng, T, size(A, 1))
@@ -101,10 +108,10 @@ ChainRulesCore.@non_differentiable scalar_type(x)
         TA<:AbstractMatrix, Ta<:AbstractVector, TQ<:AbstractMatrix,
     } <: AbstractLGC
 
-a.k.a. LGC. An `AbstractLGC` designed for problems in which `A` is a matrix, and
+a.k.a. LGC. An [`AbstractLGC`](@ref) designed for problems in which `A` is a matrix, and
 `size(A, 1) < size(A, 2)`. It should still work (roughly) for problems in which
 `size(A, 1) > size(A, 2)`, but one should expect worse accuracy and performance than a
-`LargeOutputLGC` in such circumstances.
+[`LargeOutputLGC`](@ref) in such circumstances.
 """
 struct SmallOutputLGC{
     TA<:AbstractMatrix, Ta<:AbstractVector, TQ<:AbstractMatrix,
@@ -156,7 +163,7 @@ end
         TA<:AbstractMatrix, Ta<:AbstractVector, TQ<:AbstractMatrix,
     } <: AbstractLGC
 
-A SmallOutputLGC (LGC) specialised for models in which the dimension of the
+A [`SmallOutputLGC`](@ref) (LGC) specialised for models in which the dimension of the
 outputs are greater than that of the inputs. These specialisations both improve numerical
 stability and performance (time and memory), so it's worth using if your model lives in
 this regime.
@@ -234,8 +241,8 @@ end
 """
     ScalarOutputLGC
 
-An LGC that operates on a vector-valued input space and a scalar-valued output space.
-Similar to `SmallOutputLGC` when its `dim_out` is 1 but, for example, `conditional_rand`
+An [`AbstractLGC`](@ref) that operates on a vector-valued input space and a scalar-valued output space.
+Similar to [`SmallOutputLGC`](@ref) when its `dim_out` is 1 but, for example, [`conditional_rand`](@ref)
 returns a `Real` rather than an `AbstractVector` of length 1.
 """
 struct ScalarOutputLGC{
@@ -284,10 +291,10 @@ end
     BottleneckLGC
 
 A composition of an affine map that projects onto a low-dimensional subspace and a
-`LargeOutputLGC`. This structure is exploited by only ever computing `Cholesky`
+[`LargeOutputLGC`](@ref). This structure is exploited by only ever computing `Cholesky`
 factorisations in the space the affine map maps to, rather than the input or output space.
 
-Letting, `H` and `h` parametrise the affine map, and `f` the "fan-out" `LargeOutputLGC`, the
+Letting, `H` and `h` parametrise the affine map, and `f` the "fan-out" [`LargeOutputLGC`](@ref), the
 conditional distribution that this model parametrises is
 ```julia
 y | x ~ Gaussian(f.A * (H * x + h) + f.a, f.Q)

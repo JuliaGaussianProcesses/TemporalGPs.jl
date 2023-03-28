@@ -2,7 +2,7 @@
     LTISDE (Linear Time-Invariant Stochastic Differential Equation)
 
 A lightweight wrapper around a `GP` `f` that tells this package to handle inference in `f`.
-Can be constructed via the `to_sde` function.
+Can be constructed via the [`to_sde`](@ref) function.
 """
 struct LTISDE{Tf<:GP, Tstorage<:StorageType} <: AbstractGP
     f::Tf
@@ -19,13 +19,13 @@ storage_type(f::LTISDE) = f.storage
     const FiniteLTISDE = FiniteGP{<:LTISDE}
 
 A `FiniteLTISDE` is just a regular `FiniteGP` that happens to contain an `LTISDE`, as
-opposed to any other `AbstractGP`.
+opposed to any other `AbstractGP`, useful for dispatching.
 """
 const FiniteLTISDE = FiniteGP{<:LTISDE}
 
 # Deal with a bug in AbstractGPs.
-function FiniteGP(f::LTISDE, x::AbstractVector{<:Real})
-    return FiniteGP(f, x, convert(eltype(storage_type(f)), 1e-12))
+function AbstractGPs.FiniteGP(f::LTISDE, x::AbstractVector{<:Real})
+    return AbstractGPs.FiniteGP(f, x, convert(eltype(storage_type(f)), 1e-12))
 end
 
 # Implement the AbstractGP API.
@@ -68,7 +68,6 @@ function _logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
 end
 
 # Converting GPs into LGSSMs (Linear Gaussian State-Space Models).
-
 function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)
     m = get_mean(f)
     k = get_kernel(f)
@@ -123,20 +122,19 @@ end
 
 # Constructor for combining kernel and mean functions
 
+lgssm_components(::AbstractGPs.ZeroMean, k::Kernel, t::AbstractVector{<:Real}, storage_type::StorageType) =
+    lgssm_components(k, t, storage_type)
+
 function lgssm_components(
     m::MeanFunction, k::Kernel, t::AbstractVector{<:Real}, storage_type::StorageType
 )
-    As_l, as_l, Qs_l, emission_proj_l, x0_l = lgssm_components(k, t, storage_type)
-    As_r, as_r, Qs_r, emission_proj_r, x0_r = lgssm_components(m, t, storage_type)
+    as_m = mean_to_time(m, t, storage_type)
+    As, as, Qs, emission_proj, x0 = lgssm_components(k, t, storage_type)
+    as = add_shit_map(vcat, as_l, as_r)
 
-    As = _map(blk_diag, As_l, As_r)
-    as = _map(vcat, as_l, as_r)
-    Qs = _map(blk_diag, Qs_l, Qs_r)
-    emission_projections = _sum_emission_projections(emission_proj_l, emission_proj_r)
-    x0 = Gaussian(vcat(x0_l.m, x0_r.m), blk_diag(x0_l.P, x0_r.P))
-
-    return As, as, Qs, emission_projections, x0
+    return As, as, Qs, emission_proj, x0
 end
+
 
 
 # Generic constructor for mean function
