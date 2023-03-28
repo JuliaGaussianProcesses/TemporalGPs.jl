@@ -52,23 +52,26 @@ println("lti_sde:")
     @testset "lgssm_components" begin
         rng = MersenneTwister(123456)
         N = 13
-
         kernels = vcat(
-
             # Base kernels.
-            (name="base-Matern12Kernel", val=Matern12Kernel()),
+            (name="base-Matern12Kernel", val=Matern12Kernel(), m=ZeroMean()),
             map([Matern32Kernel, Matern52Kernel]) do k
-                (name="base-$k", val=k())
+                (name="base-$k", val=k(), m=ZeroMean())
+            end,
+
+            # Non-Zero means
+            map((ConstMean(3.0), CustomMean(x->2x))) do m
+                (;name="mean-$m", val=Matern32Kernel(), m)
             end,
 
             # Scaled kernels.
             map([1e-1, 1.0, 10.0, 100.0]) do σ²
-                (name="scaled-σ²=$σ²", val=σ² * Matern32Kernel())
+                (name="scaled-σ²=$σ²", val=σ² * Matern32Kernel(), m=ZeroMean())
             end,
 
             # Stretched kernels.
             map([1e-2, 0.1, 1.0, 10.0, 100.0]) do λ
-                (name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ))
+                (name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ), m=ZeroMean())
             end,
 
             # Summed kernels.
@@ -105,7 +108,7 @@ println("lti_sde:")
             println("$(kernel.name), $(storage.name), $(t.name), $(σ².name)")
 
             # Construct Gauss-Markov model.
-            f_naive = GP(kernel.val)
+            f_naive = GP(kernel.m, kernel.val)
             fx_naive = f_naive(collect(t.val), σ².val...)
 
             f = to_sde(f_naive, storage.val)
