@@ -118,8 +118,6 @@ end
     return map(Zygote.wrap_chainrules_output, x)
 end
 
-
-
 # Constructor for combining kernel and mean functions
 
 lgssm_components(::AbstractGPs.ZeroMean, k::Kernel, t::AbstractVector{<:Real}, storage_type::StorageType) =
@@ -128,15 +126,16 @@ lgssm_components(::AbstractGPs.ZeroMean, k::Kernel, t::AbstractVector{<:Real}, s
 function lgssm_components(
     m::MeanFunction, k::Kernel, t::AbstractVector{<:Real}, storage_type::StorageType
 )
-    m = mean_to_time(m, t, storage_type)
+    m = _map_meanfunction(m, t)
     As, as, Qs, (Hs, hs), x0 = lgssm_components(k, t, storage_type)
-    hs = add_proj_mean!(hs, m)
+    hs = add_proj_mean!!(hs, m)
 
     return As, as, Qs, (Hs, hs), x0
 end
 
-add_proj_mean!(hs::AbstractVector{<:Real}, m) = hs .+= m
-add_proj_mean!(hs::AbstractVector, m) = map(hs, m) do h, m
+add_proj_mean!!(hs::AbstractFill, m) = hs.value .+ m
+add_proj_mean!!(hs::AbstractVector{<:Real}, m) = hs .+= m
+add_proj_mean!!(hs::AbstractVector, m) = map(hs, m) do h, m
     h[1] += m
     h
 end
@@ -163,8 +162,6 @@ function lgssm_components(
 
     return As, as, Qs, emission_projections, x0
 end
-
-
 
 # Generic constructors for base kernels.
 
@@ -209,11 +206,6 @@ function lgssm_components(
     emission_projections = (Hs, hs)
 
     return As, as, Qs, emission_projections, x0
-end
-
-# Fallback definition for mean functions
-function stationary_distribution(::MeanFunction, ::StorageType{T}) where {T<:Real}
-    return Gaussian(Zeros{T}(1), Zeros{T}(1, 1))
 end
 
 # Fallback definitions for most base kernels.
