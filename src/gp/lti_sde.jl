@@ -286,8 +286,8 @@ function lgssm_components(k::KernelSum, ts::AbstractVector, storage_type::Storag
     lgssms = lgssm_components.(k.kernels, Ref(ts), Ref(storage_type))
     As_kernels = getindex.(lgssms, 1)
     as_kernels = getindex.(lgssms, 2)
-    Qs_kernels = getindex.(lgssms, 4)
-    emission_proj_kernels = getindex.(lgssms, 3)
+    Qs_kernels = getindex.(lgssms, 3)
+    emission_proj_kernels = getindex.(lgssms, 4)
     x0_kernels = getindex.(lgssms, 5)
     
     As = _map(block_diagonal, As_kernels...)
@@ -298,56 +298,63 @@ function lgssm_components(k::KernelSum, ts::AbstractVector, storage_type::Storag
     return As, as, Qs, emission_projections, x0
 end
 
-function _sum_emission_projections(
-    (Hs_l, hs_l)::Tuple{AbstractVector, AbstractVector},
-    (Hs_r, hs_r)::Tuple{AbstractVector, AbstractVector},
-)
-    return map(vcat, Hs_l, Hs_r), hs_l + hs_r
+function _sum_emission_projections(Hs_hs::Tuple{AbstractVector, AbstractVector}...)
+    return map(vcat, first.(Hs_hs)), sum(last.(hs))
 end
 
 function _sum_emission_projections(
-    (Cs_l, cs_l, Hs_l, hs_l)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
-    (Cs_r, cs_r, Hs_r, hs_r)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
+    Cs_cs_Hs_hs::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector}...,
 )
-    Cs = _map(vcat, Cs_l, Cs_r)
-    cs = cs_l + cs_r
-    Hs = _map(blk_diag, Hs_l, Hs_r)
-    hs = _map(vcat, hs_l, hs_r)
-    return Cs, cs, Hs, hs
+    Cs = getindex.(Cs_cs_Hs_hs, 1)
+    cs = getindex.(Cs_cs_Hs_hs, 2)
+    Hs = getindex.(Cs_cs_Hs_hs, 3)
+    hs = getindex.(Cs_cs_Hs_hs, 4)
+    C = _map(vcat, Cs...)
+    c = sum(cs)
+    H = _map(block_diagonal, Hs...)
+    h = _map(vcat, hs...)
+    return C, c, H, h
 end
 
 Base.vcat(x::Zeros{T, 1}, y::Zeros{T, 1}) where {T} = Zeros{T}(length(x) + length(y))
 
 function block_diagonal(As::AbstractMatrix{T}...) where {T}
     nblocks = length(As)
-    # return collect(BlockDiagonal(collect(As)))
-    return hvcat(
-        (nblocks, nblocks),
-        A, zeros(T, size(A, 1), size(B, 2)), zeros(T, size(B, 1), size(A, 2)), B,
-    )
+    sizes = size.(As)
+    Xs = [i == j ? As[i] : Zeros{T}(sizes[j][1], sizes[i][2]) for i in 1:nblocks, j in 1:nblocks]
+    return hvcat(ntuple(_ -> nblocks, nblocks), Xs...)
 end
 
-function ChainRulesCore.rrule(::typeof(blk_diag), A, B)
-    blk_diag_rrule(Δ::AbstractThunk) = blk_diag_rrule(unthunk(Δ))
-    function blk_diag_rrule(Δ)
-        ΔA = Δ[1:size(A, 1), 1:size(A, 2)]
-        ΔB = Δ[size(A, 1)+1:end, size(A, 2)+1:end]
-        return NoTangent(), ΔA, ΔB
+function ChainRulesCore.rrule(::typeof(block_diagonal), As::AbstractMatrix...)
+    szs = size.(As)
+    row_szs = (0, cumsum(first.(szs))...)
+    col_szs = (0, cumsum(last.(szs))...)
+    block_diagonal_rrule(Δ::AbstractThunk) = block_diagonal_rrule(unthunk(Δ))
+    function block_diagonal_rrule(Δ)
+        ΔAs = ntuple(length(As)) do i
+            Δ[(row_szs[i]+1):row_szs[i+1], (col_szs[i]+1):col_szs[i+1]]
+        end
+        return NoTangent(), ΔAs...
     end
-    return blk_diag(A, B), blk_diag_rrule
+    return block_diagonal(As...), block_diagonal_rrule
 end
 
-function blk_diag(A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T}
-    zero_AB = zeros(SMatrix{DA, DB, T})
-    zero_BA = zeros(SMatrix{DB, DA, T})
-    return [[A zero_AB]; [zero_BA B]]
+function block_diagonal(As::SMatrix...)
+    nblocks = length(As)
+    sizes = size.(As)
+    Xs = [i == j ? As[i] : zeros(SMatrix{sizes[j][1], sizes[i][2]}) for i in 1:nblocks, j in 1:nblocks]
+    return hcat(Base.splat(vcat).(eachrow(Xs))...)
 end
 
-function ChainRulesCore.rrule(::typeof(blk_diag), A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T}
-    function blk_diag_adjoint(Δ)
-        ΔA = Δ[SVector{DA}(1:DA), SVector{DA}(1:DA)]
-        ΔB = Δ[SVector{DB}((DA+1):(DA+DB)), SVector{DB}((DA+1):(DA+DB))]
-        return NoTangent(), ΔA, ΔB
+function ChainRulesCore.rrule(::typeof(block_diagonal), As::SMatrix...)
+    szs = size.(As)
+    row_szs = (0, cumsum(first.(szs))...)
+    col_szs = (0, cumsum(last.(szs))...)
+    function block_diagonal_rrule(Δ)
+        ΔAs = ntuple(length(As)) do i
+            Δ[SVector{szs[i][1]}((row_szs[i]+1):row_szs[i+1]), SVector{szs[i][2]}((col_szs[i]+1):col_szs[i+1])]
+        end
+        return NoTangent(), ΔAs...
     end
-    return blk_diag(A, B), blk_diag_adjoint
+    return block_diagonal(As...), block_diagonal_rrule
 end

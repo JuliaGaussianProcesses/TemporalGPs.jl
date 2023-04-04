@@ -387,7 +387,7 @@ function dtc_post_emissions(k::KernelSum, x_new::AbstractVector, storage::Storag
     (Cs_r, cs_r, Hs_r, hs_r), Σs_r = dtc_post_emissions(k.kernels[2], x_new, storage)
     Cs = _map(vcat, Cs_l, Cs_r)
     cs = cs_l + cs_r
-    Hs = _map(blk_diag, Hs_l, Hs_r)
+    Hs = _map(block_diagonal, Hs_l, Hs_r)
     hs = _map(vcat, hs_l, hs_r)
     return (Cs, cs, Hs, hs), _map(+, Σs_l, Σs_r)
 end

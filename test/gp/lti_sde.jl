@@ -15,11 +15,12 @@ end
 println("lti_sde:")
 @testset "lti_sde" begin
 
-    @testset "blk_diag" begin
+    @testset "block_diagonal" begin
         A = randn(2, 2)
         B = randn(3, 3)
-        test_rrule(TemporalGPs.blk_diag, A, B; check_inferred=false)
-        test_rrule(TemporalGPs.blk_diag, SMatrix{2, 2}(A), SMatrix{3, 3}(B))
+        C = randn(5, 5)
+        test_rrule(TemporalGPs.block_diagonal, A, B, C; check_inferred=false)
+        test_rrule(TemporalGPs.block_diagonal, SMatrix{2, 2}(A), SMatrix{3, 3}(B), SMatrix{5, 5}(C); check_inferred=false)
     end
 
     @testset "SimpleKernel parameter types" begin
