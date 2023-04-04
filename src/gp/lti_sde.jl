@@ -118,14 +118,14 @@ end
     return map(Zygote.wrap_chainrules_output, x)
 end
 
-const TimeVector = Union{AbstractVector{<:Real},RegularSpacing,StepRangeLen}
+const InputTypes = Union{AbstractVector{<:Real},RegularSpacing,StepRangeLen,RectilinearGrid}
 
 # Constructor for combining kernel and mean functions
-lgssm_components(::ZeroMean, k::Kernel, t::TimeVector, storage_type::StorageType) =
+lgssm_components(::ZeroMean, k::Kernel, t::InputTypes, storage_type::StorageType) =
     lgssm_components(k, t, storage_type)
 
 function lgssm_components(
-    m::AbstractGPs.MeanFunction, k::Kernel, t::TimeVector, storage_type::StorageType
+    m::AbstractGPs.MeanFunction, k::Kernel, t::InputTypes, storage_type::StorageType
 )
     m = collect(mean_vector(m, t)) # `collect` is needed as there are still issues with Zygote and FillArrays.
     As, as, Qs, (Hs, hs), x0 = lgssm_components(k, t, storage_type)
