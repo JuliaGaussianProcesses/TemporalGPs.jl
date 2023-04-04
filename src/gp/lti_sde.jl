@@ -125,9 +125,9 @@ lgssm_components(::ZeroMean, k::Kernel, t::TimeVector, storage_type::StorageType
     lgssm_components(k, t, storage_type)
 
 function lgssm_components(
-    m::MeanFunction, k::Kernel, t::TimeVector, storage_type::StorageType
+    m::AbstractGPs.MeanFunction, k::Kernel, t::TimeVector, storage_type::StorageType
 )
-    m = mean_vector(m, t)
+    m = collect(mean_vector(m, t)) # `collect` is needed as there are still issues with Zygote and FillArrays.
     As, as, Qs, (Hs, hs), x0 = lgssm_components(k, t, storage_type)
     hs = add_proj_mean(hs, m)
 

@@ -60,18 +60,18 @@ println("lti_sde:")
             end,
 
             # Non-Zero means
-            map((ConstMean(3.0), CustomMean(x->2x))) do m
+            map([ConstMean(3.0), CustomMean(x->2x)]) do m
                 (;name="mean-$m", val=Matern32Kernel(), m)
             end,
 
             # Scaled kernels.
             map([1e-1, 1.0, 10.0, 100.0]) do σ²
-                (name="scaled-σ²=$σ²", val=σ² * Matern32Kernel(), m=ZeroMean())
+                (;name="scaled-σ²=$σ²", val=σ² * Matern32Kernel(), m=ZeroMean())
             end,
 
             # Stretched kernels.
             map([1e-2, 0.1, 1.0, 10.0, 100.0]) do λ
-                (name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ), m=ZeroMean())
+                (;name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ), m=ZeroMean())
             end,
 
             # Summed kernels.
@@ -147,7 +147,7 @@ println("lti_sde:")
 
             # Just need to ensure we can differentiate through construction properly.
             test_zygote_grad(
-                _construction_tester, kernel.val isa KernelFunctions.SimpleKernel ? f_naive ⊢ NoTangent() : f_naive, storage.val, σ².val, t.val;
+                _construction_tester, f_naive, storage.val, σ².val, t.val;
                 check_inferred=false, rtol=1e-6, atol=1e-6,
             )
         end
