@@ -118,26 +118,26 @@ end
     return map(Zygote.wrap_chainrules_output, x)
 end
 
+const TimeVector = Union{AbstractVector{<:Real},RectilinearGrid,StepRangeLen}
+
 # Constructor for combining kernel and mean functions
-lgssm_components(::ZeroMean, k::Kernel, t::AbstractVector{<:Real}, storage_type::StorageType) =
+lgssm_components(::ZeroMean, k::Kernel, t::TimeVector, storage_type::StorageType) =
     lgssm_components(k, t, storage_type)
 
 function lgssm_components(
-    m::MeanFunction, k::Kernel, t::AbstractVector{<:Real}, storage_type::StorageType
+    m::MeanFunction, k::Kernel, t::TimeVector, storage_type::StorageType
 )
     m = _map_meanfunction(m, t)
     As, as, Qs, (Hs, hs), x0 = lgssm_components(k, t, storage_type)
-    hs = add_proj_mean!!(hs, m)
+    hs = add_proj_mean(hs, m)
 
     return As, as, Qs, (Hs, hs), x0
 end
 
 # Either build a new vector or update an existing one with 
-add_proj_mean!!(hs::AbstractFill, m) = hs.value .+ m
-add_proj_mean!!(hs::AbstractVector{<:Real}, m) = hs .+= m
-add_proj_mean!!(hs::AbstractVector, m) = map(hs, m) do h, m
-    h[1] += m
-    h
+add_proj_mean(hs::AbstractVector{<:Real}, m) = hs .+ m
+add_proj_mean(hs::AbstractVector, m) = map(hs, m) do h, m
+    h + vcat(m, Zeros(length(h) - 1))
 end
 
 # Generic constructors for base kernels.
