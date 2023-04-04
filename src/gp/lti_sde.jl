@@ -119,7 +119,7 @@ end
 end
 
 # Constructor for combining kernel and mean functions
-lgssm_components(::AbstractGPs.ZeroMean, k::Kernel, t::AbstractVector{<:Real}, storage_type::StorageType) =
+lgssm_components(::ZeroMean, k::Kernel, t::AbstractVector{<:Real}, storage_type::StorageType) =
     lgssm_components(k, t, storage_type)
 
 function lgssm_components(

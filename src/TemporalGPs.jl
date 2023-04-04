@@ -1,6 +1,7 @@
 module TemporalGPs
 
     using AbstractGPs
+    using AbstractGPs: ZeroMean
     using BlockDiagonals
     using ChainRulesCore
     import ChainRulesCore: rrule

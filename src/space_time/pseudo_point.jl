@@ -254,8 +254,6 @@ function approx_posterior_marginals(
     z_r::AbstractVector,
     x_r::AbstractVector,
 )
-    fx.f.f.mean isa AbstractGPs.ZeroMean || throw(error("Prior mean of GP isn't zero."))
-
     # Compute approximate posterior LGSSM.
     lgssm = build_lgssm(dtcify(z_r, fx))
     fx_post = posterior(lgssm, restructure(y, lgssm.emissions))

@@ -1,4 +1,5 @@
 using TemporalGPs: build_lgssm, StorageType, is_of_storage_type
+using AbstractGPs: ZeroMean, ConstMean, CustomMean
 using KernelFunctions
 include("../test_util.jl")
 include("../models/model_test_utils.jl")
