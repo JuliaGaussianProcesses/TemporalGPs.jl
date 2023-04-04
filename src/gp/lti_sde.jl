@@ -283,15 +283,18 @@ end
 # Sum
 
 function lgssm_components(k::KernelSum, ts::AbstractVector, storage_type::StorageType)
-    As_l, as_l, Qs_l, emission_proj_l, x0_l = lgssm_components(k.kernels[1], ts, storage_type)
-    As_r, as_r, Qs_r, emission_proj_r, x0_r = lgssm_components(k.kernels[2], ts, storage_type)
-
-    As = _map(blk_diag, As_l, As_r)
-    as = _map(vcat, as_l, as_r)
-    Qs = _map(blk_diag, Qs_l, Qs_r)
-    emission_projections = _sum_emission_projections(emission_proj_l, emission_proj_r)
-    x0 = Gaussian(vcat(x0_l.m, x0_r.m), blk_diag(x0_l.P, x0_r.P))
-
+    lgssms = lgssm_components.(k.kernels, Ref(ts), Ref(storage_type))
+    As_kernels = getindex.(lgssms, 1)
+    as_kernels = getindex.(lgssms, 2)
+    Qs_kernels = getindex.(lgssms, 4)
+    emission_proj_kernels = getindex.(lgssms, 3)
+    x0_kernels = getindex.(lgssms, 5)
+    
+    As = _map(block_diagonal, As_kernels...)
+    as = _map(vcat, as_kernels...)
+    Qs = _map(block_diagonal, Qs_kernels...)
+    emission_projections = _sum_emission_projections(emission_proj_kernels)
+    x0 = Gaussian(mapreduce(x -> getproperty(x, :m), x0_kernels), block_diagonal(getproperty.(x0_kernels, :P)...))
     return As, as, Qs, emission_projections, x0
 end
 
@@ -315,9 +318,11 @@ end
 
 Base.vcat(x::Zeros{T, 1}, y::Zeros{T, 1}) where {T} = Zeros{T}(length(x) + length(y))
 
-function blk_diag(A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T}
+function block_diagonal(As::AbstractMatrix{T}...) where {T}
+    nblocks = length(As)
+    # return collect(BlockDiagonal(collect(As)))
     return hvcat(
-        (2, 2),
+        (nblocks, nblocks),
         A, zeros(T, size(A, 1), size(B, 2)), zeros(T, size(B, 1), size(A, 2)), B,
     )
 end
