@@ -127,7 +127,7 @@ lgssm_components(::ZeroMean, k::Kernel, t::TimeVector, storage_type::StorageType
 function lgssm_components(
     m::MeanFunction, k::Kernel, t::TimeVector, storage_type::StorageType
 )
-    m = _map_meanfunction(m, t)
+    m = mean_vector(m, t)
     As, as, Qs, (Hs, hs), x0 = lgssm_components(k, t, storage_type)
     hs = add_proj_mean(hs, m)
 

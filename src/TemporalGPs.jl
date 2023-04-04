@@ -1,7 +1,6 @@
 module TemporalGPs
 
     using AbstractGPs
-    using AbstractGPs: ZeroMean
     using BlockDiagonals
     using ChainRulesCore
     import ChainRulesCore: rrule
@@ -14,7 +13,6 @@ module TemporalGPs
     using Zygote
 
     using FillArrays: AbstractFill
-    using AbstractGPs: _map_meanfunction, MeanFunction
 
     import AbstractGPs: mean, cov, logpdf, FiniteGP, AbstractGP, posterior, dtc, elbo
 
