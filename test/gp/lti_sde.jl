@@ -43,11 +43,12 @@ end
 println("lti_sde:")
 @testset "lti_sde" begin
 
-    @testset "blk_diag" begin
+    @testset "block_diagonal" begin
         A = randn(2, 2)
         B = randn(3, 3)
-        test_rrule(TemporalGPs.blk_diag, A, B; check_inferred=false)
-        test_rrule(TemporalGPs.blk_diag, SMatrix{2, 2}(A), SMatrix{3, 3}(B))
+        C = randn(5, 5)
+        test_rrule(TemporalGPs.block_diagonal, A, B, C; check_inferred=false)
+        test_rrule(TemporalGPs.block_diagonal, SMatrix{2, 2}(A), SMatrix{3, 3}(B), SMatrix{5, 5}(C); check_inferred=false)
     end
 
     @testset "SimpleKernel parameter types" begin
@@ -104,12 +105,19 @@ println("lti_sde:")
             map([7, 11]) do N
                 (name="approx-periodic-N=$N", val=ApproxPeriodicKernel{N}())
             end,
+            # TEST_TOFIX
             # Summed kernels.
             # (
-                # name="sum-Matern12Kernel-Matern32Kernel",
-                # val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) +
-                    # 0.3 * Matern32Kernel() ∘ ScaleTransform(1.1),
-            # ), # TEST_TOFIX
+            #     name="sum-Matern12Kernel-Matern32Kernel",
+            #     val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) +
+            #         0.3 * Matern32Kernel() ∘ ScaleTransform(1.1),
+            # ), 
+            # (
+            #     name="sum-Matern32Kernel-Matern52Kernel-ConstantKernel",
+            #     val = 2.0 * Matern32Kernel() +
+            #         0.5 * Matern52Kernel() +
+            #         1.0 * ConstantKernel(),
+            # ),
         )
 
         # Construct a Gauss-Markov model with either dense storage or static storage.
