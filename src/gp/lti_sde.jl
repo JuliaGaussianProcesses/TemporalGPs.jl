@@ -284,7 +284,6 @@ function _init_periodic_kernel_lgssm(kernel::PeriodicKernel, storage, N::Int=7)
     Fs = _map(q -> q * 2π * F, qs)
     Ps = _map(q -> q * P, qs)
     ms = Fill(m, N)
-    Main.@infiltrate
     Fs, H, ms, Ps
 end
 
@@ -293,20 +292,14 @@ function _reduce_sum_cosine_kernel_lgssm(As, H, ms, Ps, N, nt, T)
     Qs = _map((P, A) -> _map(A -> Symmetric(P) - A * Symmetric(P) * A', A), Ps, As)
     H = Fill(H, nt)
     h = Fill(zero(T), nt)
-    As = map(As...) do A...
-        collect(BlockDiagonal(collect(A)))
-    end
-    as = reduce(as) do as, a
-        _map(vcat, as, a)
-    end
-    Qs = map(Qs...) do Q...
-        collect(BlockDiagonal(collect(Q)))
-    end
+    As = _map(block_diagonal, As...)
+    as = -map(vcat, as...)
+    Qs = _map(block_diagonal, Qs...)
     Hs = reduce(Fill(H, N)) do Hs, H
         _map(vcat, Hs, H)
     end
     m = reduce(vcat, ms)
-    P = collect(BlockDiagonal(collect(Ps)))
+    P = block_diagonal(Ps...)
     x0 = Gaussian(m, P)
     return As, as, Qs, (Hs, h), x0
 end
