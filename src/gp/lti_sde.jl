@@ -118,7 +118,7 @@ end
     return map(Zygote.wrap_chainrules_output, x)
 end
 
-const TimeVector = Union{AbstractVector{<:Real},RectilinearGrid,StepRangeLen}
+const TimeVector = Union{AbstractVector{<:Real},RegularSpacing,StepRangeLen}
 
 # Constructor for combining kernel and mean functions
 lgssm_components(::ZeroMean, k::Kernel, t::TimeVector, storage_type::StorageType) =
