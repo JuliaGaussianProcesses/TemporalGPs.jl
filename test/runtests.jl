@@ -6,7 +6,7 @@ ENV["TESTING"] = "TRUE"
 # ["test util", "test models" "test models-lgssm" "test gp" "test space_time"]
 # Select any of this to test a particular aspect.
 # To test everything, simply set GROUP to "all"
-# ENV["GROUP"] = "test space_time"
+ENV["GROUP"] = "test gp"
 const GROUP = get(ENV, "GROUP", "test")
 OUTER_GROUP = first(split(GROUP, ' '))
 

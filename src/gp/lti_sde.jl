@@ -293,13 +293,13 @@ function lgssm_components(k::KernelSum, ts::AbstractVector, storage_type::Storag
     As = _map(block_diagonal, As_kernels...)
     as = _map(vcat, as_kernels...)
     Qs = _map(block_diagonal, Qs_kernels...)
-    emission_projections = _sum_emission_projections(emission_proj_kernels)
-    x0 = Gaussian(mapreduce(x -> getproperty(x, :m), x0_kernels), block_diagonal(getproperty.(x0_kernels, :P)...))
+    emission_projections = _sum_emission_projections(emission_proj_kernels...)
+    x0 = Gaussian(mapreduce(x -> getproperty(x, :m), vcat, x0_kernels), block_diagonal(getproperty.(x0_kernels, :P)...))
     return As, as, Qs, emission_projections, x0
 end
 
 function _sum_emission_projections(Hs_hs::Tuple{AbstractVector, AbstractVector}...)
-    return map(vcat, first.(Hs_hs)), sum(last.(hs))
+    return map(vcat, first.(Hs_hs)...), sum(last.(Hs_hs))
 end
 
 function _sum_emission_projections(
