@@ -274,16 +274,19 @@ end
 
 function _init_periodic_kernel_lgssm(kernel::PeriodicKernel, storage, N::Int=7)
     r = kernel.r
-    l⁻² = inv(4 * only(r))
+    l⁻² = inv(4 * only(r)^2)
+    ω₀ = 2π # This is because of the difference of implementation between KernelFunctions.jl
+    # and the paper "Explicit Link Between Periodic Covariance Functions and State Space Models"
     x0 = stationary_distribution(CosineKernel(), storage)
     P = x0.P
     F, _, H = to_sde(CosineKernel(), storage)
+    F = ω₀ * F
     qs = ntuple(N) do i
         (1 + (i !== 1) ) * besseli(i - 1, l⁻²) / exp(l⁻²)
     end
-    Fs = _map(q -> q * 2π * F, qs)
+    Fs = _map(q -> q * F, qs)
     Ps = _map(q -> q * P, qs)
-    ms = Fill(m, N)
+    ms = Fill(x0.m, N)
     Fs, H, ms, Ps
 end
 
