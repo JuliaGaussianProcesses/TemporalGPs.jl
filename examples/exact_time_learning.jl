@@ -29,7 +29,7 @@ params = unpack(flat_initial_params);
 
 function build_gp(params)
     k = params.var_kernel * Matern52Kernel() ∘ ScaleTransform(params.λ)
-    return to_sde(GP(ConstMean(params.mean), k), SArrayStorage(Float64))
+    return to_sde(GP(AbstractGPs.ConstMean(params.mean), k), SArrayStorage(Float64))
 end
 
 # Specify a collection of inputs. Must be increasing.
