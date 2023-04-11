@@ -4,7 +4,7 @@
 Represents a Gaussian conditional distribution:
 
 ```julia
-y | x ∼ Gaussian(A * xᵗ + a, Q)
+y | x ∼ Gaussian(A * x + a, Q)
 ```
 
 Note that this can be used in two contexts:
