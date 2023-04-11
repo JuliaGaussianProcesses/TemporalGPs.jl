@@ -135,9 +135,9 @@ function ChainRulesTestUtils.test_approx(actual::Tangent{<:Fill}, expected, msg=
 end
 
 function to_vec(x::PeriodicKernel)
-    x, to_r = to_vec(x.r)
+    x, to_r = to_vec(log.(x.r))
     function PeriodicKernel_from_vec(x)
-        return PeriodicKernel(;r=to_r(x))
+        return PeriodicKernel(;r=exp.(to_r(x)))
     end
     x, PeriodicKernel_from_vec
 end
