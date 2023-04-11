@@ -185,7 +185,7 @@ println("lti_sde:")
 
             # Just need to ensure we can differentiate through construction properly.
             test_zygote_grad(
-                _construction_tester, kernel.val isa KernelFunctions.SimpleKernel ? f_naive ⊢ NoTangent() : f_naive, storage.val, σ².val, t.val;
+                _construction_tester, f_naive, storage.val, σ².val, t.val;
                 check_inferred=false, rtol=1e-6, atol=1e-6,
             )
         end
