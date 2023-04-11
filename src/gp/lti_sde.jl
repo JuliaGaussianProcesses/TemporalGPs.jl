@@ -2,14 +2,14 @@
     LTISDE (Linear Time-Invariant Stochastic Differential Equation)
 
 A lightweight wrapper around a `GP` `f` that tells this package to handle inference in `f`.
-Can be constructed via the `to_sde` function.
+Can be constructed via the [`to_sde`](@ref) function.
 """
-struct LTISDE{Tf<:GP{<:AbstractGPs.ZeroMean}, Tstorage<:StorageType} <: AbstractGP
+struct LTISDE{Tf<:GP, Tstorage<:StorageType} <: AbstractGP
     f::Tf
     storage::Tstorage
 end
 
-function to_sde(f::GP{<:AbstractGPs.ZeroMean}, storage_type=ArrayStorage(Float64))
+function to_sde(f::GP, storage_type=ArrayStorage(Float64))
     return LTISDE(f, storage_type)
 end
 
@@ -19,13 +19,13 @@ storage_type(f::LTISDE) = f.storage
     const FiniteLTISDE = FiniteGP{<:LTISDE}
 
 A `FiniteLTISDE` is just a regular `FiniteGP` that happens to contain an `LTISDE`, as
-opposed to any other `AbstractGP`.
+opposed to any other `AbstractGP`, useful for dispatching.
 """
 const FiniteLTISDE = FiniteGP{<:LTISDE}
 
 # Deal with a bug in AbstractGPs.
-function FiniteGP(f::LTISDE, x::AbstractVector{<:Real})
-    return FiniteGP(f, x, convert(eltype(storage_type(f)), 1e-12))
+function AbstractGPs.FiniteGP(f::LTISDE, x::AbstractVector{<:Real})
+    return AbstractGPs.FiniteGP(f, x, convert(eltype(storage_type(f)), 1e-12))
 end
 
 # Implement the AbstractGP API.
@@ -68,11 +68,11 @@ function _logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
 end
 
 # Converting GPs into LGSSMs (Linear Gaussian State-Space Models).
-
 function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)
+    m = get_mean(f)
     k = get_kernel(f)
     s = Zygote.literal_getfield(f, Val(:storage))
-    As, as, Qs, emission_proj, x0 = lgssm_components(k, x, s)
+    As, as, Qs, emission_proj, x0 = lgssm_components(m, k, x, s)
     return LGSSM(
         GaussMarkovModel(Forward(), As, as, Qs, x0), build_emissions(emission_proj, Σys),
     )
@@ -84,6 +84,9 @@ function build_lgssm(ft::FiniteLTISDE)
     Σys = noise_var_to_time_form(x, Zygote.literal_getfield(ft, Val(:Σy)))
     return build_lgssm(f, x, Σys)
 end
+
+get_mean(f::LTISDE) = get_mean(Zygote.literal_getfield(f, Val(:f)))
+get_mean(f::GP) = Zygote.literal_getfield(f, Val(:mean))
 
 get_kernel(f::LTISDE) = get_kernel(Zygote.literal_getfield(f, Val(:f)))
 get_kernel(f::GP) = Zygote.literal_getfield(f, Val(:kernel))
@@ -115,7 +118,28 @@ end
     return map(Zygote.wrap_chainrules_output, x)
 end
 
+# Constructor for combining kernel and mean functions
+function lgssm_components(
+    ::ZeroMean, k::Kernel, t::AbstractVector, storage_type::StorageType
+)
+    return lgssm_components(k, t, storage_type)
+end
 
+function lgssm_components(
+    m::AbstractGPs.MeanFunction, k::Kernel, t::AbstractVector, storage_type::StorageType
+)
+    m = collect(mean_vector(m, t)) # `collect` is needed as there are still issues with Zygote and FillArrays.
+    As, as, Qs, (Hs, hs), x0 = lgssm_components(k, t, storage_type)
+    hs = add_proj_mean(hs, m)
+
+    return As, as, Qs, (Hs, hs), x0
+end
+
+# Either build a new vector or update an existing one with 
+add_proj_mean(hs::AbstractVector{<:Real}, m) = hs .+ m
+function add_proj_mean(hs::AbstractVector, m)
+    return map((h, m) -> h + vcat(m, Zeros(length(h) - 1)), hs, m)
+end
 
 # Generic constructors for base kernels.
 
@@ -283,66 +307,78 @@ end
 # Sum
 
 function lgssm_components(k::KernelSum, ts::AbstractVector, storage_type::StorageType)
-    As_l, as_l, Qs_l, emission_proj_l, x0_l = lgssm_components(k.kernels[1], ts, storage_type)
-    As_r, as_r, Qs_r, emission_proj_r, x0_r = lgssm_components(k.kernels[2], ts, storage_type)
-
-    As = _map(blk_diag, As_l, As_r)
-    as = _map(vcat, as_l, as_r)
-    Qs = _map(blk_diag, Qs_l, Qs_r)
-    emission_projections = _sum_emission_projections(emission_proj_l, emission_proj_r)
-    x0 = Gaussian(vcat(x0_l.m, x0_r.m), blk_diag(x0_l.P, x0_r.P))
-
+    lgssms = lgssm_components.(k.kernels, Ref(ts), Ref(storage_type))
+    As_kernels = getindex.(lgssms, 1)
+    as_kernels = getindex.(lgssms, 2)
+    Qs_kernels = getindex.(lgssms, 3)
+    emission_proj_kernels = getindex.(lgssms, 4)
+    x0_kernels = getindex.(lgssms, 5)
+    
+    As = _map(block_diagonal, As_kernels...)
+    as = _map(vcat, as_kernels...)
+    Qs = _map(block_diagonal, Qs_kernels...)
+    emission_projections = _sum_emission_projections(emission_proj_kernels...)
+    x0 = Gaussian(mapreduce(x -> getproperty(x, :m), vcat, x0_kernels), block_diagonal(getproperty.(x0_kernels, :P)...))
     return As, as, Qs, emission_projections, x0
 end
 
-function _sum_emission_projections(
-    (Hs_l, hs_l)::Tuple{AbstractVector, AbstractVector},
-    (Hs_r, hs_r)::Tuple{AbstractVector, AbstractVector},
-)
-    return map(vcat, Hs_l, Hs_r), hs_l + hs_r
+function _sum_emission_projections(Hs_hs::Tuple{AbstractVector, AbstractVector}...)
+    return map(vcat, first.(Hs_hs)...), sum(last.(Hs_hs))
 end
 
 function _sum_emission_projections(
-    (Cs_l, cs_l, Hs_l, hs_l)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
-    (Cs_r, cs_r, Hs_r, hs_r)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
+    Cs_cs_Hs_hs::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector}...,
 )
-    Cs = _map(vcat, Cs_l, Cs_r)
-    cs = cs_l + cs_r
-    Hs = _map(blk_diag, Hs_l, Hs_r)
-    hs = _map(vcat, hs_l, hs_r)
-    return Cs, cs, Hs, hs
+    Cs = getindex.(Cs_cs_Hs_hs, 1)
+    cs = getindex.(Cs_cs_Hs_hs, 2)
+    Hs = getindex.(Cs_cs_Hs_hs, 3)
+    hs = getindex.(Cs_cs_Hs_hs, 4)
+    C = _map(vcat, Cs...)
+    c = sum(cs)
+    H = _map(block_diagonal, Hs...)
+    h = _map(vcat, hs...)
+    return C, c, H, h
 end
 
 Base.vcat(x::Zeros{T, 1}, y::Zeros{T, 1}) where {T} = Zeros{T}(length(x) + length(y))
 
-function blk_diag(A::AbstractMatrix{T}, B::AbstractMatrix{T}) where {T}
-    return hvcat(
-        (2, 2),
-        A, zeros(T, size(A, 1), size(B, 2)), zeros(T, size(B, 1), size(A, 2)), B,
-    )
+function block_diagonal(As::AbstractMatrix{T}...) where {T}
+    nblocks = length(As)
+    sizes = size.(As)
+    Xs = [i == j ? As[i] : Zeros{T}(sizes[j][1], sizes[i][2]) for i in 1:nblocks, j in 1:nblocks]
+    return hvcat(ntuple(_ -> nblocks, nblocks), Xs...)
 end
 
-function ChainRulesCore.rrule(::typeof(blk_diag), A, B)
-    blk_diag_rrule(Δ::AbstractThunk) = blk_diag_rrule(unthunk(Δ))
-    function blk_diag_rrule(Δ)
-        ΔA = Δ[1:size(A, 1), 1:size(A, 2)]
-        ΔB = Δ[size(A, 1)+1:end, size(A, 2)+1:end]
-        return NoTangent(), ΔA, ΔB
+function ChainRulesCore.rrule(::typeof(block_diagonal), As::AbstractMatrix...)
+    szs = size.(As)
+    row_szs = (0, cumsum(first.(szs))...)
+    col_szs = (0, cumsum(last.(szs))...)
+    block_diagonal_rrule(Δ::AbstractThunk) = block_diagonal_rrule(unthunk(Δ))
+    function block_diagonal_rrule(Δ)
+        ΔAs = ntuple(length(As)) do i
+            Δ[(row_szs[i]+1):row_szs[i+1], (col_szs[i]+1):col_szs[i+1]]
+        end
+        return NoTangent(), ΔAs...
     end
-    return blk_diag(A, B), blk_diag_rrule
+    return block_diagonal(As...), block_diagonal_rrule
 end
 
-function blk_diag(A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T}
-    zero_AB = zeros(SMatrix{DA, DB, T})
-    zero_BA = zeros(SMatrix{DB, DA, T})
-    return [[A zero_AB]; [zero_BA B]]
+function block_diagonal(As::SMatrix...)
+    nblocks = length(As)
+    sizes = size.(As)
+    Xs = [i == j ? As[i] : zeros(SMatrix{sizes[j][1], sizes[i][2]}) for i in 1:nblocks, j in 1:nblocks]
+    return hcat(Base.splat(vcat).(eachrow(Xs))...)
 end
 
-function ChainRulesCore.rrule(::typeof(blk_diag), A::SMatrix{DA, DA, T}, B::SMatrix{DB, DB, T}) where {DA, DB, T}
-    function blk_diag_adjoint(Δ)
-        ΔA = Δ[SVector{DA}(1:DA), SVector{DA}(1:DA)]
-        ΔB = Δ[SVector{DB}((DA+1):(DA+DB)), SVector{DB}((DA+1):(DA+DB))]
-        return NoTangent(), ΔA, ΔB
+function ChainRulesCore.rrule(::typeof(block_diagonal), As::SMatrix...)
+    szs = size.(As)
+    row_szs = (0, cumsum(first.(szs))...)
+    col_szs = (0, cumsum(last.(szs))...)
+    function block_diagonal_rrule(Δ)
+        ΔAs = ntuple(length(As)) do i
+            Δ[SVector{szs[i][1]}((row_szs[i]+1):row_szs[i+1]), SVector{szs[i][2]}((col_szs[i]+1):col_szs[i+1])]
+        end
+        return NoTangent(), ΔAs...
     end
-    return blk_diag(A, B), blk_diag_adjoint
+    return block_diagonal(As...), block_diagonal_rrule
 end

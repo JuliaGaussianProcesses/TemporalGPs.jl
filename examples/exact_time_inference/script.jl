@@ -15,7 +15,7 @@ using TemporalGPs
 using TemporalGPs: RegularSpacing
 
 # Build a GP as per usual, and wrap it inside a TemporalGPs.jl object.
-f_raw = GP(Matern52Kernel());
+f_raw = GP(5.0, Matern52Kernel());
 f = to_sde(f_raw, SArrayStorage(Float64));
 
 # Specify a collection of inputs. Must be increasing.
