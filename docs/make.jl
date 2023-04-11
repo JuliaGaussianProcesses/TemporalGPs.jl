@@ -13,7 +13,7 @@ makedocs(;
     format=Documenter.HTML(),
     pages=[
         "Home" => "index.md",
-        "Examples" => JuliaGPsDocs.find_generated_examples(KernelFunctions),
+        "Examples" => JuliaGPsDocs.find_generated_examples(TemporalGPs),
     ],
     repo="https://github.com/JuliaGaussianProcesses/TemporalGPs.jl/blob/{commit}{path}#L{line}",
     sitename="TemporalGPs.jl",
