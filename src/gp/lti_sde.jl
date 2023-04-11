@@ -248,7 +248,7 @@ struct ApproxPeriodicKernel{N,K<:PeriodicKernel} <: KernelFunctions.SimpleKernel
     end
 end
 # We follow "State Space approximation of Gaussian Processes for time series forecasting"
-# by Alessio Benavoli1 and Giorgio Corani and use a default of 7 Cosine Kernel terms
+# by Alessio Benavoli and Giorgio Corani and use a default of 7 Cosine Kernel terms
 ApproxPeriodicKernel(kernel=PeriodicKernel()) = ApproxPeriodicKernel{7}(kernel)
 ApproxPeriodicKernel{N}(kernel::K=PeriodicKernel()) where {N,K<:PeriodicKernel} = ApproxPeriodicKernel{N,K}(kernel)
 KernelFunctions.kappa(k::ApproxPeriodicKernel, x) = KernelFunctions.kappa(k.kernel, x)
