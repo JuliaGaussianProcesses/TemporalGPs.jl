@@ -11,8 +11,8 @@ using LinearAlgebra: mul!
     A_Matrix = randn(rng, P, Q)
     At_Matrix = collect(A_Matrix')
 
-    A_blk_diag = BlockDiagonal([randn(rng, P, P), randn(rng, P + 1, P + 1)])
-    At_blk_diag = BlockDiagonal(map(collect ∘ transpose, blocks(A_blk_diag)))
+    A_block_diag = BlockDiagonal([randn(rng, P, P), randn(rng, P + 1, P + 1)])
+    At_block_diag = BlockDiagonal(map(collect ∘ transpose, blocks(A_block_diag)))
 
     settings = [
         (
@@ -24,17 +24,17 @@ using LinearAlgebra: mul!
         ),
         (
             name="BlockDiagonal{Float64, Matrix{Float64}}",
-            A=A_blk_diag,
-            At=At_blk_diag,
-            B=randn(rng, size(A_blk_diag, 2), Q),
-            C=randn(rng, size(A_blk_diag, 1), Q),
+            A=A_block_diag,
+            At=At_block_diag,
+            B=randn(rng, size(A_block_diag, 2), Q),
+            C=randn(rng, size(A_block_diag, 1), Q),
         ),
         (
             name="BlockDiagonal{Float64, BlockDiagonal{Float64, Matrix{Float64}}}",
-            A=BlockDiagonal([A_blk_diag, A_blk_diag]),
-            At=BlockDiagonal([At_blk_diag, At_blk_diag]),
-            B=randn(rng, 2 * size(A_blk_diag, 2), Q),
-            C=randn(rng, 2 * size(A_blk_diag, 1), Q),
+            A=BlockDiagonal([A_block_diag, A_block_diag]),
+            At=BlockDiagonal([At_block_diag, At_block_diag]),
+            B=randn(rng, 2 * size(A_block_diag, 2), Q),
+            C=randn(rng, 2 * size(A_block_diag, 1), Q),
         ),
     ]
 
