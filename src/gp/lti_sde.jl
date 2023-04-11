@@ -2,14 +2,14 @@
     LTISDE (Linear Time-Invariant Stochastic Differential Equation)
 
 A lightweight wrapper around a `GP` `f` that tells this package to handle inference in `f`.
-Can be constructed via the `to_sde` function.
+Can be constructed via the [`to_sde`](@ref) function.
 """
-struct LTISDE{Tf<:GP{<:AbstractGPs.ZeroMean}, Tstorage<:StorageType} <: AbstractGP
+struct LTISDE{Tf<:GP, Tstorage<:StorageType} <: AbstractGP
     f::Tf
     storage::Tstorage
 end
 
-function to_sde(f::GP{<:AbstractGPs.ZeroMean}, storage_type=ArrayStorage(Float64))
+function to_sde(f::GP, storage_type=ArrayStorage(Float64))
     return LTISDE(f, storage_type)
 end
 
@@ -19,13 +19,13 @@ storage_type(f::LTISDE) = f.storage
     const FiniteLTISDE = FiniteGP{<:LTISDE}
 
 A `FiniteLTISDE` is just a regular `FiniteGP` that happens to contain an `LTISDE`, as
-opposed to any other `AbstractGP`.
+opposed to any other `AbstractGP`, useful for dispatching.
 """
 const FiniteLTISDE = FiniteGP{<:LTISDE}
 
 # Deal with a bug in AbstractGPs.
-function FiniteGP(f::LTISDE, x::AbstractVector{<:Real})
-    return FiniteGP(f, x, convert(eltype(storage_type(f)), 1e-12))
+function AbstractGPs.FiniteGP(f::LTISDE, x::AbstractVector{<:Real})
+    return AbstractGPs.FiniteGP(f, x, convert(eltype(storage_type(f)), 1e-12))
 end
 
 # Implement the AbstractGP API.
@@ -68,11 +68,11 @@ function _logpdf(ft::FiniteLTISDE, y::AbstractVector{<:Union{Missing, Real}})
 end
 
 # Converting GPs into LGSSMs (Linear Gaussian State-Space Models).
-
 function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)
+    m = get_mean(f)
     k = get_kernel(f)
     s = Zygote.literal_getfield(f, Val(:storage))
-    As, as, Qs, emission_proj, x0 = lgssm_components(k, x, s)
+    As, as, Qs, emission_proj, x0 = lgssm_components(m, k, x, s)
     return LGSSM(
         GaussMarkovModel(Forward(), As, as, Qs, x0), build_emissions(emission_proj, Σys),
     )
@@ -84,6 +84,9 @@ function build_lgssm(ft::FiniteLTISDE)
     Σys = noise_var_to_time_form(x, Zygote.literal_getfield(ft, Val(:Σy)))
     return build_lgssm(f, x, Σys)
 end
+
+get_mean(f::LTISDE) = get_mean(Zygote.literal_getfield(f, Val(:f)))
+get_mean(f::GP) = Zygote.literal_getfield(f, Val(:mean))
 
 get_kernel(f::LTISDE) = get_kernel(Zygote.literal_getfield(f, Val(:f)))
 get_kernel(f::GP) = Zygote.literal_getfield(f, Val(:kernel))
@@ -115,7 +118,28 @@ end
     return map(Zygote.wrap_chainrules_output, x)
 end
 
+# Constructor for combining kernel and mean functions
+function lgssm_components(
+    ::ZeroMean, k::Kernel, t::AbstractVector, storage_type::StorageType
+)
+    return lgssm_components(k, t, storage_type)
+end
 
+function lgssm_components(
+    m::AbstractGPs.MeanFunction, k::Kernel, t::AbstractVector, storage_type::StorageType
+)
+    m = collect(mean_vector(m, t)) # `collect` is needed as there are still issues with Zygote and FillArrays.
+    As, as, Qs, (Hs, hs), x0 = lgssm_components(k, t, storage_type)
+    hs = add_proj_mean(hs, m)
+
+    return As, as, Qs, (Hs, hs), x0
+end
+
+# Either build a new vector or update an existing one with 
+add_proj_mean(hs::AbstractVector{<:Real}, m) = hs .+ m
+function add_proj_mean(hs::AbstractVector, m)
+    return map((h, m) -> h + vcat(m, Zeros(length(h) - 1)), hs, m)
+end
 
 # Generic constructors for base kernels.
 

@@ -42,17 +42,21 @@ end
 
 println("lti_sde:")
 @testset "lti_sde" begin
-
     @testset "block_diagonal" begin
         A = randn(2, 2)
         B = randn(3, 3)
         C = randn(5, 5)
         test_rrule(TemporalGPs.block_diagonal, A, B, C; check_inferred=false)
-        test_rrule(TemporalGPs.block_diagonal, SMatrix{2, 2}(A), SMatrix{3, 3}(B), SMatrix{5, 5}(C); check_inferred=false)
+        test_rrule(
+            TemporalGPs.block_diagonal,
+            SMatrix{2,2}(A),
+            SMatrix{3,3}(B),
+            SMatrix{5,5}(C);
+            check_inferred=false,
+        )
     end
 
     @testset "SimpleKernel parameter types" begin
-
         storages = (
             (name="dense storage Float64", val=ArrayStorage(Float64)),
             (name="static storage Float64", val=SArrayStorage(Float64)),
@@ -82,23 +86,21 @@ println("lti_sde:")
     @testset "lgssm_components" begin
         rng = MersenneTwister(123456)
         N = 13
-
         kernels = vcat(
-
             # Base kernels.
             (name="base-Matern12Kernel", val=Matern12Kernel()),
             map([Matern32Kernel, Matern52Kernel]) do k
-                (name="base-$k", val=k())
+                (; name="base-$k", val=k())
             end,
 
             # Scaled kernels.
             map([1e-1, 1.0, 10.0, 100.0]) do σ²
-                (name="scaled-σ²=$σ²", val=σ² * Matern32Kernel())
+                (; name="scaled-σ²=$σ²", val=σ² * Matern32Kernel())
             end,
 
             # Stretched kernels.
             map([1e-2, 0.1, 1.0, 10.0, 100.0]) do λ
-                (name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ))
+                (; name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ))
             end,
 
             # Approx periodic kernels
@@ -121,24 +123,28 @@ println("lti_sde:")
         )
 
         # Construct a Gauss-Markov model with either dense storage or static storage.
-        storages = (
-            (name="dense storage Float64", val=ArrayStorage(Float64)),
-            # (name="static storage Float64", val=SArrayStorage(Float64)),
-        )
+        storages = ((name="dense storage Float64", val=ArrayStorage(Float64)),
+        # (name="static storage Float64", val=SArrayStorage(Float64)),
+)
 
         # Either regular spacing or irregular spacing in time.
-        ts = (
-            (name="irregular spacing", val=collect(RegularSpacing(0.0, 0.3, N))),
-            # (name="regular spacing", val=RegularSpacing(0.0, 0.3, N)),
+        ts = ((name="irregular spacing", val=collect(RegularSpacing(0.0, 0.3, N))),
+        # (name="regular spacing", val=RegularSpacing(0.0, 0.3, N)),
+)
+
+        σ²s = ((name="homoscedastic noise", val=(0.1,)),
+        # (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1, )),
+)
+
+        means = (
+            (name="Zero Mean", val=ZeroMean()),
+            (name="Const Mean", val=ConstMean(3.0)),
+            (name="Custom Mean", val=CustomMean(x -> 2x)),
         )
 
-        σ²s = (
-            (name="homoscedastic noise", val=(0.1, ),),
-            # (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1, )),
-        )
-
-        @testset "$(kernel.name), $(storage.name), $(t.name), $(σ².name)" for
+        @testset "$(kernel.name), $(m.name), $(storage.name), $(t.name), $(σ².name)" for
             kernel in kernels,
+            m in means,
             storage in storages,
             t in ts,
             σ² in σ²s
@@ -146,7 +152,7 @@ println("lti_sde:")
             println("$(kernel.name), $(storage.name), $(t.name), $(σ².name)")
 
             # Construct Gauss-Markov model.
-            f_naive = GP(kernel.val)
+            f_naive = GP(m.val, kernel.val)
             fx_naive = f_naive(collect(t.val), σ².val...)
 
             f = to_sde(f_naive, storage.val)

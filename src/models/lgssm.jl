@@ -47,7 +47,11 @@ emission_type(model::LGSSM) = eltype(emissions(model))
 
 
 # Functionality for indexing into an LGSSM.
+"""
+    ElementOfLGSSM
 
+Represents an element of [`LGSSM`](@ref) with a given ordering.
+"""
 struct ElementOfLGSSM{Tordering, Ttransition, Temission}
     ordering::Tordering
     transition::Ttransition
@@ -70,10 +74,7 @@ end
     return ElementOfLGSSM(ordering(model), model.transitions[n], model.emissions[n])
 end
 
-
-
 # Draw a sample from the model.
-
 function AbstractGPs.rand(rng::AbstractRNG, model::LGSSM)
     iterable = zip(ε_randn(rng, model), model)
     init = rand(rng, x0(model))
