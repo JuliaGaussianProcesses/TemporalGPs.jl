@@ -255,7 +255,7 @@ KernelFunctions.kappa(k::ApproxPeriodicKernel, x) = KernelFunctions.kappa(k.kern
 KernelFunctions.metric(k::ApproxPeriodicKernel) = KernelFunctions.metric(k.kernel)
 
 function Base.show(io::IO, κ::ApproxPeriodicKernel{N}) where {N}
-    return print(io, "Approximate Periodic Kernel, length(r) = $(length(κ.kernel.r)) approximated with $N cosine kernels")
+    return print(io, "Approximate Periodic Kernel, (r = $(only(κ.kernel.r))) approximated with $N cosine kernels")
 end
 
 function lgssm_components(approx::ApproxPeriodicKernel{N}, t::Union{StepRangeLen, RegularSpacing}, storage::StorageType{T}) where {N,T<:Real}
@@ -278,7 +278,7 @@ function _init_periodic_kernel_lgssm(kernel::PeriodicKernel, storage, N::Int=7)
     
     F, _, H = to_sde(CosineKernel(), storage)
     Fs = ntuple(N) do i
-        π * (i - 1) * F
+        2π * (i - 1) * F
     end
     Hs = Fill(H, N)
 
