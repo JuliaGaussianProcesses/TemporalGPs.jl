@@ -56,7 +56,7 @@ println("lti_sde:")
         N = 13
         kernels = vcat(
             # Base kernels.
-            (name="base-Matern12Kernel", val=Matern12Kernel(), m=ZeroMean()),
+            (name="base-Matern12Kernel", val=Matern12Kernel()),
             map([Matern32Kernel, Matern52Kernel]) do k
                 (; name="base-$k", val=k())
             end,
