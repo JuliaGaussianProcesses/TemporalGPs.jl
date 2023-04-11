@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>- · TemporalGPs.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">TemporalGPs.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../approx_space_time_inference/">-</a></li><li><a class="tocitem" href="../approx_space_time_learning/">-</a></li><li><a class="tocitem" href="../augmented_inference/">-</a></li><li><a class="tocitem" href="../exact_space_time_inference/">-</a></li><li><a class="tocitem" href="../exact_space_time_learning/">-</a></li><li class="is-active"><a class="tocitem" href>-</a></li><li><a class="tocitem" href="../exact_time_learning/">-</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>-</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>-</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaGaussianProcesses/TemporalGPs.jl/blob/master/examples/exact_time_inference/script.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><pre><code class="language-julia hljs">using AbstractGPs
+using TemporalGPs</code></pre><p>Utilising TemporalGPs.jl to work with AbstractGPs requires minimal modification to the GP objects from AbstractGPs that you are used to. The primary differences are</p><ol><li>RegularSpacing is a useful type. It&#39;s basically a <code>range</code> that&#39;s hacked together to work nicely with Zygote.jl. At some point, it will hopefully disappear.</li><li>Call <code>to_sde</code> on your AbstractGP object to say &quot;use TemporalGPs.jl to do inference&quot;.</li></ol><p>This is an example of a very, very noise regression problem. You would probably be better of using a pseudo-point approximation for this particular data set, but longer time-series tend to lend themselves less well to nice plots.</p><p>Load up the separable kernel from TemporalGPs.</p><pre><code class="language-julia hljs">using TemporalGPs: RegularSpacing</code></pre><p>Build a GP as per usual, and wrap it inside a TemporalGPs.jl object.</p><pre><code class="language-julia hljs">f_raw = GP(Matern52Kernel());
+f = to_sde(f_raw, SArrayStorage(Float64));</code></pre><p>Specify a collection of inputs. Must be increasing.</p><pre><code class="language-julia hljs">T = 1_000_000;
+x = RegularSpacing(0.0, 1e-4, T);</code></pre><p>Generate some noisy synthetic data from the GP.</p><pre><code class="language-julia hljs">σ²_noise = 5.0;
+y = rand(f(x, σ²_noise));</code></pre><p>Construct the posterior as per usual.</p><pre><code class="language-julia hljs">f_post = posterior(f(x, σ²_noise), y);</code></pre><p>Specify some locations at which to make predictions.</p><pre><code class="language-julia hljs">T_pr = 1_200_000;
+x_pr = RegularSpacing(0.0, 1e-4, T_pr);</code></pre><p>Compute the exact posterior marginals at <code>x_pr</code>.</p><pre><code class="language-julia hljs">f_post_marginals = marginals(f_post(x_pr));
+m_post_marginals = mean.(f_post_marginals);
+σ_post_marginals = std.(f_post_marginals);</code></pre><p>Generate a few posterior samples. Not fantastically-well optimised at present.</p><pre><code class="language-julia hljs">f_post_samples = [rand(f_post(x_pr)) for _ in 1:5];</code></pre><p>Visualise the posterior. The if block is just to prevent it running in CI.</p><pre><code class="language-julia hljs">if get(ENV, &quot;TESTING&quot;, &quot;FALSE&quot;) == &quot;FALSE&quot;
+    using Plots
+    plt = plot();
+    scatter!(plt, x, y; label=&quot;&quot;, markersize=0.1, alpha=0.1);
+    plot!(plt, f_post(x_pr); ribbon_scale=3.0, label=&quot;&quot;);
+    plot!(x_pr, f_post_samples; color=:red, label=&quot;&quot;);
+    savefig(plt, &quot;posterior.png&quot;);
+end</code></pre><pre><code class="nohighlight hljs">&quot;/home/runner/work/TemporalGPs.jl/TemporalGPs.jl/docs/src/examples/exact_time_inference/posterior.png&quot;</code></pre><hr />
+<h6>Package and system information</h6>
+<details>
+<summary>Package information (click to expand)</summary>
+<pre>
+Status &#96;~/work/TemporalGPs.jl/TemporalGPs.jl/examples/exact_time_inference/Project.toml&#96;
+  &#91;99985d1d&#93; AbstractGPs v0.5.16
+  &#91;98b081ad&#93; Literate v2.14.0
+  &#91;91a5bcdd&#93; Plots v1.38.9
+  &#91;e155a3c4&#93; TemporalGPs v0.6.1 &#96;/home/runner/work/TemporalGPs.jl/TemporalGPs.jl#aef4191&#96;
+</pre>
+To reproduce this notebook's package environment, you can
+<a href="./Manifest.toml">
+download the full Manifest.toml</a>.
+</details>
+<details>
+<summary>System information (click to expand)</summary>
+<pre>
+Julia Version 1.8.5
+Commit 17cfb8e65ea &#40;2023-01-08 06:45 UTC&#41;
+Platform Info:
+  OS: Linux &#40;x86_64-linux-gnu&#41;
+  CPU: 2 × Intel&#40;R&#41; Xeon&#40;R&#41; Platinum 8370C CPU @ 2.80GHz
+  WORD_SIZE: 64
+  LIBM: libopenlibm
+  LLVM: libLLVM-13.0.1 &#40;ORCJIT, icelake-server&#41;
+  Threads: 1 on 2 virtual cores
+Environment:
+  JULIA_DEBUG &#61; Documenter
+  JULIA_LOAD_PATH &#61; :/home/runner/.julia/packages/JuliaGPsDocs/e8FS0/src
+</pre>
+</details><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../exact_space_time_learning/">« -</a><a class="docs-footer-nextpage" href="../exact_time_learning/">- »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 11 April 2023 15:13">Tuesday 11 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>- · TemporalGPs.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">TemporalGPs.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../approx_space_time_inference/">-</a></li><li><a class="tocitem" href="../approx_space_time_learning/">-</a></li><li><a class="tocitem" href="../augmented_inference/">-</a></li><li><a class="tocitem" href="../exact_space_time_inference/">-</a></li><li><a class="tocitem" href="../exact_space_time_learning/">-</a></li><li><a class="tocitem" href="../exact_time_inference/">-</a></li><li class="is-active"><a class="tocitem" href>-</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>-</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>-</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/JuliaGaussianProcesses/TemporalGPs.jl/blob/master/examples/exact_time_learning/script.jl" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><p>This is an extended version of exact<em>time</em>inference.jl. It combines it with Optim + ParameterHandling + Zygote to learn the kernel parameters. Each of these other packages know nothing about TemporalGPs, they&#39;re just general-purpose packages which play nicely with TemporalGPs (and AbstractGPs).</p><pre><code class="language-julia hljs">using AbstractGPs
+using TemporalGPs</code></pre><p>Load up the separable kernel from TemporalGPs.</p><pre><code class="language-julia hljs">using TemporalGPs: RegularSpacing</code></pre><p>Load standard packages from the Julia ecosystem</p><pre><code class="language-julia hljs">using Optim # Standard optimisation algorithms.
+using ParameterHandling # Helper functionality for dealing with model parameters.
+using Zygote # Algorithmic Differentiation</code></pre><p>Declare model parameters using <code>ParameterHandling.jl</code> types. var<em>kernel is the variance of the kernel, λ the inverse length scale, and var</em>noise the variance of the observation noise. Note that they&#39;re all constrained to be positive.</p><pre><code class="language-julia hljs">flat_initial_params, unpack = ParameterHandling.value_flatten((
+    var_kernel = positive(0.6),
+    λ = positive(0.1),
+    var_noise = positive(2.0),
+));</code></pre><p>Pull out the raw values.</p><pre><code class="language-julia hljs">params = unpack(flat_initial_params);
+
+function build_gp(params)
+    k = params.var_kernel * Matern52Kernel() ∘ ScaleTransform(params.λ)
+    return to_sde(GP(k), SArrayStorage(Float64))
+end</code></pre><pre><code class="nohighlight hljs">build_gp (generic function with 1 method)</code></pre><p>Specify a collection of inputs. Must be increasing.</p><pre><code class="language-julia hljs">T = 1_000_000;
+x = RegularSpacing(0.0, 1e-4, T);</code></pre><p>Generate some noisy synthetic data from the GP.</p><pre><code class="language-julia hljs">f = build_gp(params)
+y = rand(f(x, params.var_noise));</code></pre><p>Specify an objective function for Optim to minimise in terms of x and y. We choose the usual negative log marginal likelihood (NLML).</p><pre><code class="language-julia hljs">function objective(params)
+    f = build_gp(params)
+    return -logpdf(f(x, params.var_noise), y)
+end</code></pre><pre><code class="nohighlight hljs">objective (generic function with 1 method)</code></pre><p>Optimise using Optim. Zygote takes a little while to compile.</p><pre><code class="language-julia hljs">training_results = Optim.optimize(
+    objective ∘ unpack,
+    θ -&gt; only(Zygote.gradient(objective ∘ unpack, θ)),
+    flat_initial_params + randn(3), # Perturb the parameters to make learning non-trivial
+    BFGS(
+        alphaguess = Optim.LineSearches.InitialStatic(scaled=true),
+        linesearch = Optim.LineSearches.BackTracking(),
+    ),
+    Optim.Options(show_trace = true);
+    inplace=false,
+);</code></pre><pre><code class="nohighlight hljs">Iter     Function value   Gradient norm 
+     0     2.337021e+06     1.176671e+06
+ * time: 0.04883599281311035
+     1     1.777140e+06     1.168477e+05
+ * time: 84.2598328590393
+     2     1.777083e+06     1.161623e+05
+ * time: 172.9115719795227
+     3     1.774497e+06     1.019074e+05
+ * time: 221.86700105667114
+     4     1.774095e+06     9.949535e+04
+ * time: 275.718936920166
+     5     1.773537e+06     9.608233e+04
+ * time: 332.4740469455719
+     6     1.771599e+06     8.357244e+04
+ * time: 380.538645029068
+     7     1.767427e+06     4.694471e+04
+ * time: 434.1110489368439
+     8     1.765925e+06     2.585811e+04
+ * time: 490.6434688568115
+     9     1.765281e+06     2.818487e+02
+ * time: 538.7198288440704
+    10     1.765274e+06     2.794613e+01
+ * time: 592.1858539581299
+    11     1.765273e+06     2.263221e+01
+ * time: 649.3915388584137
+    12     1.765272e+06     5.350947e+00
+ * time: 697.5785310268402
+    13     1.765272e+06     4.450895e-01
+ * time: 751.1007349491119
+    14     1.765272e+06     3.380652e-02
+ * time: 808.525307893753
+    15     1.765272e+06     5.395906e-03
+ * time: 856.6940469741821
+    16     1.765272e+06     4.474009e-03
+ * time: 910.3575899600983
+    17     1.765272e+06     4.474004e-03
+ * time: 961.8926088809967
+</code></pre><p>Extracting the final values of the parameters. Should be moderately close to truth.</p><pre><code class="language-julia hljs">final_params = unpack(training_results.minimizer)</code></pre><pre><code class="nohighlight hljs">(var_kernel = 0.3779741100467733, λ = 0.1209470560389946, var_noise = 1.9985549631363446)</code></pre><p>Construct the posterior as per usual.</p><pre><code class="language-julia hljs">f_final = build_gp(final_params)
+f_post = posterior(f_final(x, final_params.var_noise), y);</code></pre><p>Specify some locations at which to make predictions.</p><pre><code class="language-julia hljs">T_pr = 1_200_000;
+x_pr = RegularSpacing(0.0, 1e-4, T_pr);</code></pre><p>Compute the exact posterior marginals at <code>x_pr</code>.</p><pre><code class="language-julia hljs">f_post_marginals = marginals(f_post(x_pr));
+m_post_marginals = mean.(f_post_marginals);
+σ_post_marginals = std.(f_post_marginals);</code></pre><p>Generate a few posterior samples. Not fantastically-well optimised at present.</p><pre><code class="language-julia hljs">f_post_samples = [rand(f_post(x_pr)) for _ in 1:5];</code></pre><p>Visualise the posterior. The if block is just to prevent it running in CI.</p><pre><code class="language-julia hljs">if get(ENV, &quot;TESTING&quot;, &quot;FALSE&quot;) == &quot;FALSE&quot;
+    using Plots
+    plt = plot();
+    scatter!(plt, x, y; label=&quot;&quot;, markersize=0.1, alpha=0.1);
+    plot!(plt, f_post(x_pr); ribbon_scale=3.0, label=&quot;&quot;);
+    plot!(plt, x_pr, f_post_samples; color=:red, label=&quot;&quot;);
+    savefig(plt, &quot;posterior.png&quot;);
+end</code></pre><pre><code class="nohighlight hljs">&quot;/home/runner/work/TemporalGPs.jl/TemporalGPs.jl/docs/src/examples/exact_time_learning/posterior.png&quot;</code></pre><hr />
+<h6>Package and system information</h6>
+<details>
+<summary>Package information (click to expand)</summary>
+<pre>
+Status &#96;~/work/TemporalGPs.jl/TemporalGPs.jl/examples/exact_time_learning/Project.toml&#96;
+  &#91;99985d1d&#93; AbstractGPs v0.5.16
+  &#91;98b081ad&#93; Literate v2.14.0
+  &#91;429524aa&#93; Optim v1.7.5
+  &#91;2412ca09&#93; ParameterHandling v0.4.6
+  &#91;91a5bcdd&#93; Plots v1.38.9
+  &#91;e155a3c4&#93; TemporalGPs v0.6.1 &#96;/home/runner/work/TemporalGPs.jl/TemporalGPs.jl#aef4191&#96;
+  &#91;e88e6eb3&#93; Zygote v0.6.60
+</pre>
+To reproduce this notebook's package environment, you can
+<a href="./Manifest.toml">
+download the full Manifest.toml</a>.
+</details>
+<details>
+<summary>System information (click to expand)</summary>
+<pre>
+Julia Version 1.8.5
+Commit 17cfb8e65ea &#40;2023-01-08 06:45 UTC&#41;
+Platform Info:
+  OS: Linux &#40;x86_64-linux-gnu&#41;
+  CPU: 2 × Intel&#40;R&#41; Xeon&#40;R&#41; Platinum 8370C CPU @ 2.80GHz
+  WORD_SIZE: 64
+  LIBM: libopenlibm
+  LLVM: libLLVM-13.0.1 &#40;ORCJIT, icelake-server&#41;
+  Threads: 1 on 2 virtual cores
+Environment:
+  JULIA_DEBUG &#61; Documenter
+  JULIA_LOAD_PATH &#61; :/home/runner/.julia/packages/JuliaGPsDocs/e8FS0/src
+</pre>
+</details><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../exact_time_inference/">« -</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 11 April 2023 15:13">Tuesday 11 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
