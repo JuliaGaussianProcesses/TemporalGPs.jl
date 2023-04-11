@@ -34,7 +34,7 @@ Base.:(==)(x::AbstractLGC, y::AbstractLGC) = (x.A == y.A) && (x.a == y.a) && (x.
 Base.eltype(f::AbstractLGC) = eltype(f.A)
 
 """
-    predict(x::Gaussian, f::AbstractLGC)::Gaussian{Tm,Matrix}
+    predict(x::Gaussian, f::AbstractLGC)::Gaussian{Tm,AbstractMatrix}
 
 Compute the distribution "predicted" by this conditional given a [`Gaussian`](@ref) input `x`. Will
 be equivalent to

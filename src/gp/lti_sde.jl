@@ -119,8 +119,11 @@ end
 end
 
 # Constructor for combining kernel and mean functions
-lgssm_components(::ZeroMean, k::Kernel, t::AbstractVector, storage_type::StorageType) =
-    lgssm_components(k, t, storage_type)
+function lgssm_components(
+    ::ZeroMean, k::Kernel, t::AbstractVector, storage_type::StorageType
+)
+    return lgssm_components(k, t, storage_type)
+end
 
 function lgssm_components(
     m::AbstractGPs.MeanFunction, k::Kernel, t::AbstractVector, storage_type::StorageType
@@ -134,8 +137,8 @@ end
 
 # Either build a new vector or update an existing one with 
 add_proj_mean(hs::AbstractVector{<:Real}, m) = hs .+ m
-add_proj_mean(hs::AbstractVector, m) = map(hs, m) do h, m
-    h + vcat(m, Zeros(length(h) - 1))
+function add_proj_mean(hs::AbstractVector, m)
+    return map((h, m) -> h + vcat(m, Zeros(length(h) - 1)), hs, m)
 end
 
 # Generic constructors for base kernels.
