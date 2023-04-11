@@ -259,48 +259,48 @@ function Base.show(io::IO, κ::ApproxPeriodicKernel{N}) where {N}
 end
 
 function lgssm_components(approx::ApproxPeriodicKernel{N}, t::Union{StepRangeLen, RegularSpacing}, storage::StorageType{T}) where {N,T<:Real}
-    Fs, H, ms, Ps = _init_periodic_kernel_lgssm(approx.kernel, storage, N)
+    Fs, Hs, ms, Ps = _init_periodic_kernel_lgssm(approx.kernel, storage, N)
     nt = length(t)
     As = map(F -> Fill(time_exp(F, T(step(t))), nt), Fs)
-    return _reduce_sum_cosine_kernel_lgssm(As, H, ms, Ps, N, nt, T)
+    return _reduce_sum_cosine_kernel_lgssm(As, Hs, ms, Ps, N, nt, T)
 end
 function lgssm_components(approx::ApproxPeriodicKernel{N}, t::AbstractVector{<:Real}, storage::StorageType{T}) where {N,T<:Real}
-    Fs, H, ms, Ps = _init_periodic_kernel_lgssm(approx.kernel, storage, N)
+    Fs, Hs, ms, Ps = _init_periodic_kernel_lgssm(approx.kernel, storage, N)
     t = vcat([first(t) - 1], t)
     nt = length(diff(t))
     As = _map(F -> _map(Δt -> time_exp(F, T(Δt)), diff(t)), Fs)
-    return _reduce_sum_cosine_kernel_lgssm(As, H, ms, Ps, N, nt, T)
+    return _reduce_sum_cosine_kernel_lgssm(As, Hs, ms, Ps, N, nt, T)
 end
 
 function _init_periodic_kernel_lgssm(kernel::PeriodicKernel, storage, N::Int=7)
     r = kernel.r
     l⁻² = inv(4 * only(r)^2)
-    ω₀ = 2π # This is because of the difference of implementation between KernelFunctions.jl
-    # and the paper "Explicit Link Between Periodic Covariance Functions and State Space Models"
-    x0 = stationary_distribution(CosineKernel(), storage)
-    P = x0.P
+    
     F, _, H = to_sde(CosineKernel(), storage)
-    F = ω₀ * F
-    qs = ntuple(N) do i
-        (1 + (i !== 1) ) * besseli(i - 1, l⁻²) / exp(l⁻²)
+    Fs = ntuple(N) do i
+        π * (i - 1) * F
     end
-    Fs = _map(q -> q * F, qs)
-    Ps = _map(q -> q * P, qs)
+    Hs = Fill(H, N)
+
+    x0 = stationary_distribution(CosineKernel(), storage)
     ms = Fill(x0.m, N)
-    Fs, H, ms, Ps
+    P = x0.P
+    Ps = ntuple(N) do j
+        qⱼ = (1 + (j !== 1) ) * besseli(j - 1, l⁻²) / exp(l⁻²)
+        qⱼ * P
+    end    
+    
+    Fs, Hs, ms, Ps
 end
 
-function _reduce_sum_cosine_kernel_lgssm(As, H, ms, Ps, N, nt, T)
+function _reduce_sum_cosine_kernel_lgssm(As, Hs, ms, Ps, N, nt, T)
     as = Fill(Fill(Zeros{T}(size(first(first(As)), 1)), nt), N)
     Qs = _map((P, A) -> _map(A -> Symmetric(P) - A * Symmetric(P) * A', A), Ps, As)
-    H = Fill(H, nt)
+    Hs = Fill(vcat(Hs...), nt)
     h = Fill(zero(T), nt)
     As = _map(block_diagonal, As...)
     as = -map(vcat, as...)
     Qs = _map(block_diagonal, Qs...)
-    Hs = reduce(Fill(H, N)) do Hs, H
-        _map(vcat, Hs, H)
-    end
     m = reduce(vcat, ms)
     P = block_diagonal(Ps...)
     x0 = Gaussian(m, P)
