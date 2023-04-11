@@ -106,8 +106,8 @@ println("lti_sde:")
             (name="Custom Mean", val=CustomMean(x -> 2x)),
         )
 
-        @testset "$(kernel.name), $(m.name), $(storage.name), $(t.name), $(σ².name)" for kernel in
-                                                                                         kernels,
+        @testset "$(kernel.name), $(m.name), $(storage.name), $(t.name), $(σ².name)" for
+            kernel in kernels,
             m in means,
             storage in storages,
             t in ts,
