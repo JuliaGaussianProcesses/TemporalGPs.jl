@@ -4,7 +4,7 @@ Pkg.add(Pkg.PackageSpec(; url="https://github.com/JuliaGaussianProcesses/JuliaGP
 
 using JuliaGPsDocs
 
-JuliaGPsDocs.generate_examples(TemporalGPs; ntasks=3)
+JuliaGPsDocs.generate_examples(TemporalGPs; ntasks=4)
 
 using Documenter
 
@@ -25,5 +25,5 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/JuliaGaussianProcesses/TemporalGPs.jl", push_preview=true
+    repo="github.com/JuliaGaussianProcesses/TemporalGPs.jl.git", push_preview=true
 )
