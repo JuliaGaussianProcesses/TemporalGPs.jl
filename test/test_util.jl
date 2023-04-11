@@ -1,7 +1,7 @@
 using AbstractGPs
 using BlockDiagonals
 using ChainRulesCore: backing, ZeroTangent, NoTangent, Tangent
-using ChainRulesTestUtils: ChainRulesTestUtils, test_approx, rand_tangent, test_rrule, @ignore_derivatives
+using ChainRulesTestUtils: ChainRulesTestUtils, test_approx, rand_tangent, test_rrule, ⊢, @ignore_derivatives
 using FiniteDifferences
 using FillArrays
 using LinearAlgebra
@@ -172,6 +172,8 @@ end
 Base.zero(x::AbstractGPs.ZeroMean) = x
 Base.zero(x::Kernel) = x
 Base.zero(x::TemporalGPs.LTISDE) = x
+Base.zero(x::GP) = x
+Base.zero(x::AbstractGPs.MeanFunction) = x
 
 function to_vec(X::BlockDiagonal)
     Xs = blocks(X)
