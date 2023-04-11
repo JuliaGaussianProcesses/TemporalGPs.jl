@@ -173,6 +173,7 @@ Base.zero(x::AbstractGPs.ZeroMean) = x
 Base.zero(x::Kernel) = x
 Base.zero(x::TemporalGPs.LTISDE) = x
 Base.zero(x::GP) = x
+Base.zero(x::AbstractGPs.MeanFunction) = x
 
 function to_vec(X::BlockDiagonal)
     Xs = blocks(X)
