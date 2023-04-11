@@ -1,7 +1,7 @@
 using AbstractGPs
 using BlockDiagonals
 using ChainRulesCore: backing, ZeroTangent, NoTangent, Tangent
-using ChainRulesTestUtils: ChainRulesTestUtils, test_approx, rand_tangent, test_rrule, @ignore_derivatives
+using ChainRulesTestUtils: ChainRulesTestUtils, test_approx, rand_tangent, test_rrule, ⊢, @ignore_derivatives
 using FiniteDifferences
 using FillArrays
 using LinearAlgebra
