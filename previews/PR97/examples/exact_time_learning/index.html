@@ -3,6 +3,7 @@
 using TemporalGPs</code></pre><p>Load up the separable kernel from TemporalGPs.</p><pre><code class="language-julia hljs">using TemporalGPs: RegularSpacing</code></pre><p>Load standard packages from the Julia ecosystem</p><pre><code class="language-julia hljs">using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
 using Zygote # Algorithmic Differentiation</code></pre><p>Declare model parameters using <code>ParameterHandling.jl</code> types. var<em>kernel is the variance of the kernel, λ the inverse length scale, and var</em>noise the variance of the observation noise. Note that they&#39;re all constrained to be positive.</p><pre><code class="language-julia hljs">flat_initial_params, unpack = ParameterHandling.value_flatten((
+    mean = 3.0,
     var_kernel = positive(0.6),
     λ = positive(0.1),
     var_noise = positive(2.0),
@@ -10,7 +11,7 @@ using Zygote # Algorithmic Differentiation</code></pre><p>Declare model paramete
 
 function build_gp(params)
     k = params.var_kernel * Matern52Kernel() ∘ ScaleTransform(params.λ)
-    return to_sde(GP(k), SArrayStorage(Float64))
+    return to_sde(GP(params.mean, k), SArrayStorage(Float64))
 end</code></pre><pre><code class="nohighlight hljs">build_gp (generic function with 1 method)</code></pre><p>Specify a collection of inputs. Must be increasing.</p><pre><code class="language-julia hljs">T = 1_000_000;
 x = RegularSpacing(0.0, 1e-4, T);</code></pre><p>Generate some noisy synthetic data from the GP.</p><pre><code class="language-julia hljs">f = build_gp(params)
 y = rand(f(x, params.var_noise));</code></pre><p>Specify an objective function for Optim to minimise in terms of x and y. We choose the usual negative log marginal likelihood (NLML).</p><pre><code class="language-julia hljs">function objective(params)
@@ -19,7 +20,7 @@ y = rand(f(x, params.var_noise));</code></pre><p>Specify an objective function f
 end</code></pre><pre><code class="nohighlight hljs">objective (generic function with 1 method)</code></pre><p>Optimise using Optim. Zygote takes a little while to compile.</p><pre><code class="language-julia hljs">training_results = Optim.optimize(
     objective ∘ unpack,
     θ -&gt; only(Zygote.gradient(objective ∘ unpack, θ)),
-    flat_initial_params + randn(3), # Perturb the parameters to make learning non-trivial
+    flat_initial_params .+ randn.(), # Perturb the parameters to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),
         linesearch = Optim.LineSearches.BackTracking(),
@@ -27,43 +28,37 @@ end</code></pre><pre><code class="nohighlight hljs">objective (generic function 
     Optim.Options(show_trace = true);
     inplace=false,
 );</code></pre><pre><code class="nohighlight hljs">Iter     Function value   Gradient norm 
-     0     2.337021e+06     1.176671e+06
- * time: 0.04883599281311035
-     1     1.777140e+06     1.168477e+05
- * time: 84.2598328590393
-     2     1.777083e+06     1.161623e+05
- * time: 172.9115719795227
-     3     1.774497e+06     1.019074e+05
- * time: 221.86700105667114
-     4     1.774095e+06     9.949535e+04
- * time: 275.718936920166
-     5     1.773537e+06     9.608233e+04
- * time: 332.4740469455719
-     6     1.771599e+06     8.357244e+04
- * time: 380.538645029068
-     7     1.767427e+06     4.694471e+04
- * time: 434.1110489368439
-     8     1.765925e+06     2.585811e+04
- * time: 490.6434688568115
-     9     1.765281e+06     2.818487e+02
- * time: 538.7198288440704
-    10     1.765274e+06     2.794613e+01
- * time: 592.1858539581299
-    11     1.765273e+06     2.263221e+01
- * time: 649.3915388584137
-    12     1.765272e+06     5.350947e+00
- * time: 697.5785310268402
-    13     1.765272e+06     4.450895e-01
- * time: 751.1007349491119
-    14     1.765272e+06     3.380652e-02
- * time: 808.525307893753
-    15     1.765272e+06     5.395906e-03
- * time: 856.6940469741821
-    16     1.765272e+06     4.474009e-03
- * time: 910.3575899600983
-    17     1.765272e+06     4.474004e-03
- * time: 961.8926088809967
-</code></pre><p>Extracting the final values of the parameters. Should be moderately close to truth.</p><pre><code class="language-julia hljs">final_params = unpack(training_results.minimizer)</code></pre><pre><code class="nohighlight hljs">(var_kernel = 0.3779741100467733, λ = 0.1209470560389946, var_noise = 1.9985549631363446)</code></pre><p>Construct the posterior as per usual.</p><pre><code class="language-julia hljs">f_final = build_gp(final_params)
+     0     1.765722e+06     1.041082e+04
+ * time: 0.07015204429626465
+     1     1.765615e+06     2.071970e+02
+ * time: 190.58788394927979
+     2     1.765474e+06     6.897832e+01
+ * time: 355.5012481212616
+     3     1.765464e+06     4.224196e+01
+ * time: 514.4622769355774
+     4     1.765460e+06     2.155535e+01
+ * time: 674.5572741031647
+     5     1.765459e+06     1.018323e+01
+ * time: 784.2944629192352
+     6     1.765459e+06     9.017535e+00
+ * time: 892.2597439289093
+     7     1.765458e+06     7.841727e-01
+ * time: 1015.7973470687866
+     8     1.765458e+06     7.177634e-01
+ * time: 1123.8839929103851
+     9     1.765458e+06     3.013331e-02
+ * time: 1230.4638121128082
+    10     1.765458e+06     6.728013e-03
+ * time: 1347.92600107193
+    11     1.765458e+06     1.269466e-03
+ * time: 1456.9976599216461
+    12     1.765458e+06     2.246800e-05
+ * time: 1565.7688550949097
+    13     1.765458e+06     2.187509e-06
+ * time: 1688.8336250782013
+    14     1.765458e+06     1.064894e-08
+ * time: 1794.774598121643
+</code></pre><p>Extracting the final values of the parameters. Should be moderately close to truth.</p><pre><code class="language-julia hljs">final_params = unpack(training_results.minimizer)</code></pre><pre><code class="nohighlight hljs">(mean = 3.185937532825256, var_kernel = 0.5146734990068614, λ = 0.09721639809156424, var_noise = 1.999342551362951)</code></pre><p>Construct the posterior as per usual.</p><pre><code class="language-julia hljs">f_final = build_gp(final_params)
 f_post = posterior(f_final(x, final_params.var_noise), y);</code></pre><p>Specify some locations at which to make predictions.</p><pre><code class="language-julia hljs">T_pr = 1_200_000;
 x_pr = RegularSpacing(0.0, 1e-4, T_pr);</code></pre><p>Compute the exact posterior marginals at <code>x_pr</code>.</p><pre><code class="language-julia hljs">f_post_marginals = marginals(f_post(x_pr));
 m_post_marginals = mean.(f_post_marginals);
@@ -85,7 +80,7 @@ Status &#96;~/work/TemporalGPs.jl/TemporalGPs.jl/examples/exact_time_learning/Pr
   &#91;429524aa&#93; Optim v1.7.5
   &#91;2412ca09&#93; ParameterHandling v0.4.6
   &#91;91a5bcdd&#93; Plots v1.38.9
-  &#91;e155a3c4&#93; TemporalGPs v0.6.1 &#96;/home/runner/work/TemporalGPs.jl/TemporalGPs.jl#aef4191&#96;
+  &#91;e155a3c4&#93; TemporalGPs v0.6.3 &#96;/home/runner/work/TemporalGPs.jl/TemporalGPs.jl#564e73f&#96;
   &#91;e88e6eb3&#93; Zygote v0.6.60
 </pre>
 To reproduce this notebook's package environment, you can
@@ -99,13 +94,13 @@ Julia Version 1.8.5
 Commit 17cfb8e65ea &#40;2023-01-08 06:45 UTC&#41;
 Platform Info:
   OS: Linux &#40;x86_64-linux-gnu&#41;
-  CPU: 2 × Intel&#40;R&#41; Xeon&#40;R&#41; Platinum 8370C CPU @ 2.80GHz
+  CPU: 2 × Intel&#40;R&#41; Xeon&#40;R&#41; CPU E5-2673 v4 @ 2.30GHz
   WORD_SIZE: 64
   LIBM: libopenlibm
-  LLVM: libLLVM-13.0.1 &#40;ORCJIT, icelake-server&#41;
+  LLVM: libLLVM-13.0.1 &#40;ORCJIT, broadwell&#41;
   Threads: 1 on 2 virtual cores
 Environment:
   JULIA_DEBUG &#61; Documenter
   JULIA_LOAD_PATH &#61; :/home/runner/.julia/packages/JuliaGPsDocs/e8FS0/src
 </pre>
-</details><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../exact_time_inference/">« -</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 11 April 2023 15:13">Tuesday 11 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</details><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../exact_time_inference/">« -</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 18 April 2023 18:18">Tuesday 18 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
