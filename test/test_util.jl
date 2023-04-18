@@ -169,6 +169,14 @@ function to_vec(f::GP)
     return gp_vec, GP_from_vec
 end
 
+function to_vec(k::ConstantKernel)
+    c, c_to_vec = to_vec(k.c)
+    function ConstantKernel_from_vec(c)
+        return ConstantKernel(c=first(c_to_vec(c)))
+    end
+    c, ConstantKernel_from_vec
+end
+
 Base.zero(x::AbstractGPs.ZeroMean) = x
 Base.zero(x::Kernel) = x
 Base.zero(x::TemporalGPs.LTISDE) = x
