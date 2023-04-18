@@ -131,6 +131,9 @@ function (project::ProjectTo{Fill})(dx::Tangent{<:Fill})
     # end
     Fill(dx.value / prod(length, project.axes), project.axes)
 end
+function (project::ProjectTo{Fill})(dx::Tangent{Any,<:NamedTuple{(:value, :axes)}})
+    Fill(dx.value / prod(length, project.axes), project.axes)
+end
 
 # Yet another thing that should not happen
 function Zygote.accum(x::Fill, y::NamedTuple{(:value, :axes)})
