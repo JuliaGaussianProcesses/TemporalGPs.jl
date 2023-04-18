@@ -103,7 +103,7 @@ println("lti_sde:")
 
             # Approx periodic kernels
             map([7, 11]) do N
-                (name="approx-periodic-N=$N", val=ApproxPeriodicKernel{N}())
+                (name="approx-periodic-N=$N", val=ApproxPeriodicKernel{N}(;r=10.0))
             end,
             # TEST_TOFIX
             # Summed kernels.
