@@ -143,37 +143,19 @@ end
 
 # Generic constructors for base kernels.
 
-function lgssm_components(
-    k::SimpleKernel, t::AbstractVector{<:Real}, storage::StorageType{T},
-) where {T<:Real}
-
-    # Compute stationary distribution and sde.
-    x0 = stationary_distribution(k, storage)
-    P = x0.P
-    F, _, H = to_sde(k, storage)
-
-    # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
+function broadcast_components((F, q, H)::Tuple, x0::Gaussian, t::AbstractVector{<:Real}, ::StorageType{T}) where {T}
+    P = Symmetric(x0.P)
     t = vcat([first(t) - 1], t)
     As = _map(Δt -> time_exp(F, T(Δt)), diff(t))
     as = Fill(Zeros{T}(size(first(As), 1)), length(As))
-    Qs = _map(A -> Symmetric(P) - A * Symmetric(P) * A', As)
+    Qs = _map(A -> P - A * P * A', As)
     Hs = Fill(H, length(As))
     hs = Fill(zero(T), length(As))
-    emission_projections = (Hs, hs)
-
-    return As, as, Qs, emission_projections, x0
+    As, as, Qs, Hs, hs
 end
 
-function lgssm_components(
-    k::SimpleKernel, t::Union{StepRangeLen, RegularSpacing}, storage_type::StorageType{T},
-) where {T<:Real}
-
-    # Compute stationary distribution and sde.
-    x0 = stationary_distribution(k, storage_type)
-    P = x0.P
-    F, _, H = to_sde(k, storage_type)
-
-    # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
+function broadcast_components((F, q, H)::Tuple, x0::Gaussian, t::Union{StepRangeLen, RegularSpacing}, ::StorageType{T}) where {T}
+    P = Symmetric(x0.P)
     A = time_exp(F, T(step(t)))
     As = Fill(A, length(t))
     as = @ignore_derivatives(Fill(Zeros{T}(size(F, 1)), length(t)))
@@ -181,6 +163,18 @@ function lgssm_components(
     Qs = Fill(Q, length(t))
     Hs = Fill(H, length(t))
     hs = Fill(zero(T), length(As))
+    As, as, Qs, Hs, hs
+end
+
+function lgssm_components(
+    k::SimpleKernel, t::AbstractVector{<:Real}, storage::StorageType{T},
+) where {T<:Real}
+
+    # Compute stationary distribution and sde.
+    x0 = stationary_distribution(k, storage)
+    # Use stationary distribution + sde to compute finite-dimensional Gauss-Markov model.
+    As, as, Qs, Hs, hs = broadcast_components(to_sde(k, storage), x0, t, storage)
+    
     emission_projections = (Hs, hs)
 
     return As, as, Qs, emission_projections, x0
@@ -265,6 +259,16 @@ end
 
 # Scaled
 
+function to_sde(k::ScaledKernel, storage::StorageType{T}) where {T<:Real}
+    _k = Zygote.literal_getfield(k, Val(:kernel))
+    σ² = Zygote.literal_getfield(k, Val(:σ²))
+    F, q, H = to_sde(_k, storage)
+    σ = sqrt(convert(eltype(storage), only(σ²)))
+    return F, σ^2 * q, σ * H
+end
+
+stationary_distribution(k::ScaledKernel, storage::StorageType) = stationary_distribution(Zygote.literal_getfield(k, Val(:kernel)), storage)
+
 function lgssm_components(k::ScaledKernel, ts::AbstractVector, storage_type::StorageType)
     _k = Zygote.literal_getfield(k, Val(:kernel))
     σ² = Zygote.literal_getfield(k, Val(:σ²))
@@ -282,6 +286,15 @@ function _scale_emission_projections((Cs, cs, Hs, hs), σ)
 end
 
 # Stretched
+
+function to_sde(k::TransformedKernel{<:Kernel, <:ScaleTransform}, storage::StorageType)
+    _k = Zygote.literal_getfield(k, Val(:kernel))
+    s = Zygote.literal_getfield(Zygote.literal_getfield(k, Val(:transform)), Val(:s))
+    F, q, H = to_sde(_k, storage)
+    return F * only(s), q, H
+end
+
+stationary_distribution(k::TransformedKernel{<:Kernel, <:ScaleTransform}, storage::StorageType) = stationary_distribution(Zygote.literal_getfield(k, Val(:kernel)), storage)
 
 function lgssm_components(
     k::TransformedKernel{<:Kernel, <:ScaleTransform},
@@ -306,44 +319,29 @@ end
 
 # Product
 
-function lgssm_components(k::KernelProduct, ts::AbstractVector, storage_type::StorageType)
-    lgssms = lgssm_components.(k.kernels, Ref(ts), Ref(storage_type))
-    As_kernels = getindex.(lgssms, 1)
-    as_kernels = getindex.(lgssms, 2)
-    Qs_kernels = getindex.(lgssms, 3)
-    emission_proj_kernels = getindex.(lgssms, 4)
-    x0_kernels = getindex.(lgssms, 5)
-    
-    As = _map(_product_feedback, As_kernels...)
-    as = _map(_kron_product, as_kernels...)
-    Qs = _map(_kron_product, Qs_kernels...)
-    emission_projections = _product_emission_projections(emission_proj_kernels...)
-    x0 = Gaussian(_kron_product(getproperty.(x0_kernels, :m)), _kron_product(getproperty.(x0_kernels, :P)))
+function lgssm_components(k::KernelProduct, ts::AbstractVector, storage::StorageType)
+    sde_kernels = to_sde.(k.kernels, Ref(storage))
+    F_kernels = getindex.(sde_kernels, 1)
+    F = foldl(_kron_add, F_kernels)
+    q_kernels = getindex.(sde_kernels, 2)
+    q = kron(q_kernels...)
+    H_kernels = getindex.(sde_kernels, 3)
+    H = kron(H_kernels...)
+
+    x0_kernels = stationary_distribution.(k.kernels, Ref(storage))
+    m_kernels = getproperty.(x0_kernels, :m)
+    m = kron(m_kernels...)
+    P_kernels = getproperty.(x0_kernels, :P)
+    P = kron(P_kernels...)
+
+    x0 = Gaussian(m, P)
+    As, as, Qs, Hs, hs = broadcast_components((F, q, H), x0, ts, storage)
+    emission_projections = (Hs, hs)
     return As, as, Qs, emission_projections, x0
 end
 
 _kron_add(A::AbstractMatrix, B::AbstractMatrix) = kron(A, I(size(B,1))) + kron(I(size(A,1)), B)
-_kron_product(Xs::AbstractArray...) = foldl(kron, Xs)
-_product_feedback(As::AbstractMatrix...) = foldl(_kron_add, As)
-
-function _product_emission_projections(Hs_hs::Tuple{AbstractVector, AbstractVector}...)
-    return map(_kron_product, first.(Hs_hs)...), product(last.(Hs_hs))
-end
-
-function _product_emission_projections(
-    Cs_cs_Hs_hs::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector}...,
-)
-    Cs = getindex.(Cs_cs_Hs_hs, 1)
-    cs = getindex.(Cs_cs_Hs_hs, 2)
-    Hs = getindex.(Cs_cs_Hs_hs, 3)
-    hs = getindex.(Cs_cs_Hs_hs, 4)
-    C = _map(_kron_product, Cs...)
-    c = product(cs)
-    H = _map(_kron_product, Hs...)
-    h = _map(_kron_product, hs...)
-    return C, c, H, h
-end
-
+_kron_add(A::SMatrix{M,M}, B::SMatrix{N,N}) where {M, N} = kron(A, SMatrix{N, N}(I(N))) + kron(SMatrix{M,M}(I(M)), B)
 
 # Sum
 
