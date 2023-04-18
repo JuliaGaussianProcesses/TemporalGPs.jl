@@ -304,6 +304,47 @@ function apply_stretch(a, ts::RegularSpacing)
     return RegularSpacing(a * t0, a * Δt, N)
 end
 
+# Product
+
+function lgssm_components(k::KernelProduct, ts::AbstractVector, storage_type::StorageType)
+    lgssms = lgssm_components.(k.kernels, Ref(ts), Ref(storage_type))
+    As_kernels = getindex.(lgssms, 1)
+    as_kernels = getindex.(lgssms, 2)
+    Qs_kernels = getindex.(lgssms, 3)
+    emission_proj_kernels = getindex.(lgssms, 4)
+    x0_kernels = getindex.(lgssms, 5)
+    
+    As = _map(_product_feedback, As_kernels...)
+    as = _map(_kron_product, as_kernels...)
+    Qs = _map(_kron_product, Qs_kernels...)
+    emission_projections = _product_emission_projections(emission_proj_kernels...)
+    x0 = Gaussian(_kron_product(getproperty.(x0_kernels, :m)), _kron_product(getproperty.(x0_kernels, :P)))
+    return As, as, Qs, emission_projections, x0
+end
+
+_kron_add(A::AbstractMatrix, B::AbstractMatrix) = kron(A, I(size(B,1))) + kron(I(size(A,1)), B)
+_kron_product(Xs::AbstractArray...) = foldl(kron, Xs)
+_product_feedback(As::AbstractMatrix...) = foldl(_kron_add, As)
+
+function _product_emission_projections(Hs_hs::Tuple{AbstractVector, AbstractVector}...)
+    return map(_kron_product, first.(Hs_hs)...), product(last.(Hs_hs))
+end
+
+function _product_emission_projections(
+    Cs_cs_Hs_hs::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector}...,
+)
+    Cs = getindex.(Cs_cs_Hs_hs, 1)
+    cs = getindex.(Cs_cs_Hs_hs, 2)
+    Hs = getindex.(Cs_cs_Hs_hs, 3)
+    hs = getindex.(Cs_cs_Hs_hs, 4)
+    C = _map(_kron_product, Cs...)
+    c = product(cs)
+    H = _map(_kron_product, Hs...)
+    h = _map(_kron_product, hs...)
+    return C, c, H, h
+end
+
+
 # Sum
 
 function lgssm_components(k::KernelSum, ts::AbstractVector, storage_type::StorageType)
