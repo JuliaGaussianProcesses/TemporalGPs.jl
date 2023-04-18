@@ -71,19 +71,39 @@ println("lti_sde:")
                 (; name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ))
             end,
 
-            # TEST_TOFIX
+            # Gradients should be fixed on those composites.
+            # Error is mostly due do an incompatibility of Tangents
+            # between Zygote and FiniteDifferences.
+
+            # Product kernels
+            (
+                name="prod-Matern12Kernel-Matern32Kernel",
+                val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) *
+                    Matern32Kernel() ∘ ScaleTransform(1.1),
+                skip_grad=true,
+                ), 
+                (
+                name="prod-Matern32Kernel-Matern52Kernel-ConstantKernel",
+                val = 3.0 * Matern32Kernel() *
+                    Matern52Kernel() *
+                    ConstantKernel(),
+                skip_grad=true,
+            ),
+
             # Summed kernels.
-            # (
-            #     name="sum-Matern12Kernel-Matern32Kernel",
-            #     val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) +
-            #         0.3 * Matern32Kernel() ∘ ScaleTransform(1.1),
-            # ), 
-            # (
-            #     name="sum-Matern32Kernel-Matern52Kernel-ConstantKernel",
-            #     val = 2.0 * Matern32Kernel() +
-            #         0.5 * Matern52Kernel() +
-            #         1.0 * ConstantKernel(),
-            # ),
+            (
+                name="sum-Matern12Kernel-Matern32Kernel",
+                val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) +
+                    0.3 * Matern32Kernel() ∘ ScaleTransform(1.1),
+                skip_grad=true,
+            ), 
+            (
+                name="sum-Matern32Kernel-Matern52Kernel-ConstantKernel",
+                val = 2.0 * Matern32Kernel() +
+                    0.5 * Matern52Kernel() +
+                    1.0 * ConstantKernel(),
+                skip_grad=true,
+            ),
         )
 
         # Construct a Gauss-Markov model with either dense storage or static storage.
@@ -154,16 +174,18 @@ println("lti_sde:")
             end
 
             # Just need to ensure we can differentiate through construction properly.
-            test_zygote_grad(
-                _construction_tester,
-                f_naive,
-                storage.val,
-                σ².val,
-                t.val;
-                check_inferred=false,
-                rtol=1e-6,
-                atol=1e-6,
-            )
+            if !(hasfield(typeof(kernel), :skip_grad) && kernel.skip_grad)
+                test_zygote_grad(
+                    _construction_tester,
+                    f_naive,
+                    storage.val,
+                    σ².val,
+                    t.val;
+                    check_inferred=false,
+                    rtol=1e-6,
+                    atol=1e-6,
+                )
+            end
         end
     end
 end
