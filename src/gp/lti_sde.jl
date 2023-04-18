@@ -9,7 +9,13 @@ struct LTISDE{Tf<:GP, Tstorage<:StorageType} <: AbstractGP
     storage::Tstorage
 end
 
-function to_sde(f::GP, storage_type=ArrayStorage(Float64))
+"""
+    to_sde(f::GP, storage::StorageType)
+
+Return a [`LTISDE`](@ref) wrapper around `f` that allows `TemporalGPs` to 
+perform state-space inference.
+"""
+function to_sde(f::GP, storage_type::StorageType=ArrayStorage(Float64))
     return LTISDE(f, storage_type)
 end
 
@@ -187,6 +193,13 @@ function lgssm_components(
 end
 
 # Fallback definitions for most base kernels.
+"""
+    to_sde(k::Kernel, storage_type::StorageType)
+
+Return the equivalent state-space representation of the kernel `k` as a tuple
+`(F, q, H)`, where `F` is the state transition matrix, `q` is the process noise
+and `H` is the observation matrix.
+"""
 function to_sde(k::SimpleKernel, ::ArrayStorage{T}) where {T<:Real}
     F, q, H = to_sde(k, SArrayStorage(T))
     return collect(F), q, collect(H)
