@@ -145,29 +145,31 @@ end
 
 function broadcast_components((F, q, H)::Tuple, x0::Gaussian, t::AbstractVector{<:Real}, ::StorageType{T}) where {T}
     P = Symmetric(x0.P)
+    N = length(t)
     t = vcat([first(t) - 1], t)
     As = _map(Δt -> time_exp(F, T(Δt)), diff(t))
-    as = Fill(Zeros{T}(size(first(As), 1)), length(As))
+    as = Fill(Zeros{T}(size(first(As), 1)), N)
     Qs = _map(A -> P - A * P * A', As)
-    Hs = Fill(H, length(As))
-    hs = Fill(zero(T), length(As))
+    Hs = Fill(H, N)
+    hs = Fill(zero(T), N)
     As, as, Qs, Hs, hs
 end
 
 function broadcast_components((F, q, H)::Tuple, x0::Gaussian, t::Union{StepRangeLen, RegularSpacing}, ::StorageType{T}) where {T}
     P = Symmetric(x0.P)
+    N = length(t)
     A = time_exp(F, T(step(t)))
-    As = Fill(A, length(t))
-    as = @ignore_derivatives(Fill(Zeros{T}(size(F, 1)), length(t)))
+    As = Fill(A, N)
+    as = @ignore_derivatives(Fill(Zeros{T}(size(F, 1)), N))
     Q = Symmetric(P) - A * Symmetric(P) * A'
-    Qs = Fill(Q, length(t))
-    Hs = Fill(H, length(t))
-    hs = Fill(zero(T), length(As))
+    Qs = Fill(Q, N)
+    Hs = Fill(H, N)
+    hs = Fill(zero(T), N)
     As, as, Qs, Hs, hs
 end
 
 function lgssm_components(
-    k::SimpleKernel, t::AbstractVector{<:Real}, storage::StorageType{T},
+    k::Kernel, t::AbstractVector, storage::StorageType{T},
 ) where {T<:Real}
 
     # Compute stationary distribution and sde.
@@ -243,15 +245,15 @@ end
 
 # Constant
 
-function TemporalGPs.to_sde(::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
+function to_sde(::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
     F = SMatrix{1, 1, T}(0)
     q = convert(T, 0)
     H = SVector{1, T}(1)
     return F, q, H
 end
 
-function TemporalGPs.stationary_distribution(k::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
-    return TemporalGPs.Gaussian(
+function stationary_distribution(k::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
+    return Gaussian(
         SVector{1, T}(0),
         SMatrix{1, 1, T}( T(only(k.c)) ),
     )
@@ -269,22 +271,6 @@ end
 
 stationary_distribution(k::ScaledKernel, storage::StorageType) = stationary_distribution(Zygote.literal_getfield(k, Val(:kernel)), storage)
 
-function lgssm_components(k::ScaledKernel, ts::AbstractVector, storage_type::StorageType)
-    _k = Zygote.literal_getfield(k, Val(:kernel))
-    σ² = Zygote.literal_getfield(k, Val(:σ²))
-    As, as, Qs, emission_proj, x0 = lgssm_components(_k, ts, storage_type)
-    σ = sqrt(convert(eltype(storage_type), only(σ²)))
-    return As, as, Qs, _scale_emission_projections(emission_proj, σ), x0
-end
-
-function _scale_emission_projections((Hs, hs)::Tuple{AbstractVector, AbstractVector}, σ::Real)
-    return _map(H->σ * H, Hs), _map(h->σ * h, hs)
-end
-
-function _scale_emission_projections((Cs, cs, Hs, hs), σ)
-    return (Cs, cs, _map(H -> σ * H, Hs), _map(h -> σ * h, hs))
-end
-
 # Stretched
 
 function to_sde(k::TransformedKernel{<:Kernel, <:ScaleTransform}, storage::StorageType)
@@ -296,30 +282,9 @@ end
 
 stationary_distribution(k::TransformedKernel{<:Kernel, <:ScaleTransform}, storage::StorageType) = stationary_distribution(Zygote.literal_getfield(k, Val(:kernel)), storage)
 
-function lgssm_components(
-    k::TransformedKernel{<:Kernel, <:ScaleTransform},
-    ts::AbstractVector,
-    storage_type::StorageType,
-)
-    _k = Zygote.literal_getfield(k, Val(:kernel))
-    s = Zygote.literal_getfield(Zygote.literal_getfield(k, Val(:transform)), Val(:s))
-    return lgssm_components(_k, apply_stretch(s[1], ts), storage_type)
-end
-
-apply_stretch(a, ts::AbstractVector{<:Real}) = a * ts
-
-apply_stretch(a, ts::StepRangeLen) = a * ts
-
-function apply_stretch(a, ts::RegularSpacing)
-    t0 = Zygote.literal_getfield(ts, Val(:t0))
-    Δt = Zygote.literal_getfield(ts, Val(:Δt))
-    N = Zygote.literal_getfield(ts, Val(:N))
-    return RegularSpacing(a * t0, a * Δt, N)
-end
-
 # Product
 
-function lgssm_components(k::KernelProduct, ts::AbstractVector, storage::StorageType)
+function to_sde(k::KernelProduct, storage::StorageType)
     sde_kernels = to_sde.(k.kernels, Ref(storage))
     F_kernels = getindex.(sde_kernels, 1)
     F = foldl(_kron_add, F_kernels)
@@ -327,56 +292,42 @@ function lgssm_components(k::KernelProduct, ts::AbstractVector, storage::Storage
     q = kron(q_kernels...)
     H_kernels = getindex.(sde_kernels, 3)
     H = kron(H_kernels...)
-
-    x0_kernels = stationary_distribution.(k.kernels, Ref(storage))
-    m_kernels = getproperty.(x0_kernels, :m)
-    m = kron(m_kernels...)
-    P_kernels = getproperty.(x0_kernels, :P)
-    P = kron(P_kernels...)
-
-    x0 = Gaussian(m, P)
-    As, as, Qs, Hs, hs = broadcast_components((F, q, H), x0, ts, storage)
-    emission_projections = (Hs, hs)
-    return As, as, Qs, emission_projections, x0
+    return F, q, H
 end
 
 _kron_add(A::AbstractMatrix, B::AbstractMatrix) = kron(A, I(size(B,1))) + kron(I(size(A,1)), B)
 _kron_add(A::SMatrix{M,M}, B::SMatrix{N,N}) where {M, N} = kron(A, SMatrix{N, N}(I(N))) + kron(SMatrix{M,M}(I(M)), B)
 
+function stationary_distribution(k::KernelProduct, storage::StorageType)
+    x0_kernels = stationary_distribution.(k.kernels, Ref(storage))
+    m_kernels = getproperty.(x0_kernels, :m)
+    m = kron(m_kernels...)
+    P_kernels = getproperty.(x0_kernels, :P)
+    P = kron(P_kernels...)
+    return Gaussian(m, P)
+end
+
 # Sum
 
-function lgssm_components(k::KernelSum, ts::AbstractVector, storage_type::StorageType)
-    lgssms = lgssm_components.(k.kernels, Ref(ts), Ref(storage_type))
-    As_kernels = getindex.(lgssms, 1)
-    as_kernels = getindex.(lgssms, 2)
-    Qs_kernels = getindex.(lgssms, 3)
-    emission_proj_kernels = getindex.(lgssms, 4)
-    x0_kernels = getindex.(lgssms, 5)
+function to_sde(k::KernelSum, storage::StorageType)
+    sde_kernels = to_sde.(k.kernels, Ref(storage))
+    F_kernels = getindex.(sde_kernels, 1)
+    q_kernels = getindex.(sde_kernels, 2)
+    H_kernels = getindex.(sde_kernels, 3)
     
-    As = _map(block_diagonal, As_kernels...)
-    as = _map(vcat, as_kernels...)
-    Qs = _map(block_diagonal, Qs_kernels...)
-    emission_projections = _sum_emission_projections(emission_proj_kernels...)
-    x0 = Gaussian(mapreduce(x -> getproperty(x, :m), vcat, x0_kernels), block_diagonal(getproperty.(x0_kernels, :P)...))
-    return As, as, Qs, emission_projections, x0
+    F = block_diagonal(F_kernels...)
+    q = sum(q_kernels)
+    H = block_diagonal(H_kernels...)
+    return F, q, H
 end
 
-function _sum_emission_projections(Hs_hs::Tuple{AbstractVector, AbstractVector}...)
-    return map(vcat, first.(Hs_hs)...), sum(last.(Hs_hs))
-end
-
-function _sum_emission_projections(
-    Cs_cs_Hs_hs::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector}...,
-)
-    Cs = getindex.(Cs_cs_Hs_hs, 1)
-    cs = getindex.(Cs_cs_Hs_hs, 2)
-    Hs = getindex.(Cs_cs_Hs_hs, 3)
-    hs = getindex.(Cs_cs_Hs_hs, 4)
-    C = _map(vcat, Cs...)
-    c = sum(cs)
-    H = _map(block_diagonal, Hs...)
-    h = _map(vcat, hs...)
-    return C, c, H, h
+function stationary_distribution(k::KernelSum, storage::StorageType)
+    x0_kernels = stationary_distribution.(k.kernels, Ref(storage))
+    m_kernels = getproperty.(x0_kernels, :m)
+    P_kernels = getproperty.(x0_kernels, :P)
+    m = vcat(m_kernels...)
+    P = block_diagonal(P_kernels...)
+    return Gaussian(m, P)
 end
 
 Base.vcat(x::Zeros{T, 1}, y::Zeros{T, 1}) where {T} = Zeros{T}(length(x) + length(y))
@@ -387,6 +338,8 @@ function block_diagonal(As::AbstractMatrix{T}...) where {T}
     Xs = [i == j ? As[i] : Zeros{T}(sizes[j][1], sizes[i][2]) for i in 1:nblocks, j in 1:nblocks]
     return hvcat(ntuple(_ -> nblocks, nblocks), Xs...)
 end
+
+block_diagonal(As::AbstractVector...) = vcat(As...)
 
 function ChainRulesCore.rrule(::typeof(block_diagonal), As::AbstractMatrix...)
     szs = size.(As)
