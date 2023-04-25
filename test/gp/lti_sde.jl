@@ -26,13 +26,16 @@ end
     @test kernelmatrix(k, x) ≈ kernelmatrix(k_base, x)
     # Test dimensionality of LGSSM components
     Nt = 10
-    @testset "$(typeof(t)), $storage, $N" for t in (sort(rand(Nt)), RegularSpacing(0.0, 0.1, Nt)),
+    @testset "$(typeof(t)), $storage, $N" for t in (
+            sort(rand(Nt)), RegularSpacing(0.0, 0.1, Nt)
+        ),
         storage in (SArrayStorage{Float64}(), ArrayStorage{Float64}()),
         N in (5, 8)
+
         k = ApproxPeriodicKernel{N}()
         As, as, Qs, emission_projections, x0 = lgssm_components(k, t, storage)
         @test length(As) == Nt
-        @test all(x -> size(x) == (N * 2, N * 2), As) 
+        @test all(x -> size(x) == (N * 2, N * 2), As)
         @test length(as) == Nt
         @test all(x -> size(x) == (N * 2,), as)
         @test length(Qs) == Nt
@@ -68,7 +71,7 @@ println("lti_sde:")
             Matern12Kernel(),
             Matern32Kernel(),
             Matern52Kernel(),
-            ConstantKernel(c=1.5),
+            ConstantKernel(; c=1.5),
             CosineKernel(),
         ]
 
@@ -88,24 +91,28 @@ println("lti_sde:")
         N = 13
         kernels = vcat(
             # Base kernels.
-            (name="base-Matern12Kernel", val=Matern12Kernel()),
+            (name="base-Matern12Kernel", val=Matern12Kernel(), to_vec_grad=false),
             map([Matern32Kernel, Matern52Kernel]) do k
-                (; name="base-$k", val=k())
+                (; name="base-$k", val=k(), to_vec_grad=false)
             end,
 
             # Scaled kernels.
             map([1e-1, 1.0, 10.0, 100.0]) do σ²
-                (; name="scaled-σ²=$σ²", val=σ² * Matern32Kernel())
+                (; name="scaled-σ²=$σ²", val=σ² * Matern32Kernel(), to_vec_grad=false)
             end,
 
             # Stretched kernels.
             map([1e-2, 0.1, 1.0, 10.0, 100.0]) do λ
-                (; name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ))
+                (; name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ), to_vec_grad=false)
             end,
 
             # Approx periodic kernels
             map([7, 11]) do N
-                (name="approx-periodic-N=$N", val=ApproxPeriodicKernel{N}(;r=10.0))
+                (
+                    name="approx-periodic-N=$N",
+                    val=ApproxPeriodicKernel{N}(; r=1.0),
+                    to_vec_grad=true,
+                )
             end,
             # TEST_TOFIX
             # Gradients should be fixed on those composites.
@@ -115,16 +122,14 @@ println("lti_sde:")
             # Product kernels
             (
                 name="prod-Matern12Kernel-Matern32Kernel",
-                val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) *
-                    Matern32Kernel() ∘ ScaleTransform(1.1),
-                skip_grad=true,
-                ), 
-                (
+                val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) * Matern32Kernel() ∘
+                    ScaleTransform(1.1),
+                to_vec_grad=nothing,
+            ),
+            (
                 name="prod-Matern32Kernel-Matern52Kernel-ConstantKernel",
-                val = 3.0 * Matern32Kernel() *
-                    Matern52Kernel() *
-                    ConstantKernel(),
-                skip_grad=true,
+                val=3.0 * Matern32Kernel() * Matern52Kernel() * ConstantKernel(),
+                to_vec_grad=nothing,
             ),
 
             # Summed kernels.
@@ -132,14 +137,14 @@ println("lti_sde:")
                 name="sum-Matern12Kernel-Matern32Kernel",
                 val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) +
                     0.3 * Matern32Kernel() ∘ ScaleTransform(1.1),
-                skip_grad=true,
-            ), 
+                to_vec_grad=nothing,
+            ),
             (
                 name="sum-Matern32Kernel-Matern52Kernel-ConstantKernel",
-                val = 2.0 * Matern32Kernel() +
+                val=2.0 * Matern32Kernel() +
                     0.5 * Matern52Kernel() +
                     1.0 * ConstantKernel(),
-                skip_grad=true,
+                to_vec_grad=nothing,
             ),
         )
 
@@ -163,14 +168,14 @@ println("lti_sde:")
             (name="Custom Mean", val=CustomMean(x -> 2x)),
         )
 
-        @testset "$(kernel.name), $(m.name), $(storage.name), $(t.name), $(σ².name)" for
-            kernel in kernels,
+        @testset "$(kernel.name), $(m.name), $(storage.name), $(t.name), $(σ².name)" for kernel in
+                                                                                         kernels,
             m in means,
             storage in storages,
             t in ts,
             σ² in σ²s
 
-            println("$(kernel.name), $(storage.name), $(t.name), $(σ².name)")
+            println("$(kernel.name), $(storage.name), $(m.name), $(t.name), $(σ².name)")
 
             # Construct Gauss-Markov model.
             f_naive = GP(m.val, kernel.val)
@@ -211,7 +216,20 @@ println("lti_sde:")
             end
 
             # Just need to ensure we can differentiate through construction properly.
-            if !(hasfield(typeof(kernel), :skip_grad) && kernel.skip_grad)
+            if isnothing(kernel.to_vec_grad)
+                continue
+            elseif kernel.to_vec_grad
+                test_zygote_grad_finite_differences_compatible(
+                    _construction_tester,
+                    f_naive,
+                    storage.val,
+                    σ².val,
+                    t.val;
+                    check_inferred=false,
+                    rtol=1e-6,
+                    atol=1e-6,
+                )
+            else
                 test_zygote_grad(
                     _construction_tester,
                     f_naive,

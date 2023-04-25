@@ -46,7 +46,7 @@ test_zygote_grad(f, args...; check_inferred=false, kwargs...) = test_rrule(Zygot
 function test_zygote_grad_finite_differences_compatible(f, args...; kwargs...)
     x_vec, from_vec = to_vec(args)
     function finite_diff_compatible_f(x::AbstractVector)
-        return @ignore_derivatives(f)(from_vec(x)...)
+        return @ignore_derivatives(f)(@ignore_derivatives(from_vec)(x)...)
     end
     test_zygote_grad(finite_diff_compatible_f ⊢ NoTangent(), x_vec; testset_name="test_rrule: $(f) on $(typeof.(args))", kwargs...)
 end
@@ -137,9 +137,9 @@ end
 function to_vec(x::PeriodicKernel)
     x, to_r = to_vec(x.r)
     function PeriodicKernel_from_vec(x)
-        return PeriodicKernel(;r=to_r(x))
+        return PeriodicKernel(;r=exp.(to_r(x)))
     end
-    x, PeriodicKernel_from_vec
+    log.(x), PeriodicKernel_from_vec
 end
 
 to_vec(x::T) where {T} = generic_struct_to_vec(x)
