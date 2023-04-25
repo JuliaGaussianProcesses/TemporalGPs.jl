@@ -181,15 +181,20 @@ function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_ma
     return Fill(y_el, axes(x)), _map_Fill_rrule
 end
 
-function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f, x::Fill, y::Fill)
-    z_el, back = ChainRulesCore.rrule_via_ad(config, f, x.value, y.value)
-    function _map_Fill_rrule(Δ)
-        Δf, Δx_el, Δy_el = back(unthunk(Δ).value)
-        return NoTangent(), Δf, Fill(Δx_el, axes(x)), Fill(Δy_el, axes(x))
-    end
-    return Fill(z_el, axes(x)), _map_Fill_rrule
+# Somehow needed to avoid the _map -> map indirection
+function _map(f, xs::Fill...)
+    all(==(axes(first(xs))), axes.(xs)) || error("All axes should be the same")
+    Fill(_map(f, FillArrays.getindex_value.(xs)...), axes(first(xs)))
 end
 
+function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f, xs::Fill...)
+    z_el, back = ChainRulesCore.rrule_via_ad(config, f, FillArrays.getindex_value.(xs)...)
+    function _map_Fill_rrule(Δ)
+        Δf, Δxs_el... = back(unthunk(Δ).value)
+        return NoTangent(), Δf, Fill.(Δxs_el, axes.(xs))...
+    end
+    return Fill(z_el, axes(first(xs))), _map_Fill_rrule
+end
 ### Same thing for `StructArray`
 
 
