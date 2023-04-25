@@ -37,57 +37,57 @@ end</code></pre><pre><code class="nohighlight hljs">objective (generic function 
     Optim.Options(show_trace = true);
     inplace=false,
 );</code></pre><pre><code class="nohighlight hljs">Iter     Function value   Gradient norm 
-     0    -3.833751e+02     2.397318e+04
- * time: 0.04025912284851074
-     1    -2.438696e+04     2.378257e+04
- * time: 9.371479988098145
-     2    -4.797017e+04     2.371827e+04
- * time: 17.78555703163147
-     3    -6.896332e+04     2.329384e+04
- * time: 25.021173000335693
-     4    -8.690926e+04     2.292514e+04
- * time: 32.83666396141052
-     5    -1.012952e+05     2.226463e+04
- * time: 40.15929412841797
-     6    -1.121460e+05     2.154625e+04
- * time: 47.082435131073
-     7    -1.278463e+05     1.926843e+04
- * time: 55.20047616958618
-     8    -1.420355e+05     1.405169e+04
- * time: 62.064749002456665
-     9    -1.491477e+05     6.291292e+03
- * time: 71.72322010993958
-    10    -1.501696e+05     2.018503e+03
- * time: 80.84440898895264
-    11    -1.502505e+05     1.468007e+03
- * time: 90.341224193573
-    12    -1.502968e+05     3.633188e+02
- * time: 97.07590818405151
-    13    -1.502999e+05     7.106721e+01
- * time: 105.8123071193695
-    14    -1.503001e+05     2.302916e+01
- * time: 112.68509316444397
-    15    -1.503001e+05     2.054784e+00
- * time: 119.6018271446228
-    16    -1.503001e+05     2.876186e-01
- * time: 124.38356804847717
-    17    -1.503001e+05     5.768244e-03
- * time: 130.2651650905609
-    18    -1.503001e+05     4.941259e-03
- * time: 135.80161905288696
-    19    -1.503001e+05     4.788119e-03
- * time: 142.9627549648285
-    20    -1.503001e+05     1.841879e-06
- * time: 147.52654314041138
-    21    -1.503001e+05     1.775315e-06
- * time: 156.53061509132385
-    22    -1.503001e+05     1.806464e-06
- * time: 167.73761796951294
-    23    -1.503001e+05     1.806464e-06
- * time: 180.23073816299438
-    24    -1.503001e+05     1.806464e-06
- * time: 188.17225217819214
-</code></pre><p>Extracting the final values of the parameters. Should be close to truth.</p><pre><code class="language-julia hljs">final_params = unpack(training_results.minimizer)</code></pre><pre><code class="nohighlight hljs">(var_kernel = 0.5605834496895441, λ_space = 2.496029304178465, λ_time = 2.5513103926665996, var_noise = 9.961605218298957e-5)</code></pre><p>Construct the posterior as per usual.</p><pre><code class="language-julia hljs">f_post = posterior(build_gp(final_params)(x, final_params.var_noise), y);</code></pre><p>Specify some locations at which to make predictions.</p><pre><code class="language-julia hljs">T_pr = 1200;
+     0    -1.198839e+04     2.354606e+04
+ * time: 0.04533696174621582
+     1    -3.550915e+04     2.326636e+04
+ * time: 10.307922840118408
+     2    -5.791035e+04     2.317917e+04
+ * time: 17.365582942962646
+     3    -8.063482e+04     2.305593e+04
+ * time: 25.96919083595276
+     4    -1.007795e+05     2.211206e+04
+ * time: 33.14344000816345
+     5    -1.061464e+05     2.177638e+04
+ * time: 41.341269969940186
+     6    -1.244029e+05     1.969267e+04
+ * time: 48.70926094055176
+     7    -1.304478e+05     1.851520e+04
+ * time: 57.114163875579834
+     8    -1.373356e+05     1.602618e+04
+ * time: 65.74217581748962
+     9    -1.428960e+05     1.333778e+04
+ * time: 77.41842699050903
+    10    -1.494482e+05     5.552915e+03
+ * time: 84.60531902313232
+    11    -1.496779e+05     3.766814e+03
+ * time: 92.86934995651245
+    12    -1.499127e+05     1.529124e+03
+ * time: 99.78963685035706
+    13    -1.499517e+05     7.989628e+02
+ * time: 107.49545001983643
+    14    -1.499893e+05     6.265837e+01
+ * time: 114.44629693031311
+    15    -1.499896e+05     2.836642e+01
+ * time: 122.30040884017944
+    16    -1.499896e+05     1.088553e+01
+ * time: 129.46657991409302
+    17    -1.499896e+05     1.532512e+00
+ * time: 136.99349880218506
+    18    -1.499896e+05     1.305516e-01
+ * time: 142.27747082710266
+    19    -1.499896e+05     1.170410e-02
+ * time: 148.4932098388672
+    20    -1.499896e+05     2.956258e-04
+ * time: 153.5014169216156
+    21    -1.499896e+05     2.151075e-06
+ * time: 160.05995082855225
+    22    -1.499896e+05     2.198215e-06
+ * time: 167.6900188922882
+    23    -1.499896e+05     2.258101e-06
+ * time: 178.44273591041565
+    24    -1.499896e+05     2.258101e-06
+ * time: 186.32544779777527
+</code></pre><p>Extracting the final values of the parameters. Should be close to truth.</p><pre><code class="language-julia hljs">final_params = unpack(training_results.minimizer)</code></pre><pre><code class="nohighlight hljs">(var_kernel = 0.5673307780401093, λ_space = 2.5112001117665907, λ_time = 2.5288141023012307, var_noise = 0.00010096417829360207)</code></pre><p>Construct the posterior as per usual.</p><pre><code class="language-julia hljs">f_post = posterior(build_gp(final_params)(x, final_params.var_noise), y);</code></pre><p>Specify some locations at which to make predictions.</p><pre><code class="language-julia hljs">T_pr = 1200;
 points_in_time_pr = RegularSpacing(0.0, 0.01, T_pr);
 x_pr = RectilinearGrid(points_in_space, points_in_time_pr);</code></pre><p>Compute the exact posterior marginals at <code>x_pr</code>. This isn&#39;t optimised at present, so might take a little while.</p><pre><code class="language-julia hljs">f_post_marginals = marginals(f_post(x_pr));
 m_post_marginals = mean.(f_post_marginals);
@@ -113,7 +113,7 @@ Status &#96;~/work/TemporalGPs.jl/TemporalGPs.jl/examples/exact_space_time_learn
   &#91;429524aa&#93; Optim v1.7.5
   &#91;2412ca09&#93; ParameterHandling v0.4.6
   &#91;91a5bcdd&#93; Plots v1.38.10
-  &#91;e155a3c4&#93; TemporalGPs v0.6.3 &#96;/home/runner/work/TemporalGPs.jl/TemporalGPs.jl#61a94af&#96;
+  &#91;e155a3c4&#93; TemporalGPs v0.6.3 &#96;/home/runner/work/TemporalGPs.jl/TemporalGPs.jl#43bd0d9&#96;
   &#91;e88e6eb3&#93; Zygote v0.6.60
 </pre>
 To reproduce this notebook's package environment, you can
@@ -136,4 +136,4 @@ Environment:
   JULIA_DEBUG &#61; Documenter
   JULIA_LOAD_PATH &#61; :/home/runner/.julia/packages/JuliaGPsDocs/e8FS0/src
 </pre>
-</details><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../exact_space_time_inference/">« -</a><a class="docs-footer-nextpage" href="../exact_time_inference/">- »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 25 April 2023 11:55">Tuesday 25 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</details><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../exact_space_time_inference/">« -</a><a class="docs-footer-nextpage" href="../exact_time_inference/">- »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 25 April 2023 17:30">Tuesday 25 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

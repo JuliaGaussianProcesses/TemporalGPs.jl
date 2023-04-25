@@ -919,8 +919,8 @@ version = "1.10.1"
 
 [[deps.TemporalGPs]]
 deps = ["AbstractGPs", "BlockDiagonals", "ChainRulesCore", "FillArrays", "KernelFunctions", "LinearAlgebra", "Random", "StaticArrays", "StructArrays", "Zygote"]
-git-tree-sha1 = "c1b40bbd977fd6fa63541e9e0198f0502cd26c8f"
-repo-rev = "61a94af415d2c76d19c8f23c758106a5cf1deea0"
+git-tree-sha1 = "aab89dd31dcf451e6bcd7241802e85e2b066bba3"
+repo-rev = "43bd0d958c88a653de60b94c277bf1f80ab12aeb"
 repo-url = "/home/runner/work/TemporalGPs.jl/TemporalGPs.jl"
 uuid = "e155a3c4-0841-43e1-8b83-a0e4f03cc18f"
 version = "0.6.3"

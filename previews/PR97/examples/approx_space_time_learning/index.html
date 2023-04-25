@@ -39,82 +39,132 @@ end</code></pre><pre><code class="nohighlight hljs">objective (generic function 
     Optim.Options(show_trace = true);
     inplace=false,
 );</code></pre><pre><code class="nohighlight hljs">Iter     Function value   Gradient norm 
-     0     3.125155e+04     1.871477e+05
- * time: 0.055483102798461914
-     1     2.604366e+04     7.238831e+05
- * time: 103.67360091209412
-     2     2.166985e+04     7.258100e+05
- * time: 233.1322660446167
-     3     2.166629e+04     7.244275e+05
- * time: 343.6052770614624
-     4     2.166629e+04     7.244275e+05
- * time: 421.49456000328064
-     5     2.043429e+04     6.546259e+05
- * time: 506.41690492630005
-     6     1.951783e+04     5.919715e+05
- * time: 608.7792160511017
-     7     1.890045e+04     4.750728e+05
- * time: 686.6271970272064
-     8     1.870651e+04     1.982401e+05
- * time: 759.429477930069
-     9     1.660684e+04     2.172260e+05
- * time: 837.5029430389404
-    10     1.658199e+04     1.962766e+05
- * time: 933.6207990646362
-    11     1.652600e+04     1.392535e+05
- * time: 1011.0807440280914
-    12     1.621114e+04     2.057068e+04
- * time: 1083.1303119659424
-    13     1.589214e+04     1.710584e+03
- * time: 1161.5547161102295
-    14     1.558297e+04     8.017963e+03
- * time: 1251.095997095108
-    15     1.504930e+04     1.302627e+04
- * time: 1327.6653289794922
-    16     1.464509e+04     1.033614e+04
- * time: 1401.0352249145508
-    17     1.450815e+04     2.132137e+03
- * time: 1478.4426279067993
-    18     1.437268e+04     3.973581e+03
- * time: 1582.122601032257
-    19     1.430627e+04     2.132804e+03
- * time: 1658.0826261043549
-    20     1.428110e+04     1.052408e+03
- * time: 1729.1315879821777
-    21     1.428020e+04     4.332700e+02
- * time: 1805.1109280586243
-    22     1.427969e+04     2.971463e+01
- * time: 1900.9600219726562
-    23     1.427937e+04     2.487500e+02
- * time: 1976.4165170192719
-    24     1.427903e+04     3.547851e+02
- * time: 2046.5755920410156
-    25     1.427850e+04     3.845084e+02
- * time: 2123.7875130176544
-    26     1.427814e+04     2.380514e+02
- * time: 2213.192738056183
-    27     1.427799e+04     5.120385e+01
- * time: 2288.620898962021
-    28     1.427797e+04     2.976236e+00
- * time: 2360.0569019317627
-    29     1.427797e+04     1.677762e+00
- * time: 2435.520912885666
-    30     1.427797e+04     1.375955e-01
- * time: 2536.1294770240784
-    31     1.427797e+04     2.519882e-03
- * time: 2609.892718076706
-    32     1.427797e+04     5.312141e-04
- * time: 2679.6206760406494
-    33     1.427797e+04     6.502576e-05
- * time: 2756.025904893875
-    34     1.427797e+04     5.966981e-05
- * time: 2850.049220085144
-    35     1.427797e+04     5.963658e-05
- * time: 2923.8527739048004
-    36     1.427797e+04     5.962505e-05
- * time: 2994.242198944092
-    37     1.427797e+04     5.962505e-05
- * time: 2994.6559009552
+     0     3.119660e+04     1.755816e+05
+ * time: 0.04675793647766113
+     1     2.552144e+04     7.278457e+05
+ * time: 156.82139706611633
+     2     2.141217e+04     7.245434e+05
+ * time: 277.0567798614502
+     3     2.140657e+04     7.232092e+05
+ * time: 397.5980598926544
+     4     2.140657e+04     7.232092e+05
+ * time: 476.2662260532379
+     5     2.140657e+04     7.232092e+05
+ * time: 565.2720098495483
+     6     2.140657e+04     7.232092e+05
+ * time: 669.4012439250946
+     7     2.090032e+04     6.666072e+05
+ * time: 748.7944469451904
+     8     2.014606e+04     6.259144e+05
+ * time: 823.3906700611115
+     9     1.988197e+04     5.346974e+05
+ * time: 902.5728268623352
+    10     1.986629e+04     5.222959e+05
+ * time: 1001.6921389102936
+    11     1.986629e+04     5.222959e+05
+ * time: 1079.9235780239105
+    12     1.983643e+04     5.164827e+05
+ * time: 1152.6767799854279
+    13     1.983639e+04     5.160327e+05
+ * time: 1230.3973388671875
+    14     1.983594e+04     5.123628e+05
+ * time: 1329.2411079406738
+    15     1.983435e+04     5.016082e+05
+ * time: 1406.8735799789429
+    16     1.983244e+04     4.961534e+05
+ * time: 1484.4283759593964
+    17     1.982467e+04     4.820288e+05
+ * time: 1592.1906459331512
+    18     1.981755e+04     4.664493e+05
+ * time: 1689.5037670135498
+    19     1.981159e+04     4.492966e+05
+ * time: 1766.3571710586548
+    20     1.980741e+04     4.304039e+05
+ * time: 1839.2894928455353
+    21     1.980570e+04     4.095647e+05
+ * time: 1926.1516408920288
+    22     1.980263e+04     3.996765e+05
+ * time: 2030.898813009262
+    23     1.978999e+04     3.748984e+05
+ * time: 2108.088145971298
+    24     1.977947e+04     3.479957e+05
+ * time: 2180.8476510047913
+    25     1.976828e+04     3.187907e+05
+ * time: 2260.971713066101
+    26     1.975096e+04     2.905172e+05
+ * time: 2355.7905778884888
+    27     1.971844e+04     2.299249e+05
+ * time: 2433.9606008529663
+    28     1.967915e+04     1.814548e+05
+ * time: 2506.5991549491882
+    29     1.965199e+04     1.123281e+04
+ * time: 2585.0745210647583
+    30     1.912881e+04     8.787821e+03
+ * time: 2692.7125639915466
+    31     1.740472e+04     4.731189e+04
+ * time: 2771.2867300510406
+    32     1.569819e+04     5.432554e+04
+ * time: 2845.7141540050507
+    33     1.549192e+04     4.713617e+04
+ * time: 2924.6482598781586
+    34     1.548954e+04     4.199824e+04
+ * time: 3018.415135860443
+    35     1.548802e+04     3.462273e+04
+ * time: 3095.957326889038
+    36     1.544386e+04     3.355430e+03
+ * time: 3169.1312239170074
+    37     1.540037e+04     3.227921e+03
+ * time: 3247.61647605896
+    38     1.512673e+04     5.302650e+03
+ * time: 3346.276098012924
+    39     1.489587e+04     7.703421e+03
+ * time: 3424.3438379764557
+    40     1.462799e+04     6.791499e+03
+ * time: 3497.5705058574677
+    41     1.442973e+04     3.740156e+03
+ * time: 3576.3055658340454
+    42     1.427110e+04     9.389791e+02
+ * time: 3668.0613029003143
+    43     1.413948e+04     4.969011e+02
+ * time: 3745.9771678447723
+    44     1.410083e+04     7.410052e+02
+ * time: 3819.537344932556
+    45     1.408899e+04     6.326216e+02
+ * time: 3896.99129486084
+    46     1.406358e+04     8.596445e+02
+ * time: 3991.390795946121
+    47     1.406101e+04     2.987996e+02
+ * time: 4067.5181679725647
+    48     1.406021e+04     2.922351e+02
+ * time: 4139.266876935959
+    49     1.406002e+04     3.787034e+01
+ * time: 4224.287620067596
+    50     1.405998e+04     1.796406e+01
+ * time: 4320.433231830597
+    51     1.405997e+04     7.589419e+00
+ * time: 4396.466125011444
+    52     1.405997e+04     1.406125e-01
+ * time: 4468.5300278663635
+    53     1.405997e+04     1.826805e-01
+ * time: 4544.833229064941
+    54     1.405997e+04     2.753973e-02
+ * time: 4639.709702014923
+    55     1.405997e+04     2.013264e-03
+ * time: 4716.476609945297
+    56     1.405997e+04     1.992127e-03
+ * time: 4789.769050836563
+    57     1.405997e+04     1.792452e-03
+ * time: 4867.637408018112
+    58     1.405997e+04     1.792277e-03
+ * time: 4962.4231169223785
+    59     1.405997e+04     1.711234e-03
+ * time: 5040.069521903992
+    60     1.405997e+04     1.711236e-03
+ * time: 5112.7273688316345
+    61     1.405997e+04     1.711307e-03
+ * time: 5189.656452894211
+    62     1.405997e+04     1.711307e-03
+ * time: 5190.060582876205
 </code></pre><p>Extracting the final values of the parameters. Should be close to truth.</p><pre><code class="language-julia hljs">final_params = unpack(training_results.minimizer);</code></pre><p>final<em>params = unpack(flat</em>initial_params);</p><p>Locations in space at which to make predictions. Assumed to be the same at each point in time, but this assumption could easily be relaxed.</p><pre><code class="language-julia hljs">N_pr = 150;
 x_r_pr = range(-5.0, 5.0; length=N_pr);</code></pre><p>Compute the approximate posterior marginals.</p><pre><code class="language-julia hljs">fx_final = build_gp(final_params)(x, final_params.var_noise)
 f_post_marginals = approx_posterior_marginals(dtc, fx_final, y, z_r, x_r_pr);
@@ -141,7 +191,7 @@ Status &#96;~/work/TemporalGPs.jl/TemporalGPs.jl/examples/approx_space_time_lear
   &#91;429524aa&#93; Optim v1.7.5
   &#91;2412ca09&#93; ParameterHandling v0.4.6
   &#91;91a5bcdd&#93; Plots v1.38.10
-  &#91;e155a3c4&#93; TemporalGPs v0.6.3 &#96;/home/runner/work/TemporalGPs.jl/TemporalGPs.jl#61a94af&#96;
+  &#91;e155a3c4&#93; TemporalGPs v0.6.3 &#96;/home/runner/work/TemporalGPs.jl/TemporalGPs.jl#43bd0d9&#96;
   &#91;e88e6eb3&#93; Zygote v0.6.60
 </pre>
 To reproduce this notebook's package environment, you can
@@ -164,4 +214,4 @@ Environment:
   JULIA_DEBUG &#61; Documenter
   JULIA_LOAD_PATH &#61; :/home/runner/.julia/packages/JuliaGPsDocs/e8FS0/src
 </pre>
-</details><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../approx_space_time_inference/">« -</a><a class="docs-footer-nextpage" href="../augmented_inference/">- »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 25 April 2023 11:55">Tuesday 25 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+</details><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../approx_space_time_inference/">« -</a><a class="docs-footer-nextpage" href="../augmented_inference/">- »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.24 on <span class="colophon-date" title="Tuesday 25 April 2023 17:30">Tuesday 25 April 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
