@@ -184,7 +184,7 @@ end
 # Somehow needed to avoid the _map -> map indirection
 function _map(f, xs::Fill...)
     all(==(axes(first(xs))), axes.(xs)) || error("All axes should be the same")
-    Fill(_map(f, FillArrays.getindex_value.(xs)...), axes(first(xs)))
+    Fill(f(FillArrays.getindex_value.(xs)...), axes(first(xs)))
 end
 
 function ChainRulesCore.rrule(config::RuleConfig{>:HasReverseMode}, ::typeof(_map), f, xs::Fill...)
