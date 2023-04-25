@@ -91,10 +91,10 @@ uuid = "944b1d66-785c-5afd-91f1-9de20f533193"
 version = "0.7.1"
 
 [[deps.ColorSchemes]]
-deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "Random", "SnoopPrecompile"]
-git-tree-sha1 = "aa3edc8f8dea6cbfa176ee12f7c2fc82f0608ed3"
+deps = ["ColorTypes", "ColorVectorSpace", "Colors", "FixedPointNumbers", "PrecompileTools", "Random"]
+git-tree-sha1 = "be6ab11021cd29f0344d5c4357b163af05a48cba"
 uuid = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-version = "3.20.0"
+version = "3.21.0"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
@@ -311,15 +311,15 @@ version = "0.1.4"
 
 [[deps.GR]]
 deps = ["Artifacts", "Base64", "DelimitedFiles", "Downloads", "GR_jll", "HTTP", "JSON", "Libdl", "LinearAlgebra", "Pkg", "Preferences", "Printf", "Random", "Serialization", "Sockets", "TOML", "Tar", "Test", "UUIDs", "p7zip_jll"]
-git-tree-sha1 = "0635807d28a496bb60bc15f465da0107fb29649c"
+git-tree-sha1 = "db730189e3d250d97515a91886de7e33aa8833e6"
 uuid = "28b8d3ca-fb5f-59d9-8090-bfdbd6d07a71"
-version = "0.72.0"
+version = "0.72.2"
 
 [[deps.GR_jll]]
 deps = ["Artifacts", "Bzip2_jll", "Cairo_jll", "FFMPEG_jll", "Fontconfig_jll", "GLFW_jll", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "Pixman_jll", "Qt5Base_jll", "Zlib_jll", "libpng_jll"]
-git-tree-sha1 = "99e248f643b052a77d2766fe1a16fb32b661afd4"
+git-tree-sha1 = "47a2efe07729dd508a032e2f56c46c517481052a"
 uuid = "d2c73de3-f751-5644-a686-071e5b155ba9"
-version = "0.72.0+0"
+version = "0.72.2+0"
 
 [[deps.Gettext_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "XML2_jll"]
@@ -425,9 +425,9 @@ version = "2.1.91+0"
 
 [[deps.KernelFunctions]]
 deps = ["ChainRulesCore", "Compat", "CompositionsBase", "Distances", "FillArrays", "Functors", "IrrationalConstants", "LinearAlgebra", "LogExpFunctions", "Random", "Requires", "SpecialFunctions", "Statistics", "StatsBase", "TensorCore", "Test", "ZygoteRules"]
-git-tree-sha1 = "2f4e456270a5a4cfa63f56ce9dda44ff0c6f0195"
+git-tree-sha1 = "c6df06e59d1834ef8290eb702dfe21ad973fd29f"
 uuid = "ec8451be-7e33-11e9-00cf-bbf324bd1392"
-version = "0.10.53"
+version = "0.10.55"
 
 [[deps.LAME_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -466,9 +466,9 @@ version = "1.3.0"
 
 [[deps.Latexify]]
 deps = ["Formatting", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "OrderedCollections", "Printf", "Requires"]
-git-tree-sha1 = "2422f47b34d4b127720a18f86fa7b1aa2e141f29"
+git-tree-sha1 = "98dc144f1e0b299d49e8d23e56ad68d3e4f340a5"
 uuid = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
-version = "0.15.18"
+version = "0.15.20"
 
 [[deps.LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
@@ -636,9 +636,9 @@ version = "0.8.1+0"
 
 [[deps.OpenSSL]]
 deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
-git-tree-sha1 = "e9d68fe4b5f78f215aa2f0e6e6dc9e9911d33048"
+git-tree-sha1 = "5b3e170ea0724f1e3ed6018c5b006c190f80e87d"
 uuid = "4d8831e6-92b7-49fb-bdf8-b643e874388c"
-version = "1.3.4"
+version = "1.3.5"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -703,16 +703,22 @@ uuid = "ccf2f8ad-2431-5c83-bf29-c5338b663b6a"
 version = "3.1.0"
 
 [[deps.PlotUtils]]
-deps = ["ColorSchemes", "Colors", "Dates", "Printf", "Random", "Reexport", "SnoopPrecompile", "Statistics"]
-git-tree-sha1 = "c95373e73290cf50a8a22c3375e4625ded5c5280"
+deps = ["ColorSchemes", "Colors", "Dates", "PrecompileTools", "Printf", "Random", "Reexport", "Statistics"]
+git-tree-sha1 = "f92e1315dadf8c46561fb9396e525f7200cdc227"
 uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
-version = "1.3.4"
+version = "1.3.5"
 
 [[deps.Plots]]
 deps = ["Base64", "Contour", "Dates", "Downloads", "FFMPEG", "FixedPointNumbers", "GR", "JLFzf", "JSON", "LaTeXStrings", "Latexify", "LinearAlgebra", "Measures", "NaNMath", "Pkg", "PlotThemes", "PlotUtils", "Preferences", "Printf", "REPL", "Random", "RecipesBase", "RecipesPipeline", "Reexport", "RelocatableFolders", "Requires", "Scratch", "Showoff", "SnoopPrecompile", "SparseArrays", "Statistics", "StatsBase", "UUIDs", "UnicodeFun", "Unzip"]
-git-tree-sha1 = "186d38ea29d5c4f238b2d9fe6e1653264101944b"
+git-tree-sha1 = "5434b0ee344eaf2854de251f326df8720f6a7b55"
 uuid = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
-version = "1.38.9"
+version = "1.38.10"
+
+[[deps.PrecompileTools]]
+deps = ["Preferences"]
+git-tree-sha1 = "bc2bda41d798c2e66e7c44a11007bb329b15941b"
+uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+version = "1.0.1"
 
 [[deps.Preferences]]
 deps = ["TOML"]
@@ -913,8 +919,8 @@ version = "1.10.1"
 
 [[deps.TemporalGPs]]
 deps = ["AbstractGPs", "BlockDiagonals", "ChainRulesCore", "FillArrays", "KernelFunctions", "LinearAlgebra", "Random", "StaticArrays", "StructArrays", "Zygote"]
-git-tree-sha1 = "f0bb8ba4f0fda0a92c92d4595e02d1404a55fbb9"
-repo-rev = "564e73f15648e64f54ef16ea928334864764d859"
+git-tree-sha1 = "c1b40bbd977fd6fa63541e9e0198f0502cd26c8f"
+repo-rev = "61a94af415d2c76d19c8f23c758106a5cf1deea0"
 repo-url = "/home/runner/work/TemporalGPs.jl/TemporalGPs.jl"
 uuid = "e155a3c4-0841-43e1-8b83-a0e4f03cc18f"
 version = "0.6.3"
