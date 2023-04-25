@@ -80,12 +80,16 @@ include("../test_util.jl")
         test_rrule(_map, x -> 2.0 * x, x; check_inferred=false)
         test_rrule(ZygoteRuleConfig(), (x,a)-> _map(x -> x * a, x), x, 2.0; check_inferred=false, rrule_f=rrule_via_ad)
     end
-    @testset "_map(f, x1::Fill, x2::Fill)" begin
+    @testset "_map(f, x::Fill....)" begin
         x1 = Fill(randn(3, 4), 3)
         x2 = Fill(randn(3, 4), 3)
+        x3 = Fill(randn(3, 4), 3)
 
         @test _map(+, x1, x2) == _map(+, collect(x1), collect(x2))
         test_rrule(_map, +, x1, x2; check_inferred=true)
+
+        @test _map(+, x1, x2, x3) == _map(+, collect(x1), collect(x2), collect(x3))
+        test_rrule(_map, +, x1, x2, x3; check_inferred=true)
 
         fsin(x, y) = sin.(x .* y)
         test_rrule(_map, fsin, x1, x2; check_inferred=false)
