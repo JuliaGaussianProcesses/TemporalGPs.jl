@@ -217,6 +217,7 @@ println("lti_sde:")
 
             # Just need to ensure we can differentiate through construction properly.
             if isnothing(kernel.to_vec_grad)
+                @test_broken "Gradient tests are not passing"
                 continue
             elseif kernel.to_vec_grad
                 test_zygote_grad_finite_differences_compatible(
