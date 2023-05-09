@@ -241,6 +241,93 @@ function stationary_distribution(::Matern52Kernel, ::SArrayStorage{T}) where {T<
     return Gaussian(m, P)
 end
 
+# Cosine
+
+function to_sde(::CosineKernel, ::SArrayStorage{T}) where {T}
+    F = SMatrix{2, 2, T}(0, 1, -1, 0)
+    q = zero(T)
+    H = SVector{2, T}(1, 0)
+    return F, q, H
+end
+    
+function stationary_distribution(::CosineKernel, ::SArrayStorage{T}) where {T<:Real}
+    m = SVector{2, T}(0, 0)
+    P = SMatrix{2, 2, T}(1, 0, 0, 1)
+    return Gaussian(m, P)
+end
+
+# Approximate Periodic Kernel
+# The periodic kernel is approximated by a sum of cosine kernels with different frequencies.
+struct ApproxPeriodicKernel{N,K<:PeriodicKernel} <: KernelFunctions.SimpleKernel
+    kernel::K
+    function ApproxPeriodicKernel{N,K}(kernel::K) where {N,K<:PeriodicKernel}
+        length(kernel.r) == 1 || error("ApproxPeriodicKernel only supports a single lengthscale")
+        return new{N,K}(kernel)
+    end
+end
+# We follow "State Space approximation of Gaussian Processes for time series forecasting"
+# by Alessio Benavoli and Giorgio Corani and use a default of 7 Cosine Kernel terms
+ApproxPeriodicKernel(;r::Real=1.0) = ApproxPeriodicKernel{7}(PeriodicKernel(;r=[r]))
+ApproxPeriodicKernel{N}(;r::Real=1.0) where {N} = ApproxPeriodicKernel{N}(PeriodicKernel(;r=[r]))
+ApproxPeriodicKernel(kernel::PeriodicKernel) = ApproxPeriodicKernel{7}(kernel)
+ApproxPeriodicKernel{N}(kernel::K) where {N,K<:PeriodicKernel} = ApproxPeriodicKernel{N,K}(kernel)
+
+KernelFunctions.kappa(k::ApproxPeriodicKernel, x) = KernelFunctions.kappa(k.kernel, x)
+KernelFunctions.metric(k::ApproxPeriodicKernel) = KernelFunctions.metric(k.kernel)
+
+function Base.show(io::IO, κ::ApproxPeriodicKernel{N}) where {N}
+    return print(io, "Approximate Periodic Kernel, (r = $(only(κ.kernel.r))) approximated with $N cosine kernels")
+end
+
+function lgssm_components(approx::ApproxPeriodicKernel{N}, t::Union{StepRangeLen, RegularSpacing}, storage::StorageType{T}) where {N,T<:Real}
+    Fs, Hs, ms, Ps = _init_periodic_kernel_lgssm(approx.kernel, storage, N)
+    nt = length(t)
+    As = map(F -> Fill(time_exp(F, T(step(t))), nt), Fs)
+    return _reduce_sum_cosine_kernel_lgssm(As, Hs, ms, Ps, N, nt, T)
+end
+function lgssm_components(approx::ApproxPeriodicKernel{N}, t::AbstractVector{<:Real}, storage::StorageType{T}) where {N,T<:Real}
+    Fs, Hs, ms, Ps = _init_periodic_kernel_lgssm(approx.kernel, storage, N)
+    t = vcat([first(t) - 1], t)
+    nt = length(diff(t))
+    As = _map(F -> _map(Δt -> time_exp(F, T(Δt)), diff(t)), Fs)
+    return _reduce_sum_cosine_kernel_lgssm(As, Hs, ms, Ps, N, nt, T)
+end
+
+function _init_periodic_kernel_lgssm(kernel::PeriodicKernel, storage, N::Int=7)
+    r = kernel.r
+    l⁻² = inv(4 * only(r)^2)
+    
+    F, _, H = to_sde(CosineKernel(), storage)
+    Fs = ntuple(N) do i
+        2π * (i - 1) * F
+    end
+    Hs = Fill(H, N)
+
+    x0 = stationary_distribution(CosineKernel(), storage)
+    ms = Fill(x0.m, N)
+    P = x0.P
+    Ps = ntuple(N) do j
+        qⱼ = (1 + (j !== 1) ) * besseli(j - 1, l⁻²) / exp(l⁻²)
+        qⱼ * P
+    end    
+    
+    Fs, Hs, ms, Ps
+end
+
+function _reduce_sum_cosine_kernel_lgssm(As, Hs, ms, Ps, N, nt, T)
+    as = Fill(Fill(Zeros{T}(size(first(first(As)), 1)), nt), N)
+    Qs = _map((P, A) -> _map(A -> Symmetric(P) - A * Symmetric(P) * A', A), Ps, As)
+    Hs = Fill(vcat(Hs...), nt)
+    h = Fill(zero(T), nt)
+    As = _map(block_diagonal, As...)
+    as = -map(vcat, as...)
+    Qs = _map(block_diagonal, Qs...)
+    m = reduce(vcat, ms)
+    P = block_diagonal(Ps...)
+    x0 = Gaussian(m, P)
+    return As, as, Qs, (Hs, h), x0
+end
+
 # Constant
 
 function TemporalGPs.to_sde(::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}

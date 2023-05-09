@@ -1,10 +1,11 @@
 name = "TemporalGPs"
 uuid = "e155a3c4-0841-43e1-8b83-a0e4f03cc18f"
 authors = ["willtebbutt <wt0881@my.bristol.ac.uk> and contributors"]
-version = "0.6.4"
+version = "0.6.5"
 
 [deps]
 AbstractGPs = "99985d1d-32ba-4be9-9821-2ec096f28918"
+Bessels = "0e736298-9ec6-45e8-9647-e4fc86a2fe38"
 BlockDiagonals = "0a1fb500-61f7-11e9-3c65-f5ef3456f9f0"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
