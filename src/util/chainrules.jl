@@ -265,6 +265,59 @@ function Zygote._symmetric_back(Δ::SMatrix{N, N}, uplo) where {N}
     end
 end
 
+
+function rrule(::typeof(kron), x::AbstractMatrix, y::AbstractVector)
+    z = kron(x, y)
+
+    function kron_pullback(z̄)
+        x̄ = zero(x)
+        ȳ = zero(y)
+        m = firstindex(z̄)
+        @inbounds for j in axes(x,2), i in axes(x,1)
+            xij = x[i,j]
+            for k in eachindex(y)
+                x̄[i, j] += y[k] * z̄[m]
+                ȳ[k] += xij * z̄[m]
+                m += 1
+            end
+        end
+        NoTangent(), x̄, ȳ
+    end
+    z, kron_pullback
+end
+
+function rrule(::typeof(kron), x::AbstractVector, y::AbstractMatrix)
+    z = kron(x, y)
+
+    function kron_pullback(z̄)
+        x̄ = zero(x)
+        ȳ = zero(y)
+        m = firstindex(z̄)
+        @inbounds for l in axes(y,2), i in eachindex(x)
+            xi = x[i]
+            for k in axes(y,1)
+                x̄[i] += y[k, l] * z̄[m]
+                ȳ[k, l] += xi * z̄[m]
+                m += 1
+            end
+        end
+        NoTangent(), x̄, ȳ
+    end
+    z, kron_pullback
+end
+
+function _kron!(C, a::AbstractVector, B::AbstractMatrix)
+    m = firstindex(C)
+    @inbounds for l in axes(B,2), i in eachindex(a)
+        ai = a[i]
+        for k in axes(B,1)
+            C[m] = ai*B[k,l]
+            m += 1
+        end
+    end
+    return C
+end
+
 # Temporary hacks.
 
 using Zygote: literal_getproperty, literal_indexed_iterate, literal_getindex
