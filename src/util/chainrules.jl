@@ -306,18 +306,6 @@ function rrule(::typeof(kron), x::AbstractVector, y::AbstractMatrix)
     z, kron_pullback
 end
 
-function _kron!(C, a::AbstractVector, B::AbstractMatrix)
-    m = firstindex(C)
-    @inbounds for l in axes(B,2), i in eachindex(a)
-        ai = a[i]
-        for k in axes(B,1)
-            C[m] = ai*B[k,l]
-            m += 1
-        end
-    end
-    return C
-end
-
 # Temporary hacks.
 
 using Zygote: literal_getproperty, literal_indexed_iterate, literal_getindex
