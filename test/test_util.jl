@@ -661,14 +661,14 @@ Base.zero(::Reverse) = Reverse()
 _diag(x) = diag(x)
 _diag(x::Real) = x
 
-function ChainRulesTestUtils.rand_tangent(rng::AbstractRNG, A::StaticArray)
+function FiniteDifferences.rand_tangent(rng::AbstractRNG, A::StaticArray)
     return map(x -> rand_tangent(rng, x), A)
 end
 
-ChainRulesTestUtils.rand_tangent(::AbstractRNG, ::Base.OneTo) = ZeroTangent()
+FiniteDifferences.rand_tangent(::AbstractRNG, ::Base.OneTo) = ZeroTangent()
 
 # Hacks to make rand_tangent play nicely with Zygote.
-rand_zygote_tangent(A) = Zygote.wrap_chainrules_output(ChainRulesTestUtils.rand_tangent(A))
+rand_zygote_tangent(A) = Zygote.wrap_chainrules_output(FiniteDifferences.rand_tangent(A))
 
 Zygote.wrap_chainrules_output(x::Array) = map(Zygote.wrap_chainrules_output, x)
 
