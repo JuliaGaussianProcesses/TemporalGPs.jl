@@ -96,7 +96,7 @@ include("../models/model_test_utils.jl")
         validate_dims(lgssm)
 
         # The two approaches to DTC computation should be equivalent up to roundoff error.
-        dtc_naive = dtc(VFE(f_naive(z_naive)), fx_naive, y)
+        dtc_naive = approx_log_evidence(DTC(f_naive(z_naive)), fx_naive, y)
         dtc_sde = dtc(fx, y, z_r)
         @test dtc_naive ≈ dtc_sde rtol=1e-6
 
@@ -150,7 +150,7 @@ include("../models/model_test_utils.jl")
             fx_naive = f_naive(naive_inputs_missings, 0.1)
 
             # Compute DTC using both approaches.
-            dtc_naive = dtc(VFE(f_naive(z_naive)), fx_naive, naive_y_missings)
+            dtc_naive = approx_log_evidence(DTC(f_naive(z_naive)), fx_naive, naive_y_missings)
             dtc_sde = dtc(fx, y_missing, z_r)
             @test dtc_naive ≈ dtc_sde rtol=1e-7 atol=1e-7
 
