@@ -8,10 +8,6 @@ TemporalGPs.jl is a tool to make Gaussian processes (GPs) defined using [Abstrac
 
 [JuliaCon 2020 Talk](https://www.youtube.com/watch?v=dysmEpX1QoE)
 
-# Dependency Status
-
-In the interest of managing expectations, please note that TemporalGPs does not currently operate with the most current version of AbstractGPs / Zygote / ChainRules. I (Will) am aware of this problem, and will sort it out as soon as I have the time!
-
 # Installation
 
 TemporalGPs.jl is registered, so simply type the following at the REPL:
