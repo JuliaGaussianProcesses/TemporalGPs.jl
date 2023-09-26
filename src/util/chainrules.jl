@@ -265,45 +265,13 @@ function Zygote._symmetric_back(Δ::SMatrix{N, N}, uplo) where {N}
     end
 end
 
+Zygote._kron(x::AbstractMatrix, y::AbstractVector) = Zygote._kron(x, reshape(y, :, 1))
 
-function rrule(::typeof(kron), x::AbstractMatrix, y::AbstractVector)
-    z = kron(x, y)
-
-    function kron_pullback(z̄)
-        x̄ = zero(x)
-        ȳ = zero(y)
-        m = firstindex(z̄)
-        @inbounds for j in axes(x,2), i in axes(x,1)
-            xij = x[i,j]
-            for k in eachindex(y)
-                x̄[i, j] += y[k] * z̄[m]
-                ȳ[k] += xij * z̄[m]
-                m += 1
-            end
-        end
-        NoTangent(), x̄, ȳ
-    end
-    z, kron_pullback
-end
-
-function rrule(::typeof(kron), x::AbstractVector, y::AbstractMatrix)
-    z = kron(x, y)
-
-    function kron_pullback(z̄)
-        x̄ = zero(x)
-        ȳ = zero(y)
-        m = firstindex(z̄)
-        @inbounds for l in axes(y,2), i in eachindex(x)
-            xi = x[i]
-            for k in axes(y,1)
-                x̄[i] += y[k, l] * z̄[m]
-                ȳ[k, l] += xi * z̄[m]
-                m += 1
-            end
-        end
-        NoTangent(), x̄, ȳ
-    end
-    z, kron_pullback
+function Zygote._pullback(
+    cx::Zygote.AContext, ::typeof(kron), a::AbstractMatrix, b::AbstractVector
+)
+    res, back = Zygote._pullback(cx, Zygote._kron, a, b)
+    return res, back ∘ Zygote.unthunk_tangent
 end
 
 # Temporary hacks.
