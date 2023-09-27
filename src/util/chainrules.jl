@@ -265,15 +265,6 @@ function Zygote._symmetric_back(Δ::SMatrix{N, N}, uplo) where {N}
     end
 end
 
-Zygote._kron(x::AbstractMatrix, y::AbstractVector) = Zygote._kron(x, reshape(y, :, 1))
-
-function Zygote._pullback(
-    cx::Zygote.AContext, ::typeof(kron), a::AbstractMatrix, b::AbstractVector
-)
-    res, back = Zygote._pullback(cx, Zygote._kron, a, b)
-    return res, back ∘ Zygote.unthunk_tangent
-end
-
 # Temporary hacks.
 
 using Zygote: literal_getproperty, literal_indexed_iterate, literal_getindex
