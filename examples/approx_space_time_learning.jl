@@ -41,7 +41,7 @@ end
 # Also works with RectilinearGrids of inputs.
 # Times must be increasing, points in space can be anywhere.
 N = 50;
-T = 100;
+T = 1000;
 points_in_space = [randn(N) for _ in 1:T];
 points_in_time = RegularSpacing(0.0, 0.1, T);
 x = RegularInTime(points_in_time, points_in_space);
