@@ -186,7 +186,7 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
     C = \(K_space_z_chol, C__)
     Cs = partition(ChainRulesCore.ignore_derivatives(map(length, x.vs)), C)
 
-    cs = _map((h, v) -> fill(h, length(v)), hs_t, x.vs) # This should currently be zero.
+    cs = fill.(hs_t, length.(x.vs)) # This should currently be zero.
     Hs = _map(
         ((I, H_t), ) -> kron(I, H_t),
         zip(Fill(ident_M, N), Hs_t),

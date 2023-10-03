@@ -24,7 +24,16 @@ function Base.collect(x::RegularInTime)
     return [(x, t) for (x, t) in zip(space_inputs, time_inputs)]
 end
 
-Base.getindex(x::RegularInTime, n::Int) = collect(x)[n]
+function Base.getindex(x::RegularInTime, n::Int)
+    n < 0 || throw(BoundsError(x, n))
+    sum_of_lengths = 0
+    for (i, v) in enumerate(x.vs)
+        temp = sum_of_lengths + length(v)
+        temp ≥ n && return (v[n - sum_of_lengths], x.ts[i])
+        sum_of_lengths = temp
+    end
+    throw(BoundsError(x, n))
+end
 
 Base.show(io::IO, x::RegularInTime) = Base.show(io::IO, collect(x))
 
