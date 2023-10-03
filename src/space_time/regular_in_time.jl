@@ -25,7 +25,7 @@ function Base.collect(x::RegularInTime)
 end
 
 function Base.getindex(x::RegularInTime, n::Int)
-    n < 0 && throw(BoundsError(x, n))
+    n ≤ 0 && throw(BoundsError(x, n))
     sum_of_lengths = 0
     for (i, v) in enumerate(x.vs)
         temp = sum_of_lengths + length(v)
