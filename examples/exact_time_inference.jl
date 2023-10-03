@@ -48,5 +48,5 @@ if get(ENV, "TESTING", "FALSE") == "FALSE"
     scatter!(plt, x, y; label="", markersize=0.1, alpha=0.1);
     plot!(plt, f_post(x_pr); ribbon_scale=3.0, label="");
     plot!(x_pr, f_post_samples; color=:red, label="");
-    savefig(plt, "posterior.png");
+    savefig(plt, "exact_time_inference.png");
 end

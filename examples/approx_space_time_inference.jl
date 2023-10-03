@@ -61,6 +61,6 @@ if get(ENV, "TESTING", "FALSE") == "FALSE"
             heatmap(reshape(σ_post_marginals, N_pr, T));
             layout=(1, 2),
         ),
-        "posterior.png",
+        "approx_space_time_inference.png",
     );
 end
