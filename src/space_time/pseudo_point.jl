@@ -103,10 +103,11 @@ function kernel_diagonals(k::DTCSeparable, x::RegularInTime)
     space_kernel = k.k.l
     time_kernel = k.k.r
     time_vars = kernelmatrix_diag(time_kernel, get_times(x))
-    return map(
-        (s_t, x_r) -> Diagonal(kernelmatrix_diag(space_kernel, x_r) * s_t),
-        time_vars,
-        x.vs,
+    return Diagonal.(
+        kernelmatrix_diag.(
+            Ref(space_kernel),
+            x.vs
+        ) .* time_vars
     )
 end
 
