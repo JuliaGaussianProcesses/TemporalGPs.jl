@@ -49,7 +49,7 @@ function predict(x::Gaussian, f::AbstractLGC)
     # Previously, there was a symmetric wrapper around `P` in the following line.
     # It was removed to solve a performance problem with `Symmetric` around static
     # arrays, with unclear implications on numerical stability.
-    return Gaussian(A * m + a, (A * P) * A' + Q)
+    return Gaussian(A * m + a, (A * symmetric(P)) * A' + Q)
 end
 
 """
