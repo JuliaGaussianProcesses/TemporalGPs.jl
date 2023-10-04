@@ -103,10 +103,11 @@ function kernel_diagonals(k::DTCSeparable, x::RegularInTime)
     space_kernel = k.k.l
     time_kernel = k.k.r
     time_vars = kernelmatrix_diag(time_kernel, get_times(x))
-    return map(
-        (s_t, x_r) -> Diagonal(kernelmatrix_diag(space_kernel, x_r) * s_t),
-        time_vars,
-        x.vs,
+    return Diagonal.(
+        kernelmatrix_diag.(
+            Ref(space_kernel),
+            x.vs
+        ) .* time_vars
     )
 end
 
@@ -185,7 +186,7 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
     C = \(K_space_z_chol, C__)
     Cs = partition(ChainRulesCore.ignore_derivatives(map(length, x.vs)), C)
 
-    cs = _map((h, v) -> fill(h, length(v)), hs_t, x.vs) # This should currently be zero.
+    cs = fill.(hs_t, length.(x.vs)) # This should currently be zero.
     Hs = _map(
         ((I, H_t), ) -> kron(I, H_t),
         zip(Fill(ident_M, N), Hs_t),

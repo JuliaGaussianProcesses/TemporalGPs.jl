@@ -1,6 +1,6 @@
 using AbstractGPs
 using TemporalGPs
-using Distributions
+using Distributions: Bernoulli
 using StatsFuns: logistic
 
 # In this example we are showing how to work with non-Gaussian likelihoods,
@@ -73,5 +73,5 @@ if get(ENV, "TESTING", "FALSE") == "FALSE"
     plot!(plt, x_pr, f_post_samples; color=:red, alpha=0.3, label="");
     plot!(plt, x, f_true; label="", lw=2.0, color=:blue); # Plot the true latent GP on top 
     scatter!(plt, x, y; label="", markersize=1.0, alpha=1.0); # Plot the data
-    savefig(plt, "posterior.png");
+    savefig(plt, "augmented_inference.png");
 end

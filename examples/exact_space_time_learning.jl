@@ -39,7 +39,7 @@ end
 # Exact inference only works for such grids.
 # Times must be increasing, points in space can be anywhere.
 N = 50;
-T = 1_000;
+T = 500;
 points_in_space = collect(range(-3.0, 3.0; length=N));
 points_in_time = RegularSpacing(0.0, 0.01, T);
 x = RectilinearGrid(points_in_space, points_in_time);
@@ -73,7 +73,7 @@ final_params = unpack(training_results.minimizer)
 f_post = posterior(build_gp(final_params)(x, final_params.var_noise), y);
 
 # Specify some locations at which to make predictions.
-T_pr = 1200;
+T_pr = 600;
 points_in_time_pr = RegularSpacing(0.0, 0.01, T_pr);
 x_pr = RectilinearGrid(points_in_space, points_in_time_pr);
 
@@ -93,6 +93,6 @@ if get(ENV, "TESTING", "FALSE") == "FALSE"
             heatmap(reshape(σ_post_marginals, N, T_pr));
             layout=(1, 2),
         ),
-        "posterior.png",
+        "exact_space_time_learning.png",
     );
 end

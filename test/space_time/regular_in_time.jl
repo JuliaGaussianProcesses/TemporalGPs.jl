@@ -10,4 +10,7 @@ using TemporalGPs: RegularInTime
     @test prod(size(x)) == length(collect(x))
 
     @test all([getindex(x, n) for n in 1:length(x)] .== collect(x))
+    @test_throws BoundsError x[0]
+    @test_throws BoundsError x[-1]
+    @test_throws BoundsError x[length(x) + 1]
 end
