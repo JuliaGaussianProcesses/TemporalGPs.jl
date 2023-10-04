@@ -1,6 +1,6 @@
 using AbstractGPs
 using TemporalGPs
-using Distributions
+using Distributions: Bernoulli
 using StatsFuns: logistic
 
 # In this example we are showing how to work with non-Gaussian likelihoods,
