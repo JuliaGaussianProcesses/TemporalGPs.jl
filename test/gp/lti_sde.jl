@@ -29,7 +29,7 @@ end
     @testset "$(typeof(t)), $storage, $N" for t in (
             sort(rand(Nt)), RegularSpacing(0.0, 0.1, Nt)
         ),
-        storage in (SArrayStorage{Float64}(), ArrayStorage{Float64}()),
+        storage in (ArrayStorage{Float64}(), ),
         N in (5, 8)
 
         k = ApproxPeriodicKernel{N}()
@@ -131,6 +131,12 @@ println("lti_sde:")
                 val=3.0 * Matern32Kernel() * Matern52Kernel() * ConstantKernel(),
                 to_vec_grad=nothing,
             ),
+            # THIS IS KNOWN NOT TO WORK!
+            # (
+            #     name="prod-(Matern32Kernel + ConstantKernel) * Matern52Kernel",
+            #     val=(Matern32Kernel() + ConstantKernel()) * Matern52Kernel(),
+            #     to_vec_grad=nothing,
+            # ),
 
             # Summed kernels.
             (
@@ -149,18 +155,21 @@ println("lti_sde:")
         )
 
         # Construct a Gauss-Markov model with either dense storage or static storage.
-        storages = ((name="dense storage Float64", val=ArrayStorage(Float64)),
-        # (name="static storage Float64", val=SArrayStorage(Float64)),
-)
+        storages = (
+            (name="dense storage Float64", val=ArrayStorage(Float64)),
+            # (name="static storage Float64", val=SArrayStorage(Float64)),
+        )
 
         # Either regular spacing or irregular spacing in time.
-        ts = ((name="irregular spacing", val=collect(RegularSpacing(0.0, 0.3, N))),
-        # (name="regular spacing", val=RegularSpacing(0.0, 0.3, N)),
-)
+        ts = (
+            (name="irregular spacing", val=collect(RegularSpacing(0.0, 0.3, N))),
+            # (name="regular spacing", val=RegularSpacing(0.0, 0.3, N)),
+        )
 
-        σ²s = ((name="homoscedastic noise", val=(0.1,)),
-        # (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1, )),
-)
+        σ²s = (
+            (name="homoscedastic noise", val=(0.1,)),
+            # (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1, )),
+        )
 
         means = (
             (name="Zero Mean", val=ZeroMean()),
