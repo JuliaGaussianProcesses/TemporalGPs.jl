@@ -256,7 +256,8 @@ function stationary_distribution(::CosineKernel, ::SArrayStorage{T}) where {T<:R
     return Gaussian(m, P)
 end
 
-# Approximate Periodic Kernel
+# ApproxPeriodicKernel
+
 # The periodic kernel is approximated by a sum of cosine kernels with different frequencies.
 struct ApproxPeriodicKernel{N,K<:PeriodicKernel} <: KernelFunctions.SimpleKernel
     kernel::K
@@ -279,53 +280,32 @@ function Base.show(io::IO, κ::ApproxPeriodicKernel{N}) where {N}
     return print(io, "Approximate Periodic Kernel, (r = $(only(κ.kernel.r))) approximated with $N cosine kernels")
 end
 
-function lgssm_components(approx::ApproxPeriodicKernel{N}, t::Union{StepRangeLen, RegularSpacing}, storage::StorageType{T}) where {N,T<:Real}
-    Fs, Hs, ms, Ps = _init_periodic_kernel_lgssm(approx.kernel, storage, N)
-    nt = length(t)
-    As = map(F -> Fill(time_exp(F, T(step(t))), nt), Fs)
-    return _reduce_sum_cosine_kernel_lgssm(As, Hs, ms, Ps, N, nt, T)
-end
-function lgssm_components(approx::ApproxPeriodicKernel{N}, t::AbstractVector{<:Real}, storage::StorageType{T}) where {N,T<:Real}
-    Fs, Hs, ms, Ps = _init_periodic_kernel_lgssm(approx.kernel, storage, N)
-    t = vcat([first(t) - 1], t)
-    nt = length(diff(t))
-    As = _map(F -> _map(Δt -> time_exp(F, T(Δt)), diff(t)), Fs)
-    return _reduce_sum_cosine_kernel_lgssm(As, Hs, ms, Ps, N, nt, T)
-end
+function to_sde(::ApproxPeriodicKernel{N}, storage::SArrayStorage{T}) where {T, N}
 
-function _init_periodic_kernel_lgssm(kernel::PeriodicKernel, storage, N::Int=7)
-    r = kernel.r
-    l⁻² = inv(4 * only(r)^2)
-    
+    # Compute F and H for component processes.
     F, _, H = to_sde(CosineKernel(), storage)
     Fs = ntuple(N) do i
         2π * (i - 1) * F
     end
-    Hs = Fill(H, N)
 
-    x0 = stationary_distribution(CosineKernel(), storage)
-    ms = Fill(x0.m, N)
-    P = x0.P
-    Ps = ntuple(N) do j
-        qⱼ = (1 + (j !== 1) ) * besseli(j - 1, l⁻²) / exp(l⁻²)
-        qⱼ * P
-    end    
-    
-    Fs, Hs, ms, Ps
+    # Combine component processes into a single whole.
+    F = block_diagonal(collect.(Fs)...)
+    q = zero(T)
+    H = repeat(collect(H), N)
+    return F, q, H
 end
 
-function _reduce_sum_cosine_kernel_lgssm(As, Hs, ms, Ps, N, nt, T)
-    as = Fill(Fill(Zeros{T}(size(first(first(As)), 1)), nt), N)
-    Qs = _map((P, A) -> _map(A -> Symmetric(P) - A * Symmetric(P) * A', A), Ps, As)
-    Hs = Fill(vcat(Hs...), nt)
-    h = Fill(zero(T), nt)
-    As = _map(block_diagonal, As...)
-    as = -map(vcat, as...)
-    Qs = _map(block_diagonal, Qs...)
-    m = reduce(vcat, ms)
-    P = block_diagonal(Ps...)
-    x0 = Gaussian(m, P)
-    return As, as, Qs, (Hs, h), x0
+function stationary_distribution(kernel::ApproxPeriodicKernel{N}, storage::SArrayStorage) where {N}
+    x0 = stationary_distribution(CosineKernel(), storage)
+    m = collect(repeat(x0.m, N))
+    r = kernel.kernel.r
+    l⁻² = inv(4 * only(r)^2)
+    Ps = ntuple(N) do j
+        qⱼ = (1 + (j !== 1) ) * besseli(j - 1, l⁻²) / exp(l⁻²)
+        return qⱼ * x0.P
+    end
+    P = collect(block_diagonal(Ps...))
+    return Gaussian(m, P)
 end
 
 # Constant
