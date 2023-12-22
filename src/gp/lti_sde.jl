@@ -285,7 +285,7 @@ _ap_error() = throw(error("Unable to construct an ApproxPeriodicKernel for SArra
 to_sde(::ApproxPeriodicKernel, ::SArrayStorage) = _ap_error()
 stationary_distribution(::ApproxPeriodicKernel, ::SArrayStorage) = _ap_error()
 
-function to_sde(::ApproxPeriodicKernel{N}, storage::ArrayStorage{T}) where {T, N}
+function to_sde(::ApproxPeriodicKernel{N}, storage::ArrayStorage{T}) where {T<:Real, N}
 
     # Compute F and H for component processes.
     F, _, H = to_sde(CosineKernel(), storage)
@@ -300,7 +300,7 @@ function to_sde(::ApproxPeriodicKernel{N}, storage::ArrayStorage{T}) where {T, N
     return F, q, H
 end
 
-function stationary_distribution(kernel::ApproxPeriodicKernel{N}, storage::ArrayStorage) where {N}
+function stationary_distribution(kernel::ApproxPeriodicKernel{N}, storage::ArrayStorage{<:Real}) where {N}
     x0 = stationary_distribution(CosineKernel(), storage)
     m = collect(repeat(x0.m, N))
     r = kernel.kernel.r
