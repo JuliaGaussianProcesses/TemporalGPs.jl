@@ -280,7 +280,12 @@ function Base.show(io::IO, κ::ApproxPeriodicKernel{N}) where {N}
     return print(io, "Approximate Periodic Kernel, (r = $(only(κ.kernel.r))) approximated with $N cosine kernels")
 end
 
-function to_sde(::ApproxPeriodicKernel{N}, storage::SArrayStorage{T}) where {T, N}
+# Can't use approx periodic kernel with static arrays -- the dimensions become too large.
+_ap_error() = throw(error("Unable to construct an ApproxPeriodicKernel for SArrayStorage"))
+to_sde(::ApproxPeriodicKernel, ::SArrayStorage) = _ap_error()
+stationary_distribution(::ApproxPeriodicKernel, ::SArrayStorage) = _ap_error()
+
+function to_sde(::ApproxPeriodicKernel{N}, storage::ArrayStorage{T}) where {T, N}
 
     # Compute F and H for component processes.
     F, _, H = to_sde(CosineKernel(), storage)
@@ -295,7 +300,7 @@ function to_sde(::ApproxPeriodicKernel{N}, storage::SArrayStorage{T}) where {T, 
     return F, q, H
 end
 
-function stationary_distribution(kernel::ApproxPeriodicKernel{N}, storage::SArrayStorage) where {N}
+function stationary_distribution(kernel::ApproxPeriodicKernel{N}, storage::ArrayStorage) where {N}
     x0 = stationary_distribution(CosineKernel(), storage)
     m = collect(repeat(x0.m, N))
     r = kernel.kernel.r
