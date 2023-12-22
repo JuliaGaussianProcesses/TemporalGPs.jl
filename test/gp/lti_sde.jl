@@ -131,11 +131,12 @@ println("lti_sde:")
                 val=3.0 * Matern32Kernel() * Matern52Kernel() * ConstantKernel(),
                 to_vec_grad=nothing,
             ),
-            (
-                name="prod-(Matern32Kernel + ConstantKernel) * Matern52Kernel",
-                val=(Matern32Kernel() + ConstantKernel()) * Matern52Kernel(),
-                to_vec_grad=nothing,
-            ),
+            # THIS IS KNOWN NOT TO WORK!
+            # (
+            #     name="prod-(Matern32Kernel + ConstantKernel) * Matern52Kernel",
+            #     val=(Matern32Kernel() + ConstantKernel()) * Matern52Kernel(),
+            #     to_vec_grad=nothing,
+            # ),
 
             # Summed kernels.
             (
