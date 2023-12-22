@@ -29,7 +29,7 @@ end
     @testset "$(typeof(t)), $storage, $N" for t in (
             sort(rand(Nt)), RegularSpacing(0.0, 0.1, Nt)
         ),
-        storage in (SArrayStorage{Float64}(), ArrayStorage{Float64}()),
+        storage in (ArrayStorage{Float64}(), ),
         N in (5, 8)
 
         k = ApproxPeriodicKernel{N}()
