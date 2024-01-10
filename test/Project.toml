@@ -17,11 +17,11 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
 AbstractGPs = "0.5"
-BenchmarkTools = "0.5"
+BenchmarkTools = "0.5, 1"
 BlockDiagonals = "0.1"
 ChainRulesCore = "1"
 ChainRulesTestUtils = "1.10"
-FillArrays = "0.13.0 - 0.13.7"
+FillArrays = "0.13.0 - 0.13.7, 1"
 FiniteDifferences = "0.12"
 KernelFunctions = "0.10"
 StaticArrays = "1"
