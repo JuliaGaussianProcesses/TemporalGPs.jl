@@ -9,7 +9,6 @@ using TemporalGPs: time_exp, _map, Gaussian
 using FillArrays
 using StructArrays
 using Zygote: ZygoteRuleConfig
-include("../test_util.jl")
 
 @testset "chainrules" begin
     @testset "StaticArrays" begin

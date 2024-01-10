@@ -16,8 +16,6 @@ using TemporalGPs:
     Separable,
     approx_posterior_marginals
 using Test
-include("../test_util.jl")
-include("../models/model_test_utils.jl")
 
 @testset "pseudo_point" begin
 
