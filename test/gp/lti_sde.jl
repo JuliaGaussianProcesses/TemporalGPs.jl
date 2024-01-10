@@ -3,8 +3,7 @@ using KernelFunctions: kappa
 using ChainRulesTestUtils
 using TemporalGPs: build_lgssm, StorageType, is_of_storage_type, lgssm_components
 using Test
-include("../test_util.jl")
-include("../models/model_test_utils.jl")
+
 _logistic(x) = 1 / (1 + exp(-x))
 
 # Everything is tested once the LGSSM is constructed, so it is sufficient just to ensure
