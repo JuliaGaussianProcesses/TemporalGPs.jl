@@ -102,8 +102,6 @@ using Test
         elbo_sde = elbo(fx, y, z_r)
         @test elbo_naive ≈ elbo_sde rtol=1e-6
 
-        test_zygote_grad_finite_differences_compatible((y, z_r) -> elbo(fx, y, z_r), y, z_r)
-
         # Compute approximate posterior marginals naively.
         f_approx_post_naive = posterior(VFE(f_naive(z_naive)), fx_naive, y)
         x_pr = RectilinearGrid(x_pr_r, get_times(x.val))

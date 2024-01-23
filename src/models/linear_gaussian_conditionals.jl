@@ -97,12 +97,8 @@ function ε_randn(rng::AbstractRNG, ::SMatrix{Dout, Din, T}) where {Dout, Din, T
     return randn(rng, SVector{Dout, T})
 end
 
-ChainRulesCore.@non_differentiable ε_randn(args...)
-
 scalar_type(::AbstractVector{T}) where {T} = T
 scalar_type(::T) where {T<:Real} = T
-
-ChainRulesCore.@non_differentiable scalar_type(x)
 
 """
     SmallOutputLGC{
@@ -126,12 +122,12 @@ dim_out(f::SmallOutputLGC) = size(f.A, 1)
 
 dim_in(f::SmallOutputLGC) = size(f.A, 2)
 
-noise_cov(f::SmallOutputLGC) = Zygote.literal_getfield(f, Val(:Q))
+noise_cov(f::SmallOutputLGC) = f.Q
 
 function get_fields(f::SmallOutputLGC)
-    A = Zygote.literal_getfield(f, Val(:A))
-    a = Zygote.literal_getfield(f, Val(:a))
-    Q = Zygote.literal_getfield(f, Val(:Q))
+    A = f.A
+    a = f.a
+    Q = f.Q
     return A, a, Q
 end
 
@@ -177,26 +173,16 @@ struct LargeOutputLGC{
     Q::TQ
 end
 
-function ChainRulesCore.rrule(
-    ::Type{<:LargeOutputLGC},
-    A::AbstractMatrix,
-    a::AbstractVector,
-    Q::AbstractMatrix,
-)
-    LargeOutputLGC_pullback(Δ) = NoTangent(), Δ.A, Δ.a, Δ.Q
-    return LargeOutputLGC(A, a, Q), LargeOutputLGC_pullback
-end
-
 dim_out(f::LargeOutputLGC) = size(f.A, 1)
 
 dim_in(f::LargeOutputLGC) = size(f.A, 2)
 
-noise_cov(f::LargeOutputLGC) = Zygote.literal_getfield(f, Val(:Q))
+noise_cov(f::LargeOutputLGC) = f.Q
 
 function get_fields(f::LargeOutputLGC)
-    A = Zygote.literal_getfield(f, Val(:A))
-    a = Zygote.literal_getfield(f, Val(:a))
-    Q = Zygote.literal_getfield(f, Val(:Q))
+    A = f.A
+    a = f.a
+    Q = f.Q
     return A, a, Q
 end
 
@@ -259,13 +245,13 @@ dim_out(f::ScalarOutputLGC) = 1
 dim_in(f::ScalarOutputLGC) = size(f.A, 2)
 
 function get_fields(f::ScalarOutputLGC)
-    A = Zygote.literal_getfield(f, Val(:A))
-    a = Zygote.literal_getfield(f, Val(:a))
-    Q = Zygote.literal_getfield(f, Val(:Q))
+    A = f.A
+    a = f.a
+    Q = f.Q
     return A, a, Q
 end
 
-noise_cov(f::ScalarOutputLGC) = Zygote.literal_getfield(f, Val(:Q))
+noise_cov(f::ScalarOutputLGC) = f.Q
 
 function conditional_rand(ε::Real, f::ScalarOutputLGC, x::AbstractVector)
     A, a, Q = get_fields(f)
@@ -323,16 +309,16 @@ dim_out(f::BottleneckLGC) = dim_out(f.fan_out)
 
 dim_in(f::BottleneckLGC) = size(f.H, 2)
 
-noise_cov(f::BottleneckLGC) = noise_cov(Zygote.literal_getfield(f, Val(:fan_out)))
+noise_cov(f::BottleneckLGC) = noise_cov(f.fan_out)
 
 function get_fields(f::BottleneckLGC)
-    H = Zygote.literal_getfield(f, Val(:H))
-    h = Zygote.literal_getfield(f, Val(:h))
-    fan_out = Zygote.literal_getfield(f, Val(:fan_out))
+    H = f.H
+    h = f.h
+    fan_out = f.fan_out
     return H, h, fan_out
 end
 
-fan_out(f::BottleneckLGC) = Zygote.literal_getfield(f, Val(:fan_out))
+fan_out(f::BottleneckLGC) = f.fan_out
 
 function conditional_rand(ε::AbstractVector{<:Real}, f::BottleneckLGC, x::AbstractVector)
     H, h, fan_out = get_fields(f)

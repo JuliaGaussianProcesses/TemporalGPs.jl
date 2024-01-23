@@ -6,17 +6,6 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
     Nt = 5
     Nt_pr = 2
 
-    @testset "restructure" begin
-        adjoint_test(
-            x -> TemporalGPs.restructure(x, [26, 24, 20, 30]), (randn(100), );
-            check_inferred=false,
-        )
-        adjoint_test(
-            x -> TemporalGPs.restructure(x, [26, 24, 20, 30]), (Fill(randn(), 100), );
-            check_inferred=false,
-        )
-    end
-
     k_sep = 1.5 * Separable(
         SEKernel() ∘ ScaleTransform(1.4), Matern32Kernel() ∘ ScaleTransform(1.3),
     )
@@ -95,27 +84,5 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
             end
 
         end
-
-        # # I'm not checking correctness here, just that it runs. No custom adjoints have been
-        # # written that are involved in this that aren't tested, so there should be no need
-        # # to check correctness.
-        # @testset "logpdf AD" begin
-        #     out, pb = Zygote._pullback(NoContext(), logpdf, ft_sde, y)
-        #     pb(rand_zygote_tangent(out))
-        # end
-        # # adjoint_test(logpdf, (ft_sde, y); fdm=central_fdm(2, 1), check_inferred=false)
-
-        # if t.val isa RegularSpacing
-        #     adjoint_test(
-        #         (r, Δt, y) -> begin
-        #             x = RectilinearGrid(r, RegularSpacing(t.val.t0, Δt, Nt))
-        #             _f = to_sde(GP(k.val, GPC()))
-        #             _ft = _f(x, σ².val...)
-        #             return logpdf(_ft, y)
-        #         end,
-        #         (r, t.val.Δt, y_sde);
-        #         check_inferred=false,
-        #     )
-        # end
     end
 end

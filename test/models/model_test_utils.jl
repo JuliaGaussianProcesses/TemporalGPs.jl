@@ -1,4 +1,3 @@
-using ChainRulesTestUtils: ChainRulesTestUtils, rand_tangent
 using FillArrays
 using Random: AbstractRNG
 using TemporalGPs:
@@ -92,13 +91,6 @@ function random_gaussian(rng::AbstractRNG, dim::Int, s::StorageType)
     return Gaussian(random_vector(rng, dim, s), random_nice_psd_matrix(rng, dim, s))
 end
 
-function ChainRulesTestUtils.rand_tangent(rng::AbstractRNG, d::T) where {T<:Gaussian}
-    return Tangent{T}(
-        m=rand_tangent(rng, d.m),
-        P=random_nice_psd_matrix(rng, length(d.m), storage_type(d)),
-    )
-end
-
 
 
 # Generation of SmallOutputLGC.
@@ -183,16 +175,6 @@ function random_ti_gmm(rng::AbstractRNG, ordering, Dlat::Int, N::Int, s::Storage
     # large constant to the diagonal to ensure that all Qs are positive definite.
     Qs = Fill(x0.P - As[1] * x0.P * As[1]' + eltype(s)(1e-1) * I, N)
     return GaussMarkovModel(ordering, As, as, Qs, x0)
-end
-
-function ChainRulesTestUtils.rand_tangent(rng::AbstractRNG, gmm::T) where {T<:GaussMarkovModel}
-    return Tangent{T}(
-        ordering = nothing,
-        As = rand_tangent(rng, gmm.As),
-        as = rand_tangent(rng, gmm.as),
-        Qs = gmm_Qs_tangent(rng, gmm.Qs, storage_type(gmm)),
-        x0 = rand_tangent(rng, gmm.x0),
-    )
 end
 
 function gmm_Qs_tangent(
@@ -302,41 +284,6 @@ function random_lgssm(
     return LGSSM(transitions, emissions)
 end
 
-function ChainRulesTestUtils.rand_tangent(rng::AbstractRNG, ssm::T) where {T<:LGSSM}
-    Hs = ssm.emissions.A
-    hs = ssm.emissions.a
-    Σs = ssm.emissions.Q
-    return Tangent{T}(
-        transitions = rand_tangent(rng, ssm.transitions),
-        emissions = Tangent{typeof(ssm.emissions)}(components=(
-            A=rand_tangent(rng, Hs),
-            a=rand_tangent(rng, hs),
-            Q=gmm_Qs_tangent(rng, Σs, storage_type(ssm)),
-        )),
-    )
-end
-
-# function random_tv_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
-#     return ScalarLGSSM(random_tv_lgssm(rng, Dlat, 1, N, storage))
-# end
-
-# function random_ti_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
-#     return ScalarLGSSM(random_ti_lgssm(rng, Dlat, 1, N, storage))
-# end
-
-# function random_tv_posterior_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
-#     lgssm = random_tv_lgssm(rng, Dlat, Dobs, N, storage)
-#     y = rand(rng, lgssm)
-#     Σs = map(_ -> random_nice_psd_matrix(rng, Dobs, storage), eachindex(y))
-#     return posterior(lgssm, y, Σs)
-# end
-
-# function random_ti_posterior_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
-#     lgssm = random_ti_lgssm(rng, Dlat, Dobs, N, storage)
-#     y = rand(rng, lgssm)
-#     Σs = Fill(random_nice_psd_matrix(rng, Dobs, storage), length(lgssm))
-#     return posterior(lgssm, y, Σs)
-# end
 
 
 #
@@ -391,16 +338,3 @@ function validate_dims(model::LGSSM)
 
     return nothing
 end
-
-# function __verify_model_properties(model, Dlat, Dobs, N, storage_type)
-#     @test is_of_storage_type(model, storage_type)
-#     @test length(model) == N
-#     @test dim_obs(model) == Dobs
-#     @test dim_latent(model) == Dlat
-#     validate_dims(model)
-#     return nothing
-# end
-
-# function __verify_model_properties(model, Dlat, N, storage_type)
-#     return __verify_model_properties(model, Dlat, 1, N, storage_type)
-# end
