@@ -1,4 +1,5 @@
 using AbstractGPs
+using AugmentedGPLikelihoods
 using TemporalGPs
 using Distributions: Bernoulli
 using StatsFuns: logistic
@@ -22,36 +23,24 @@ x = RegularSpacing(0.0, 1e-1, T);
 # Generate some synthetic data from the GP and get a random binary output
 σ²_noise = 0.01;
 f_true = rand(f(x, σ²_noise));
-y = rand.(Bernoulli.(logistic.(f_true)));
-y_sign = sign.(y .- 0.5)
-
-# We are using the augmentation trick and look for the optimal
-# expected value of the variable ω
-
-η₁_like(ω, g, β) = g .+ β .* ω # The augmented likelihood first natural parameter
-Λ_like(ω, γ) = 2 * γ * ω # The augmented likelihood precision (diagonal)
-
-# These are the values corresponding to our problem
-γ = 0.5 
-g = 0.5 * y_sign
-β = 0
+lik = BernoulliLikelihood() # Likelihood with a logistic link
+y = rand(lik(f_true));
 
 function compute_optimal_expectation(f, x, g, β, γ; n_iter=5)
     T = length(x)
-    ω̄ = rand(T) # preallocation 
-    c = zeros(T) # preallocation 
+    qω = init_aux_posterior(lik, y)
     for i in 1:n_iter
-        Λ = Λ_like(ω̄, γ)
-        p_f = marginals(posterior(f(x, inv.(Λ)), inv.(Λ) .* η₁_like(ω̄, g, β))(x))
-        @. c = sqrt(var(p_f) + abs2(mean(p_f))) / 2
-        @. ω̄ = 0.5 * tanh(c) / c
+        Λ = expected_auglik_precision(lik, qω, y)
+        h = expected_auglik_potential(lik, qω, y)
+        qf = marginals(posterior(f(x, inv.(Λ)), h)(x))
+        aux_posterior!(qω, qf) # Update the posterior
     end
-    return ω̄
+    return qω
 end
 
-ω̄ = compute_optimal_expectation(f, x, g, β, γ)
-Λ = Λ_like(ω̄, γ)
-f_post = posterior(f(x, inv.(Λ)), inv.(Λ) .* η₁_like(ω̄, g, β))
+qω = compute_optimal_expectation(f, x, g, β, γ)
+h, Λ = expected_auglik_potential_and_precision(lik, qω, y) 
+f_post = posterior(f(x, inv.(Λ)), h)
 
 # Specify some locations at which to make predictions.
 T_pr = 1_200_000;

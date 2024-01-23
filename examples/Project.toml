@@ -1,5 +1,6 @@
 [deps]
 AbstractGPs = "99985d1d-32ba-4be9-9821-2ec096f28918"
+AugmentedGPLikelihoods = "4689c64d-1a23-4d3c-ad26-1c612d54a282"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 KernelFunctions = "ec8451be-7e33-11e9-00cf-bbf324bd1392"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
