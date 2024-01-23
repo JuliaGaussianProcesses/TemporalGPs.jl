@@ -28,55 +28,55 @@ Zygote.accum(a::Tuple, b::Tuple, c::Tuple) = map(Zygote.accum, a, b, c)
 #                                 StaticArrays                                 #
 # ---------------------------------------------------------------------------- #
 
-function rrule(::Type{T}, x::Tuple) where {T<:SArray}
-    SArray_rrule(Δ) = begin
-        (NoTangent(), Tangent{typeof(x)}(unthunk(Δ).data...))
-    end
-    return T(x), SArray_rrule
-end
+# function rrule(::Type{T}, x::Tuple) where {T<:SArray}
+#     SArray_rrule(Δ) = begin
+#         (NoTangent(), Tangent{typeof(x)}(unthunk(Δ).data...))
+#     end
+#     return T(x), SArray_rrule
+# end
 
-function rrule(::RuleConfig{>:HasReverseMode}, ::Type{SArray{S, T, N, L}}, x::NTuple{L, T}) where {S, T, N, L}
-    SArray_rrule(::AbstractZero) = NoTangent(), NoTangent()
-    SArray_rrule(Δ::NamedTuple{(:data,)}) = NoTangent(), Δ.data
-    SArray_rrule(Δ::StaticArray{S}) = NoTangent(), Δ.data
-    return SArray{S, T, N, L}(x), SArray_rrule
-end
+# function rrule(::RuleConfig{>:HasReverseMode}, ::Type{SArray{S, T, N, L}}, x::NTuple{L, T}) where {S, T, N, L}
+#     SArray_rrule(::AbstractZero) = NoTangent(), NoTangent()
+#     SArray_rrule(Δ::NamedTuple{(:data,)}) = NoTangent(), Δ.data
+#     SArray_rrule(Δ::StaticArray{S}) = NoTangent(), Δ.data
+#     return SArray{S, T, N, L}(x), SArray_rrule
+# end
 
-function rrule(
-    config::RuleConfig{>:HasReverseMode}, ::Type{X}, x::NTuple{L, Any},
-) where {S, T, N, L, X <: SArray{S, T, N, L}}
-    new_x, convert_pb = rrule_via_ad(config, StaticArrays.convert_ntuple, T, x)
-    _, pb = rrule_via_ad(config, SArray{S, T, N, L}, new_x)
-    SArray_rrule(::AbstractZero) = NoTangent(), NoTangent()
-    SArray_rrule(Δ::SArray{S}) = SArray_rrule(Tangent{X}(data=Δ.data))
-    SArray_rrule(Δ::SizedArray{S}) = SArray_rrule(Tangent{X}(data=Tuple(Δ.data)))
-    SArray_rrule(Δ::AbstractVector) = SArray_rrule(Tangent{X}(data=Tuple(Δ)))
-    SArray_rrule(Δ::Matrix) = SArray_rrule(Tangent{X}(data=Δ))
-    function SArray_rrule(Δ::Tangent{X,<:NamedTuple{(:data,)}}) where {X}
-        _, Δnew_x = pb(backing(Δ))
-        _, ΔT, Δx = convert_pb(Tuple(Δnew_x))
-        return ΔT, Δx
-    end
-    return SArray{S, T, N, L}(x), SArray_rrule
-end
+# function rrule(
+#     config::RuleConfig{>:HasReverseMode}, ::Type{X}, x::NTuple{L, Any},
+# ) where {S, T, N, L, X <: SArray{S, T, N, L}}
+#     new_x, convert_pb = rrule_via_ad(config, StaticArrays.convert_ntuple, T, x)
+#     _, pb = rrule_via_ad(config, SArray{S, T, N, L}, new_x)
+#     SArray_rrule(::AbstractZero) = NoTangent(), NoTangent()
+#     SArray_rrule(Δ::SArray{S}) = SArray_rrule(Tangent{X}(data=Δ.data))
+#     SArray_rrule(Δ::SizedArray{S}) = SArray_rrule(Tangent{X}(data=Tuple(Δ.data)))
+#     SArray_rrule(Δ::AbstractVector) = SArray_rrule(Tangent{X}(data=Tuple(Δ)))
+#     SArray_rrule(Δ::Matrix) = SArray_rrule(Tangent{X}(data=Δ))
+#     function SArray_rrule(Δ::Tangent{X,<:NamedTuple{(:data,)}}) where {X}
+#         _, Δnew_x = pb(backing(Δ))
+#         _, ΔT, Δx = convert_pb(Tuple(Δnew_x))
+#         return ΔT, Δx
+#     end
+#     return SArray{S, T, N, L}(x), SArray_rrule
+# end
 
-function rrule(::typeof(collect), x::X) where {S, T, N, L, X<:SArray{S, T, N, L}}
-    y = collect(x)
-    proj = ProjectTo(y)
-    collect_rrule(Δ) = NoTangent(),  proj(Δ)
-    return y, collect_rrule
-end
+# function rrule(::typeof(collect), x::X) where {S, T, N, L, X<:SArray{S, T, N, L}}
+#     y = collect(x)
+#     proj = ProjectTo(y)
+#     collect_rrule(Δ) = NoTangent(),  proj(Δ)
+#     return y, collect_rrule
+# end
 
-function rrule(::typeof(vcat), A::SVector{DA}, B::SVector{DB}) where {DA, DB}
-    function vcat_rrule(Δ)  # SVector
-        ΔA = Δ[SVector{DA}(1:DA)]
-        ΔB = Δ[SVector{DB}((DA+1):(DA+DB))]
-        return NoTangent(), ΔA, ΔB
-    end
-    return vcat(A, B), vcat_rrule
-end
+# function rrule(::typeof(vcat), A::SVector{DA}, B::SVector{DB}) where {DA, DB}
+#     function vcat_rrule(Δ)  # SVector
+#         ΔA = Δ[SVector{DA}(1:DA)]
+#         ΔB = Δ[SVector{DB}((DA+1):(DA+DB))]
+#         return NoTangent(), ΔA, ΔB
+#     end
+#     return vcat(A, B), vcat_rrule
+# end
 
-@non_differentiable vcat(x::Zeros, y::Zeros)
+# @non_differentiable vcat(x::Zeros, y::Zeros)
 
 # Implementation of the matrix exponential that assumes one doesn't require access to the
 # gradient w.r.t. `A`, only `t`. The former is a bit compute-intensive to get at, while the
