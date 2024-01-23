@@ -1,9 +1,6 @@
 using TemporalGPs: posterior_and_lml, predict, predict_marginals
 using Test
 
-include("../test_util.jl")
-include("../models/model_test_utils.jl")
-
 println("linear_gaussian_conditionals:")
 @testset "linear_gaussian_conditionals" begin
     Dlats = [1, 3]

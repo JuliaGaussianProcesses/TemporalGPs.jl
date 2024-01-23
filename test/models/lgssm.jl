@@ -25,9 +25,6 @@ using LinearAlgebra
 using StructArrays
 using Zygote, StaticArrays
 
-include("model_test_utils.jl")
-include("../test_util.jl")
-
 println("lgssm:")
 @testset "lgssm" begin
 
