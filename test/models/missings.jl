@@ -4,8 +4,6 @@ using TemporalGPs:
     replace_observation_noise_cov,
     transform_model_and_obs
 using Random: randperm
-using ChainRulesTestUtils
-using Zygote: Context
 
 @info "missings:"
 @testset "missings" begin
@@ -122,14 +120,6 @@ using Zygote: Context
 
             @test logpdf(new_posterior, new_y) ≈ logpdf(post, y_missing) rtol=1e-4
         end
-
-        # Only test the bits of AD that we haven't tested before.
-        @testset "AD: transform_model_and_obs" begin
-            fdm = central_fdm(2, 1)
-            adjoint_test(fill_in_missings, (model.emissions.Q, y_missing); fdm=fdm)
-            adjoint_test(replace_observation_noise_cov, (model, model.emissions.Q))
-            adjoint_test(transform_model_and_obs, (model, y_missing); fdm=fdm)
-        end
     end
 
     storages = (
@@ -179,7 +169,6 @@ using Zygote: Context
 
         # Check logpdf and inference run, infer, and play nicely with AD.
         @inferred logpdf(model, y_missing)
-        test_zygote_grad_finite_differences_compatible(y -> logpdf(model, y) ⊢ NoTangent(), y_missing)
         @inferred posterior(model, y_missing)
     end
 end;

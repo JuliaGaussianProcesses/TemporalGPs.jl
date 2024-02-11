@@ -1,6 +1,5 @@
 using KernelFunctions
 using KernelFunctions: kappa
-using ChainRulesTestUtils
 using TemporalGPs: build_lgssm, StorageType, is_of_storage_type, lgssm_components
 using Test
 
@@ -44,20 +43,6 @@ end
 
 println("lti_sde:")
 @testset "lti_sde" begin
-    @testset "block_diagonal" begin
-        A = randn(2, 2)
-        B = randn(3, 3)
-        C = randn(5, 5)
-        test_rrule(TemporalGPs.block_diagonal, A, B, C; check_inferred=false)
-        test_rrule(
-            TemporalGPs.block_diagonal,
-            SMatrix{2,2}(A),
-            SMatrix{3,3}(B),
-            SMatrix{5,5}(C);
-            check_inferred=false,
-        )
-    end
-
     @testset "SimpleKernel parameter types" begin
         storages = (
             (name="dense storage Float64", val=ArrayStorage(Float64)),
@@ -207,48 +192,6 @@ println("lti_sde:")
                 @test first(m_and_v) ≈ mean(fx)
                 @test last(m_and_v) ≈ var(fx)
                 @test logpdf(fx, y) ≈ logpdf(fx_naive, y)
-            end
-
-            @testset "check args to_vec properly" begin
-                k_vec, k_from_vec = to_vec(kernel.val)
-                @test typeof(k_from_vec(k_vec)) == typeof(kernel.val)
-
-                storage_vec, storage_from_vec = to_vec(storage.val)
-                @test typeof(storage_from_vec(storage_vec)) == typeof(storage.val)
-
-                σ²_vec, σ²_from_vec = to_vec(σ².val)
-                @test typeof(σ²_from_vec(σ²_vec)) == typeof(σ².val)
-
-                t_vec, t_from_vec = to_vec(t.val)
-                @test typeof(t_from_vec(t_vec)) == typeof(t.val)
-            end
-
-            # Just need to ensure we can differentiate through construction properly.
-            if isnothing(kernel.to_vec_grad)
-                @test_broken false # "Gradient tests are not passing"
-                continue
-            elseif kernel.to_vec_grad
-                test_zygote_grad_finite_differences_compatible(
-                    _construction_tester,
-                    f_naive,
-                    storage.val,
-                    σ².val,
-                    t.val;
-                    check_inferred=false,
-                    rtol=1e-6,
-                    atol=1e-6,
-                )
-            else
-                test_zygote_grad(
-                    _construction_tester,
-                    f_naive,
-                    storage.val,
-                    σ².val,
-                    t.val;
-                    check_inferred=false,
-                    rtol=1e-6,
-                    atol=1e-6,
-                )
             end
         end
     end

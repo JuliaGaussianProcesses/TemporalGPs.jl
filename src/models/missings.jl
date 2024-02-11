@@ -28,7 +28,7 @@ function transform_model_and_obs(
     model::LGSSM, y::AbstractVector{<:Union{Missing, T}},
 ) where {T<:Union{<:AbstractVector, <:Real}}
     Σs_filled_in, y_filled_in = fill_in_missings(
-        zygote_friendly_map(noise_cov, emissions(model)), y,
+        map(noise_cov, emissions(model)), y,
     )
     model_with_missings = replace_observation_noise_cov(model, Σs_filled_in)
     return model_with_missings, y_filled_in
@@ -55,8 +55,6 @@ function _logpdf_volume_compensation(y::AbstractVector{<:Union{Missing, <:Real}}
 end
 
 
-ChainRulesCore.@non_differentiable _logpdf_volume_compensation(y)
-
 function fill_in_missings(Σs::Vector, y::AbstractVector{Union{Missing, T}}) where {T}
     return _fill_in_missings(Σs, y)
 end
@@ -79,49 +77,17 @@ function _fill_in_missings(Σs::Vector, y::AbstractVector{Union{Missing, T}}) wh
 end
 
 function fill_in_missings(Σ::Diagonal, y::AbstractVector{<:Union{Missing, <:Real}})
-    Σ_diag_filled, y_filled = fill_in_missings(Zygote.literal_getfield(Σ, Val(:diag)), y)
+    Σ_diag_filled, y_filled = fill_in_missings(Σ.diag, y)
     return Diagonal(Σ_diag_filled), y_filled
 end
 
 # We need to densify anyway, might as well do it here and save having to implement the
 # rrule twice.
-function fill_in_missings(Σs::Fill, y::AbstractVector{Union{Missing, T}}) where {T}
+function fill_in_missings(Σs::AbstractArray, y::AbstractVector{Union{Missing, T}}) where {T}
     return fill_in_missings(collect(Σs), y)
 end
 
 fill_in_missings(Σ::Diagonal, y::AbstractVector{<:Real}) = (Σ, y)
-
-function ChainRulesCore.rrule(
-    ::typeof(_fill_in_missings),
-    Σs::Vector,
-    y::AbstractVector{Union{T, Missing}},
-) where {T}
-    function _fill_in_missings_rrule(Δ::Tangent)
-        ΔΣs, Δy_filled = Δ
-
-        # The cotangent of a `Missing` doesn't make sense, so should be a `NoTangent`.
-        Δy = if Δy_filled isa AbstractZero
-            ZeroTangent()
-        else
-            Δy = Vector{Union{eltype(Δy_filled), ZeroTangent}}(undef, length(y))
-            map!(
-                n -> y[n] === missing ? ZeroTangent() : Δy_filled[n],
-                Δy, eachindex(y),
-            )
-            Δy
-        end
-
-        # Fill in missing locations with zeros. Opting for type-stability to keep things
-        # simple.
-        ΔΣs = map(
-            n -> y[n] === missing ? zero(Σs[n]) : ΔΣs[n],
-            eachindex(y),
-        )
-
-        return NoTangent(), ΔΣs, Δy
-    end
-    return fill_in_missings(Σs, y), _fill_in_missings_rrule
-end
 
 get_zero(D::Int, ::Type{Vector{T}}) where {T} = zeros(T, D)
 
@@ -136,5 +102,3 @@ build_large_var(::T) where {T<:SMatrix} = T(_large_var_const() * I)
 build_large_var(S::T) where {T<:Diagonal} = T(fill(_large_var_const(), length(diag(S))))
 
 build_large_var(::T) where {T<:Real} = T(_large_var_const())
-
-ChainRulesCore.@non_differentiable build_large_var(::Any)

@@ -58,8 +58,6 @@ println("linear_gaussian_conditionals:")
 
             # Check that everything infers and AD gives the right answer.
             @inferred posterior_and_lml(x, model, y_missing)
-            # BROKEN: gradients with Zygote look fine but are failing because of ChainRulesTestUtils checks see https://github.com/JuliaDiff/ChainRulesTestUtils.jl/issues/270
-            # test_zygote_grad(posterior_and_lml, x, model, y_missing)
         end
     end
 
@@ -101,11 +99,6 @@ println("linear_gaussian_conditionals:")
                 # Check that they give roughly the same answer.
                 @test x_post_vanilla ≈ x_post_large
                 @test lml_vanilla ≈ lml_large rtol=1e-8 atol=1e-8
-
-                # Check that everything infers and AD gives the right answer.
-                @inferred posterior_and_lml(x, model, y_missing)
-                x̄ = adjoint_test(posterior_and_lml, (x, model, y_missing))
-                @test x̄[2].Q isa NamedTuple{(:diag, )}
             end
         end
 
@@ -201,11 +194,6 @@ println("linear_gaussian_conditionals:")
                 # Check that they give roughly the same answer.
                 @test x_post_vanilla ≈ x_post_large rtol=1e-8 atol=1e-8
                 @test lml_vanilla ≈ lml_large rtol=1e-8 atol=1e-8
-
-                # Check that everything infers and AD gives the right answer.
-                @inferred posterior_and_lml(x, model, y_missing)
-                x̄ = adjoint_test(posterior_and_lml, (x, model, y_missing))
-                @test x̄[2].fan_out.Q isa NamedTuple{(:diag, )}
             end
         end
     end

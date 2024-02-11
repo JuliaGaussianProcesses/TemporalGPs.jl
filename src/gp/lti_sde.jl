@@ -71,7 +71,7 @@ end
 function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)
     m = get_mean(f)
     k = get_kernel(f)
-    s = Zygote.literal_getfield(f, Val(:storage))
+    s = f.storage
     As, as, Qs, emission_proj, x0 = lgssm_components(m, k, x, s)
     return LGSSM(
         GaussMarkovModel(Forward(), As, as, Qs, x0), build_emissions(emission_proj, Σys),
@@ -79,22 +79,22 @@ function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)
 end
 
 function build_lgssm(ft::FiniteLTISDE)
-    f = Zygote.literal_getfield(ft, Val(:f))
-    x = Zygote.literal_getfield(ft, Val(:x))
-    Σys = noise_var_to_time_form(x, Zygote.literal_getfield(ft, Val(:Σy)))
+    f = ft.f
+    x = ft.x
+    Σys = noise_var_to_time_form(x, ft.Σy)
     return build_lgssm(f, x, Σys)
 end
 
-get_mean(f::LTISDE) = get_mean(Zygote.literal_getfield(f, Val(:f)))
-get_mean(f::GP) = Zygote.literal_getfield(f, Val(:mean))
+get_mean(f::LTISDE) = get_mean(f.f)
+get_mean(f::GP) = f.mean
 
-get_kernel(f::LTISDE) = get_kernel(Zygote.literal_getfield(f, Val(:f)))
-get_kernel(f::GP) = Zygote.literal_getfield(f, Val(:kernel))
+get_kernel(f::LTISDE) = get_kernel(f.f)
+get_kernel(f::GP) = f.kernel
 
 function build_emissions(
     (Hs, hs)::Tuple{AbstractVector, AbstractVector}, Σs::AbstractVector,
 )
-    Hst = _map(adjoint, Hs)
+    Hst = map(adjoint, Hs)
     return StructArray{get_type(Hst, hs, Σs)}((Hst, hs, Σs))
 end
 
@@ -114,10 +114,6 @@ function get_type(Hs_prime, hs::AbstractVector{<:AbstractVector}, Σs)
     return T
 end
 
-@inline function Zygote.wrap_chainrules_output(x::NamedTuple)
-    return map(Zygote.wrap_chainrules_output, x)
-end
-
 # Constructor for combining kernel and mean functions
 function lgssm_components(
     ::ZeroMean, k::Kernel, t::AbstractVector, storage_type::StorageType
@@ -128,7 +124,7 @@ end
 function lgssm_components(
     m::AbstractGPs.MeanFunction, k::Kernel, t::AbstractVector, storage_type::StorageType
 )
-    m = collect(mean_vector(m, t)) # `collect` is needed as there are still issues with Zygote and FillArrays.
+    m = mean_vector(m, t)
     As, as, Qs, (Hs, hs), x0 = lgssm_components(k, t, storage_type)
     hs = add_proj_mean(hs, m)
 
@@ -146,9 +142,9 @@ end
 function broadcast_components((F, q, H)::Tuple, x0::Gaussian, t::AbstractVector{<:Real}, ::StorageType{T}) where {T}
     P = Symmetric(x0.P)
     t = vcat([first(t) - 1], t)
-    As = _map(Δt -> time_exp(F, T(Δt)), diff(t))
+    As = map(Δt -> time_exp(F, T(Δt)), diff(t))
     as = Fill(Zeros{T}(size(first(As), 1)), length(As))
-    Qs = _map(A -> P - A * P * A', As)
+    Qs = map(A -> P - A * P * A', As)
     Hs = Fill(H, length(As))
     hs = Fill(zero(T), length(As))
     As, as, Qs, Hs, hs
@@ -158,13 +154,15 @@ function broadcast_components((F, q, H)::Tuple, x0::Gaussian, t::Union{StepRange
     P = Symmetric(x0.P)
     A = time_exp(F, T(step(t)))
     As = Fill(A, length(t))
-    as = @ignore_derivatives(Fill(Zeros{T}(size(F, 1)), length(t)))
+    as = Fill(Zeros{T}(size(F, 1)), length(t))
     Q = Symmetric(P) - A * Symmetric(P) * A'
     Qs = Fill(Q, length(t))
     Hs = Fill(H, length(t))
     hs = Fill(zero(T), length(As))
     As, as, Qs, Hs, hs
 end
+
+time_exp(A, t) = exp(A * t)
 
 function lgssm_components(
     k::SimpleKernel, t::AbstractVector{<:Real}, storage::StorageType{T},
@@ -332,49 +330,49 @@ end
 # Scaled
 
 function to_sde(k::ScaledKernel, storage::StorageType{T}) where {T<:Real}
-    _k = Zygote.literal_getfield(k, Val(:kernel))
-    σ² = Zygote.literal_getfield(k, Val(:σ²))
+    _k = k.kernel
+    σ² = k.σ²
     F, q, H = to_sde(_k, storage)
     σ = sqrt(convert(eltype(storage), only(σ²)))
     return F, σ^2 * q, σ * H
 end
 
-stationary_distribution(k::ScaledKernel, storage::StorageType) = stationary_distribution(Zygote.literal_getfield(k, Val(:kernel)), storage)
+stationary_distribution(k::ScaledKernel, storage::StorageType) = stationary_distribution(k.kernel, storage)
 
 function lgssm_components(k::ScaledKernel, ts::AbstractVector, storage_type::StorageType)
-    _k = Zygote.literal_getfield(k, Val(:kernel))
-    σ² = Zygote.literal_getfield(k, Val(:σ²))
+    _k = k.kernel
+    σ² = k.σ²
     As, as, Qs, emission_proj, x0 = lgssm_components(_k, ts, storage_type)
     σ = sqrt(convert(eltype(storage_type), only(σ²)))
     return As, as, Qs, _scale_emission_projections(emission_proj, σ), x0
 end
 
 function _scale_emission_projections((Hs, hs)::Tuple{AbstractVector, AbstractVector}, σ::Real)
-    return _map(H->σ * H, Hs), _map(h->σ * h, hs)
+    return map(H->σ * H, Hs), map(h->σ * h, hs)
 end
 
 function _scale_emission_projections((Cs, cs, Hs, hs), σ)
-    return (Cs, cs, _map(H -> σ * H, Hs), _map(h -> σ * h, hs))
+    return (Cs, cs, map(H -> σ * H, Hs), map(h -> σ * h, hs))
 end
 
 # Stretched
 
 function to_sde(k::TransformedKernel{<:Kernel, <:ScaleTransform}, storage::StorageType)
-    _k = Zygote.literal_getfield(k, Val(:kernel))
-    s = Zygote.literal_getfield(Zygote.literal_getfield(k, Val(:transform)), Val(:s))
+    _k = k.kernel
+    s = k.transform.s
     F, q, H = to_sde(_k, storage)
     return F * only(s), q, H
 end
 
-stationary_distribution(k::TransformedKernel{<:Kernel, <:ScaleTransform}, storage::StorageType) = stationary_distribution(Zygote.literal_getfield(k, Val(:kernel)), storage)
+stationary_distribution(k::TransformedKernel{<:Kernel, <:ScaleTransform}, storage::StorageType) = stationary_distribution(k.kernel, storage)
 
 function lgssm_components(
     k::TransformedKernel{<:Kernel, <:ScaleTransform},
     ts::AbstractVector,
     storage_type::StorageType,
 )
-    _k = Zygote.literal_getfield(k, Val(:kernel))
-    s = Zygote.literal_getfield(Zygote.literal_getfield(k, Val(:transform)), Val(:s))
+    _k = k.kernel
+    s = k.transform.s
     return lgssm_components(_k, apply_stretch(s[1], ts), storage_type)
 end
 
@@ -383,9 +381,9 @@ apply_stretch(a, ts::AbstractVector{<:Real}) = a * ts
 apply_stretch(a, ts::StepRangeLen) = a * ts
 
 function apply_stretch(a, ts::RegularSpacing)
-    t0 = Zygote.literal_getfield(ts, Val(:t0))
-    Δt = Zygote.literal_getfield(ts, Val(:Δt))
-    N = Zygote.literal_getfield(ts, Val(:N))
+    t0 = ts.t0
+    Δt = ts.Δt
+    N = ts.N
     return RegularSpacing(a * t0, a * Δt, N)
 end
 
@@ -425,9 +423,9 @@ function lgssm_components(k::KernelSum, ts::AbstractVector, storage_type::Storag
     emission_proj_kernels = getindex.(lgssms, 4)
     x0_kernels = getindex.(lgssms, 5)
     
-    As = _map(block_diagonal, As_kernels...)
-    as = _map(vcat, as_kernels...)
-    Qs = _map(block_diagonal, Qs_kernels...)
+    As = map(block_diagonal, As_kernels...)
+    as = map(vcat, as_kernels...)
+    Qs = map(block_diagonal, Qs_kernels...)
     emission_projections = _sum_emission_projections(emission_proj_kernels...)
     x0 = Gaussian(mapreduce(x -> getproperty(x, :m), vcat, x0_kernels), block_diagonal(getproperty.(x0_kernels, :P)...))
     return As, as, Qs, emission_projections, x0
@@ -444,10 +442,10 @@ function _sum_emission_projections(
     cs = getindex.(Cs_cs_Hs_hs, 2)
     Hs = getindex.(Cs_cs_Hs_hs, 3)
     hs = getindex.(Cs_cs_Hs_hs, 4)
-    C = _map(vcat, Cs...)
+    C = map(vcat, Cs...)
     c = sum(cs)
-    H = _map(block_diagonal, Hs...)
-    h = _map(vcat, hs...)
+    H = map(block_diagonal, Hs...)
+    h = map(vcat, hs...)
     return C, c, H, h
 end
 
@@ -460,36 +458,9 @@ function block_diagonal(As::AbstractMatrix{T}...) where {T}
     return hvcat(ntuple(_ -> nblocks, nblocks), Xs...)
 end
 
-function ChainRulesCore.rrule(::typeof(block_diagonal), As::AbstractMatrix...)
-    szs = size.(As)
-    row_szs = (0, cumsum(first.(szs))...)
-    col_szs = (0, cumsum(last.(szs))...)
-    block_diagonal_rrule(Δ::AbstractThunk) = block_diagonal_rrule(unthunk(Δ))
-    function block_diagonal_rrule(Δ)
-        ΔAs = ntuple(length(As)) do i
-            Δ[(row_szs[i]+1):row_szs[i+1], (col_szs[i]+1):col_szs[i+1]]
-        end
-        return NoTangent(), ΔAs...
-    end
-    return block_diagonal(As...), block_diagonal_rrule
-end
-
 function block_diagonal(As::SMatrix...)
     nblocks = length(As)
     sizes = size.(As)
     Xs = [i == j ? As[i] : zeros(SMatrix{sizes[j][1], sizes[i][2]}) for i in 1:nblocks, j in 1:nblocks]
     return hcat(Base.splat(vcat).(eachrow(Xs))...)
-end
-
-function ChainRulesCore.rrule(::typeof(block_diagonal), As::SMatrix...)
-    szs = size.(As)
-    row_szs = (0, cumsum(first.(szs))...)
-    col_szs = (0, cumsum(last.(szs))...)
-    function block_diagonal_rrule(Δ)
-        ΔAs = ntuple(length(As)) do i
-            Δ[SVector{szs[i][1]}((row_szs[i]+1):row_szs[i+1]), SVector{szs[i][2]}((col_szs[i]+1):col_szs[i+1])]
-        end
-        return NoTangent(), ΔAs...
-    end
-    return block_diagonal(As...), block_diagonal_rrule
 end

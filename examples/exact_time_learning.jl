@@ -1,5 +1,5 @@
 # This is an extended version of exact_time_inference.jl. It combines it with
-# Optim + ParameterHandling + Zygote to learn the kernel parameters.
+# Optim + ParameterHandling + Enzyme to learn the kernel parameters.
 # Each of these other packages know nothing about TemporalGPs, they're just general-purpose
 # packages which play nicely with TemporalGPs (and AbstractGPs).
 
@@ -12,7 +12,7 @@ using TemporalGPs: RegularSpacing
 # Load standard packages from the Julia ecosystem
 using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
-using Zygote # Algorithmic Differentiation
+using Enzyme # Algorithmic Differentiation
 
 # Declare model parameters using `ParameterHandling.jl` types.
 # var_kernel is the variance of the kernel, λ the inverse length scale, and var_noise the
@@ -42,15 +42,33 @@ y = rand(f(x, params.var_noise));
 
 # Specify an objective function for Optim to minimise in terms of x and y.
 # We choose the usual negative log marginal likelihood (NLML).
-function objective(params)
+function objective(x, y, params)
     f = build_gp(params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
-# Optimise using Optim. Zygote takes a little while to compile.
+# In order to compute the gradient with Enzyme, we define the following function:
+function enzyme_gradient(x, y, θ, unpack)
+    # Define shadows
+    # It is unclear why the x, y, shadows are needed here
+    # Making these variables `Const` leads to an error
+    dθ = make_zero(θ)
+    dx = make_zero(x)
+    dy = make_zero(y)
+    autodiff(
+        Reverse,
+        (x, y, par, unpack) -> objective(x, y, unpack(par)),
+        Duplicated(x, dx), Duplicated(y, dy),
+        Duplicated(θ, dθ),
+        Const(unpack)
+    )
+    return dθ
+end
+
+# Optimise using Optim.
 training_results = Optim.optimize(
-    objective ∘ unpack,
-    θ -> only(Zygote.gradient(objective ∘ unpack, θ)),
+    θ -> objective(x, y, unpack(θ)),
+    θ -> enzyme_gradient(x, y, θ, unpack),
     flat_initial_params .+ randn.(), # Perturb the parameters to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),

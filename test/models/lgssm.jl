@@ -16,14 +16,12 @@ using TemporalGPs:
     ScalarOutputLGC,
     Forward,
     Reverse,
-    ordering,
-    NoContext
+    ordering
 using KernelFunctions
 using Test
 using Random: MersenneTwister
 using LinearAlgebra
 using StructArrays
-using Zygote, StaticArrays
 
 println("lgssm:")
 @testset "lgssm" begin
@@ -91,7 +89,6 @@ println("lgssm:")
 
         @testset "step_marginals" begin
             @inferred step_marginals(x, model[1])
-            adjoint_test(step_marginals, (x, model[1]))
             if storage.val isa SArrayStorage && TEST_ALLOC
                 check_adjoint_allocations(step_marginals, (x, model[1]))
             end
@@ -99,7 +96,6 @@ println("lgssm:")
         @testset "step_logpdf" begin
             args = (ordering(model[1]), x, (model[1], y))
             @inferred step_logpdf(args...)
-            adjoint_test(step_logpdf, args)
             if storage.val isa SArrayStorage && TEST_ALLOC
                 check_adjoint_allocations(step_logpdf, args)
             end
@@ -107,7 +103,6 @@ println("lgssm:")
         @testset "step_filter" begin
             args = (ordering(model[1]), x, (model[1], y))
             @inferred step_filter(args...)
-            adjoint_test(step_filter, args)
             if storage.val isa SArrayStorage && TEST_ALLOC
                 check_adjoint_allocations(step_filter, args)
             end
@@ -115,7 +110,6 @@ println("lgssm:")
         @testset "invert_dynamics" begin
             args = (x, x, model[1].transition)
             @inferred invert_dynamics(args...)
-            adjoint_test(invert_dynamics, args)
             if storage.val isa SArrayStorage && TEST_ALLOC
                 check_adjoint_allocations(invert_dynamics, args)
             end
@@ -123,7 +117,6 @@ println("lgssm:")
         @testset "step_posterior" begin
             args = (ordering(model[1]), x, (model[1], y))
             @inferred step_posterior(args...)
-            adjoint_test(step_posterior, args)
             if storage.val isa SArrayStorage && TEST_ALLOC
                 check_adjoint_allocations(step_posterior, args)
             end
@@ -134,7 +127,6 @@ println("lgssm:")
             rng, model;
             rtol=1e-5,
             atol=1e-5,
-            context=NoContext(),
             max_primal_allocs=25,
             max_forward_allocs=25,
             max_backward_allocs=25,

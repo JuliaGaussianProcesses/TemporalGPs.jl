@@ -22,10 +22,7 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
 
     using AbstractGPs
     using BlockDiagonals
-    using ChainRulesCore
-    using ChainRulesTestUtils
     using FillArrays
-    using FiniteDifferences
     using LinearAlgebra
     using KernelFunctions
     using Random
@@ -33,11 +30,8 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
     using StructArrays
     using TemporalGPs
 
-    using Zygote
-
     using AbstractGPs: var
-    using TemporalGPs: AbstractLGSSM, _filter, NoContext
-    using Zygote: Context, _pullback
+    using TemporalGPs: AbstractLGSSM, _filter
 
     include("test_util.jl")
 
@@ -48,10 +42,7 @@ if OUTER_GROUP == "test" || OUTER_GROUP == "all"
         if TEST_GROUP == "util" || GROUP == "all"
             println("util:")
             @testset "util" begin
-                include(joinpath("util", "harmonise.jl"))
                 include(joinpath("util", "scan.jl"))
-                include(joinpath("util", "zygote_friendly_map.jl"))
-                include(joinpath("util", "chainrules.jl"))
                 include(joinpath("util", "gaussian.jl"))
                 include(joinpath("util", "mul.jl"))
                 include(joinpath("util", "regular_data.jl"))
