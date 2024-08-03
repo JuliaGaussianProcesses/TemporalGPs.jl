@@ -25,19 +25,12 @@ function AbstractGPs.marginals(fx::FinitePosteriorLTISDE)
         model_post = replace_observation_noise_cov(posterior(model, ys), σ²s_pr_full)
         return destructure(x, map(marginals, marginals(model_post))[pr_indices])
     else
-        f = Zygote.literal_getfield(fx, Val(:f))
-        prior = Zygote.literal_getfield(f, Val(:prior))
-        x = Zygote.literal_getfield(fx, Val(:x))
-        data = Zygote.literal_getfield(f, Val(:data))
-        Σy = Zygote.literal_getfield(data, Val(:Σy))
-        Σy_diag = Zygote.literal_getfield(Σy, Val(:diag))
-        y = Zygote.literal_getfield(data, Val(:y))
-
-        Σy_new = Zygote.literal_getfield(fx, Val(:Σy))
-
-        model = build_lgssm(AbstractGPs.FiniteGP(prior, x, Σy))
-        Σys_new = noise_var_to_time_form(x, Σy_new)
-        ys = observations_to_time_form(x, y)
+        f = fx.f
+        x = fx.x
+        data = f.data
+        model = build_lgssm(AbstractGPs.FiniteGP(f.prior, x, data.Σy))
+        Σys_new = noise_var_to_time_form(x, fx.Σy)
+        ys = observations_to_time_form(x, data.y)
         model_post = replace_observation_noise_cov(posterior(model, ys), Σys_new)
         return destructure(x, map(marginals, marginals(model_post)))
     end

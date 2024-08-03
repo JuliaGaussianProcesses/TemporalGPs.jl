@@ -15,9 +15,9 @@ struct RectilinearGrid{
     xr::Txr
 end
 
-get_space(x::RectilinearGrid) = Zygote.literal_getfield(x, Val(:xl))
+get_space(x::RectilinearGrid) = x.xl
 
-get_times(x::RectilinearGrid) = Zygote.literal_getfield(x, Val(:xr))
+get_times(x::RectilinearGrid) = x.xr
 
 Base.size(X::RectilinearGrid) = (length(X.xl) * length(X.xr),)
 

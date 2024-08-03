@@ -11,13 +11,9 @@ struct LGSSM{Ttransitions<:GaussMarkovModel, Temissions<:StructArray} <: Abstrac
     emissions::Temissions
 end
 
-@inline function transitions(model::LGSSM)
-    return Zygote.literal_getfield(model, Val(:transitions))
-end
+@inline transitions(model::LGSSM) = model.transitions
 
-@inline function emissions(model::LGSSM)
-    return Zygote.literal_getfield(model, Val(:emissions))
-end
+@inline emissions(model::LGSSM) = model.emissions
 
 @inline ordering(model::LGSSM) = ordering(transitions(model))
 ChainRulesCore.@non_differentiable ordering(model)
@@ -58,17 +54,11 @@ struct ElementOfLGSSM{Tordering, Ttransition, Temission}
     emission::Temission
 end
 
-@inline function ordering(x::ElementOfLGSSM)
-    return Zygote.literal_getfield(x, Val(:ordering))
-end
+@inline ordering(x::ElementOfLGSSM) = x.ordering
 
-@inline function transition_dynamics(x::ElementOfLGSSM)
-    return Zygote.literal_getfield(x, Val(:transition))
-end
+@inline transition_dynamics(x::ElementOfLGSSM) = x.transition
 
-@inline function emission_dynamics(x::ElementOfLGSSM)
-    return Zygote.literal_getfield(x, Val(:emission))
-end
+@inline emission_dynamics(x::ElementOfLGSSM) = x.emission
 
 @inline function Base.getindex(model::LGSSM, n::Int)
     return ElementOfLGSSM(ordering(model), model.transitions[n], model.emissions[n])
@@ -206,11 +196,10 @@ end
 function posterior(prior::LGSSM, y::AbstractVector)
     _check_inputs(prior, y)
     new_trans, xf = _a_bit_of_posterior(prior, y)
-    A = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:A)), new_trans)
-    a = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:a)), new_trans)
-    Q = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:Q)), new_trans)
-    ems = Zygote.literal_getfield(prior, Val(:emissions))
-    return LGSSM(GaussMarkovModel(reverse(ordering(prior)), A, a, Q, xf), ems)
+    A = zygote_friendly_map(x -> x.A, new_trans)
+    a = zygote_friendly_map(x -> x.a, new_trans)
+    Q = zygote_friendly_map(x -> x.Q, new_trans)
+    return LGSSM(GaussMarkovModel(reverse(ordering(prior)), A, a, Q, xf), prior.emissions)
 end
 
 function _check_inputs(prior, y)

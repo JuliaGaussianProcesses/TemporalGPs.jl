@@ -12,9 +12,9 @@ struct RegularInTime{
     vs::Tvs
 end
 
-get_space(x::RegularInTime) = Zygote.literal_getfield(x, Val(:vs))
+get_space(x::RegularInTime) = x.vs
 
-get_times(x::RegularInTime) = Zygote.literal_getfield(x, Val(:ts))
+get_times(x::RegularInTime) = x.ts
 
 Base.size(x::RegularInTime) = (sum(length, x.vs), )
 

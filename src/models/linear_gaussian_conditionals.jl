@@ -126,14 +126,9 @@ dim_out(f::SmallOutputLGC) = size(f.A, 1)
 
 dim_in(f::SmallOutputLGC) = size(f.A, 2)
 
-noise_cov(f::SmallOutputLGC) = Zygote.literal_getfield(f, Val(:Q))
+noise_cov(f::SmallOutputLGC) = f.Q
 
-function get_fields(f::SmallOutputLGC)
-    A = Zygote.literal_getfield(f, Val(:A))
-    a = Zygote.literal_getfield(f, Val(:a))
-    Q = Zygote.literal_getfield(f, Val(:Q))
-    return A, a, Q
-end
+get_fields(f::SmallOutputLGC) = (f.A, f.a, f.Q)
 
 function posterior_and_lml(x::Gaussian, f::SmallOutputLGC, y::AbstractVector{<:Real})
     m, P = get_fields(x)
@@ -191,14 +186,9 @@ dim_out(f::LargeOutputLGC) = size(f.A, 1)
 
 dim_in(f::LargeOutputLGC) = size(f.A, 2)
 
-noise_cov(f::LargeOutputLGC) = Zygote.literal_getfield(f, Val(:Q))
+noise_cov(f::LargeOutputLGC) = f.Q
 
-function get_fields(f::LargeOutputLGC)
-    A = Zygote.literal_getfield(f, Val(:A))
-    a = Zygote.literal_getfield(f, Val(:a))
-    Q = Zygote.literal_getfield(f, Val(:Q))
-    return A, a, Q
-end
+get_fields(f::LargeOutputLGC) = (f.A, f.a, f.Q)
 
 function posterior_and_lml(x::Gaussian, f::LargeOutputLGC, y::AbstractVector{<:Real})
     m, _P = get_fields(x)
@@ -258,18 +248,12 @@ dim_out(f::ScalarOutputLGC) = 1
 
 dim_in(f::ScalarOutputLGC) = size(f.A, 2)
 
-function get_fields(f::ScalarOutputLGC)
-    A = Zygote.literal_getfield(f, Val(:A))
-    a = Zygote.literal_getfield(f, Val(:a))
-    Q = Zygote.literal_getfield(f, Val(:Q))
-    return A, a, Q
-end
+get_fields(f::ScalarOutputLGC) = (f.A, f.a, f.Q)
 
-noise_cov(f::ScalarOutputLGC) = Zygote.literal_getfield(f, Val(:Q))
+noise_cov(f::ScalarOutputLGC) = f.Q
 
 function conditional_rand(ε::Real, f::ScalarOutputLGC, x::AbstractVector)
-    A, a, Q = get_fields(f)
-    return (A * x + a) + sqrt(Q) * ε
+    return (f.A * x + f.a) + sqrt(f.Q) * ε
 end
 
 ε_randn(rng::AbstractRNG, f::ScalarOutputLGC) = randn(rng, eltype(f))
@@ -323,16 +307,9 @@ dim_out(f::BottleneckLGC) = dim_out(f.fan_out)
 
 dim_in(f::BottleneckLGC) = size(f.H, 2)
 
-noise_cov(f::BottleneckLGC) = noise_cov(Zygote.literal_getfield(f, Val(:fan_out)))
+noise_cov(f::BottleneckLGC) = noise_cov(f.fan_out)
 
-function get_fields(f::BottleneckLGC)
-    H = Zygote.literal_getfield(f, Val(:H))
-    h = Zygote.literal_getfield(f, Val(:h))
-    fan_out = Zygote.literal_getfield(f, Val(:fan_out))
-    return H, h, fan_out
-end
-
-fan_out(f::BottleneckLGC) = Zygote.literal_getfield(f, Val(:fan_out))
+get_fields(f::BottleneckLGC) = (f.H, f.h, f.fan_out)
 
 function conditional_rand(ε::AbstractVector{<:Real}, f::BottleneckLGC, x::AbstractVector)
     H, h, fan_out = get_fields(f)
@@ -348,12 +325,10 @@ function _project(x::Gaussian, f::BottleneckLGC)
     return Gaussian(H * m + h, H * P * H' + ident_eps(x))
 end
 
-function predict(x::Gaussian, f::BottleneckLGC)
-    return predict(_project(x, f), fan_out(f))
-end
+predict(x::Gaussian, f::BottleneckLGC) = predict(_project(x, f), f.fan_out)
 
 function predict_marginals(x::Gaussian, f::BottleneckLGC)
-    return predict_marginals(_project(x, f), fan_out(f))
+    return predict_marginals(_project(x, f), f.fan_out)
 end
 
 function posterior_and_lml(x::Gaussian, f::BottleneckLGC, y::AbstractVector)

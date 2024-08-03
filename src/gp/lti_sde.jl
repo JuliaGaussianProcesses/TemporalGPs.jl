@@ -71,25 +71,19 @@ end
 function build_lgssm(f::LTISDE, x::AbstractVector, Σys::AbstractVector)
     m = get_mean(f)
     k = get_kernel(f)
-    s = Zygote.literal_getfield(f, Val(:storage))
-    As, as, Qs, emission_proj, x0 = lgssm_components(m, k, x, s)
+    As, as, Qs, emission_proj, x0 = lgssm_components(m, k, x, f.storage)
     return LGSSM(
         GaussMarkovModel(Forward(), As, as, Qs, x0), build_emissions(emission_proj, Σys),
     )
 end
 
-function build_lgssm(ft::FiniteLTISDE)
-    f = Zygote.literal_getfield(ft, Val(:f))
-    x = Zygote.literal_getfield(ft, Val(:x))
-    Σys = noise_var_to_time_form(x, Zygote.literal_getfield(ft, Val(:Σy)))
-    return build_lgssm(f, x, Σys)
-end
+build_lgssm(ft::FiniteLTISDE) = build_lgssm(ft.f, ft.x, noise_var_to_time_form(ft.x, ft.Σy))
 
-get_mean(f::LTISDE) = get_mean(Zygote.literal_getfield(f, Val(:f)))
-get_mean(f::GP) = Zygote.literal_getfield(f, Val(:mean))
+get_mean(f::LTISDE) = get_mean(f.f)
+get_mean(f::GP) = f.mean
 
-get_kernel(f::LTISDE) = get_kernel(Zygote.literal_getfield(f, Val(:f)))
-get_kernel(f::GP) = Zygote.literal_getfield(f, Val(:kernel))
+get_kernel(f::LTISDE) = get_kernel(f.f)
+get_kernel(f::GP) = f.kernel
 
 function build_emissions(
     (Hs, hs)::Tuple{AbstractVector, AbstractVector}, Σs::AbstractVector,
@@ -332,20 +326,18 @@ end
 # Scaled
 
 function to_sde(k::ScaledKernel, storage::StorageType{T}) where {T<:Real}
-    _k = Zygote.literal_getfield(k, Val(:kernel))
-    σ² = Zygote.literal_getfield(k, Val(:σ²))
-    F, q, H = to_sde(_k, storage)
-    σ = sqrt(convert(eltype(storage), only(σ²)))
+    F, q, H = to_sde(k.kernel, storage)
+    σ = sqrt(convert(eltype(storage), only(k.σ²)))
     return F, σ^2 * q, σ * H
 end
 
-stationary_distribution(k::ScaledKernel, storage::StorageType) = stationary_distribution(Zygote.literal_getfield(k, Val(:kernel)), storage)
+function stationary_distribution(k::ScaledKernel, storage::StorageType)
+    return stationary_distribution(k.kernel, storage)
+end
 
 function lgssm_components(k::ScaledKernel, ts::AbstractVector, storage_type::StorageType)
-    _k = Zygote.literal_getfield(k, Val(:kernel))
-    σ² = Zygote.literal_getfield(k, Val(:σ²))
-    As, as, Qs, emission_proj, x0 = lgssm_components(_k, ts, storage_type)
-    σ = sqrt(convert(eltype(storage_type), only(σ²)))
+    As, as, Qs, emission_proj, x0 = lgssm_components(k.kernel, ts, storage_type)
+    σ = sqrt(convert(eltype(storage_type), only(k.σ²)))
     return As, as, Qs, _scale_emission_projections(emission_proj, σ), x0
 end
 
@@ -360,34 +352,29 @@ end
 # Stretched
 
 function to_sde(k::TransformedKernel{<:Kernel, <:ScaleTransform}, storage::StorageType)
-    _k = Zygote.literal_getfield(k, Val(:kernel))
-    s = Zygote.literal_getfield(Zygote.literal_getfield(k, Val(:transform)), Val(:s))
-    F, q, H = to_sde(_k, storage)
-    return F * only(s), q, H
+    F, q, H = to_sde(k.kernel, storage)
+    return F * only(k.transform.s), q, H
 end
 
-stationary_distribution(k::TransformedKernel{<:Kernel, <:ScaleTransform}, storage::StorageType) = stationary_distribution(Zygote.literal_getfield(k, Val(:kernel)), storage)
+function stationary_distribution(
+    k::TransformedKernel{<:Kernel, <:ScaleTransform}, storage::StorageType
+)
+    return stationary_distribution(k.kernel, storage)
+end
 
 function lgssm_components(
     k::TransformedKernel{<:Kernel, <:ScaleTransform},
     ts::AbstractVector,
     storage_type::StorageType,
 )
-    _k = Zygote.literal_getfield(k, Val(:kernel))
-    s = Zygote.literal_getfield(Zygote.literal_getfield(k, Val(:transform)), Val(:s))
-    return lgssm_components(_k, apply_stretch(s[1], ts), storage_type)
+    return lgssm_components(k.kernel, apply_stretch(k.transform.s[1], ts), storage_type)
 end
 
 apply_stretch(a, ts::AbstractVector{<:Real}) = a * ts
 
 apply_stretch(a, ts::StepRangeLen) = a * ts
 
-function apply_stretch(a, ts::RegularSpacing)
-    t0 = Zygote.literal_getfield(ts, Val(:t0))
-    Δt = Zygote.literal_getfield(ts, Val(:Δt))
-    N = Zygote.literal_getfield(ts, Val(:N))
-    return RegularSpacing(a * t0, a * Δt, N)
-end
+apply_stretch(a, ts::RegularSpacing) = RegularSpacing(a * ts.t0, a * ts.Δt, ts.N)
 
 # Product
 

@@ -7,7 +7,7 @@ ENV["TESTING"] = "TRUE"
 # Select any of this to test a particular aspect.
 # To test everything, simply set GROUP to "all"
 # ENV["GROUP"] = "test gp"
-const GROUP = get(ENV, "GROUP", "test")
+const GROUP = get(ENV, "GROUP", "all")
 OUTER_GROUP = first(split(GROUP, ' '))
 
 const TEST_TYPE_INFER = false # Test type stability over the tests

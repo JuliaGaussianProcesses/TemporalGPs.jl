@@ -20,9 +20,9 @@ end
 
 dim(x::Gaussian) = length(x.m)
 
-AbstractGPs.mean(x::Gaussian) = Zygote.literal_getfield(x, Val(:m))
+AbstractGPs.mean(x::Gaussian) = x.m
 
-AbstractGPs.cov(x::Gaussian) = Zygote.literal_getfield(x, Val(:P))
+AbstractGPs.cov(x::Gaussian) = x.P
 
 AbstractGPs.var(x::Gaussian{<:AbstractVector}) = diag(cov(x))
 

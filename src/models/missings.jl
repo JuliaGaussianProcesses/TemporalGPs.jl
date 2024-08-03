@@ -79,7 +79,7 @@ function _fill_in_missings(Σs::Vector, y::AbstractVector{Union{Missing, T}}) wh
 end
 
 function fill_in_missings(Σ::Diagonal, y::AbstractVector{<:Union{Missing, <:Real}})
-    Σ_diag_filled, y_filled = fill_in_missings(Zygote.literal_getfield(Σ, Val(:diag)), y)
+    Σ_diag_filled, y_filled = fill_in_missings(Σ.diag, y)
     return Diagonal(Σ_diag_filled), y_filled
 end
 
