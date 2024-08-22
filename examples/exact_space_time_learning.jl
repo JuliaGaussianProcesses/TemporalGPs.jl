@@ -13,7 +13,7 @@ using TemporalGPs: Separable, RectilinearGrid
 # Load standard packages from the Julia ecosystem
 using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
-using Zygote # Algorithmic Differentiation
+using Tapir # Algorithmic Differentiation
 
 # Declare model parameters using `ParameterHandling.jl` types.
 flat_initial_params, unflatten = ParameterHandling.flatten((
@@ -47,15 +47,29 @@ y = rand(build_gp(params)(x, 1e-4));
 
 # Specify an objective function for Optim to minimise in terms of x and y.
 # We choose the usual negative log marginal likelihood (NLML).
-function objective(params)
+function objective(flat_params)
+    params = unpack(flat_params)
     f = build_gp(params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
-# Optimise using Optim. Takes a little while to compile because Zygote.
+using Tapir: CoDual, primal
+
+Tapir.@is_primitive Tapir.MinimalCtx Tuple{typeof(TemporalGPs.time_exp), AbstractMatrix{<:Real}, Real}
+function Tapir.rrule!!(::CoDual{typeof(TemporalGPs.time_exp)}, A::CoDual, t::CoDual{Float64})
+    B_dB = Tapir.zero_fcodual(TemporalGPs.time_exp(primal(A), primal(t)))
+    B = primal(B_dB)
+    dB = tangent(B_dB)
+    time_exp_pb(::NoRData) = NoRData(), NoRData(), sum(dB .* (primal(A) * B))
+    return B_dB, time_exp_pb
+end
+
+rule = Tapir.build_rrule(objective, flat_initial_params);
+
+# Optimise using Optim.
 training_results = Optim.optimize(
-    objective ∘ unpack,
-    θ -> only(Zygote.gradient(objective ∘ unpack, θ)),
+    objective,
+    θ -> Tapir.value_and_gradient!!(rule, objective, θ)[2][2],
     flat_initial_params + randn(4), # Add some noise to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),

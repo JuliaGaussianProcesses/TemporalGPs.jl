@@ -12,7 +12,7 @@ using TemporalGPs: RegularSpacing
 # Load standard packages from the Julia ecosystem
 using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
-using Zygote # Algorithmic Differentiation
+using Tapir # Algorithmic Differentiation
 
 # Declare model parameters using `ParameterHandling.jl` types.
 # var_kernel is the variance of the kernel, λ the inverse length scale, and var_noise the
@@ -42,15 +42,18 @@ y = rand(f(x, params.var_noise));
 
 # Specify an objective function for Optim to minimise in terms of x and y.
 # We choose the usual negative log marginal likelihood (NLML).
-function objective(params)
+function objective(flat_params)
+    params = unpack(flat_params)
     f = build_gp(params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
+rule = Tapir.build_rrule(objective, flat_initial_params);
+
 # Optimise using Optim. Zygote takes a little while to compile.
 training_results = Optim.optimize(
-    objective ∘ unpack,
-    θ -> only(Zygote.gradient(objective ∘ unpack, θ)),
+    objective,
+    θ -> Tapir.value_and_gradient!!(rule, objective, θ)[2][2],
     flat_initial_params .+ randn.(), # Perturb the parameters to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),
