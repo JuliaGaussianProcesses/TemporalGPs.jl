@@ -3,7 +3,7 @@ Pkg.activate(".")
 Pkg.instantiate()
 
 using BenchmarkTools, BlockDiagonals, FillArrays, LinearAlgebra, Random, Stheno,
-    TemporalGPs, Zygote
+    TemporalGPs, Mooncake
 
 using DataFrames, DrWatson, PGFPlotsX
 
@@ -131,7 +131,7 @@ let
 
         # Benchmark logpdf evaluation and gradient evaluation.
         logpdf_results = @benchmark logpdf($ft, $y)
-        logpdf_gradient_results = @benchmark Zygote.gradient(logpdf, $ft, $y)
+        logpdf_gradient_results = @benchmark Mooncake.gradient(logpdf, $ft, $y)
 
         # Save results to disk.
         wsave(

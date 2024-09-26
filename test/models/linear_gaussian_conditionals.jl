@@ -104,8 +104,7 @@ println("linear_gaussian_conditionals:")
 
                 # Check that everything infers and AD gives the right answer.
                 @inferred posterior_and_lml(x, model, y_missing)
-                x̄ = adjoint_test(posterior_and_lml, (x, model, y_missing))
-                @test x̄[2].Q isa NamedTuple{(:diag, )}
+                test_rule(rng, posterior_and_lml, x, model, y_missing; is_primitive=false)
             end
         end
 
@@ -204,8 +203,7 @@ println("linear_gaussian_conditionals:")
 
                 # Check that everything infers and AD gives the right answer.
                 @inferred posterior_and_lml(x, model, y_missing)
-                x̄ = adjoint_test(posterior_and_lml, (x, model, y_missing))
-                @test x̄[2].fan_out.Q isa NamedTuple{(:diag, )}
+                test_rule(rng, posterior_and_lml, x, model, y_missing; is_primitive=false)
             end
         end
     end

@@ -90,12 +90,7 @@ end
 
 # See docstring elsewhere for context.
 function noise_var_to_time_form(x::RectilinearGrid, S::Diagonal{<:Real})
-    vs = restructure(
-        diag(S),
-        ChainRulesCore.ignore_derivatives() do
-            Fill(length(get_space(x)), length(get_times(x)))
-        end,
-    )
+    vs = restructure(diag(S), Fill(length(get_space(x)), length(get_times(x))))
     return zygote_friendly_map(v -> Diagonal(collect(v)), vs)
 end
 

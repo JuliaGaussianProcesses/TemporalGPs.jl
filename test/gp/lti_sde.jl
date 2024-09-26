@@ -1,6 +1,5 @@
 using KernelFunctions
 using KernelFunctions: kappa
-using ChainRulesTestUtils
 using TemporalGPs: build_lgssm, StorageType, is_of_storage_type, lgssm_components
 using Test
 
@@ -14,47 +13,50 @@ function _construction_tester(f_naive::GP, storage::StorageType, σ², t::Abstra
     return build_lgssm(fx)
 end
 
-@testset "ApproxPeriodicKernel" begin
-    k = ApproxPeriodicKernel()
-    @test k isa ApproxPeriodicKernel{7}
-    # Test that it behaves like a normal PeriodicKernel
-    k_base = PeriodicKernel()
-    x = rand()
-    @test kappa(k, x) == kappa(k_base, x)
-    x = rand(3)
-    @test kernelmatrix(k, x) ≈ kernelmatrix(k_base, x)
-    # Test dimensionality of LGSSM components
-    Nt = 10
-    @testset "$(typeof(t)), $storage, $N" for t in (
-            sort(rand(Nt)), RegularSpacing(0.0, 0.1, Nt)
-        ),
-        storage in (ArrayStorage{Float64}(), ),
-        N in (5, 8)
-
-        k = ApproxPeriodicKernel{N}()
-        As, as, Qs, emission_projections, x0 = lgssm_components(k, t, storage)
-        @test length(As) == Nt
-        @test all(x -> size(x) == (N * 2, N * 2), As)
-        @test length(as) == Nt
-        @test all(x -> size(x) == (N * 2,), as)
-        @test length(Qs) == Nt
-        @test all(x -> size(x) == (N * 2, N * 2), Qs)
-    end
-end
-
 println("lti_sde:")
 @testset "lti_sde" begin
+
+    @testset "ApproxPeriodicKernel" begin
+        k = ApproxPeriodicKernel()
+        @test k isa ApproxPeriodicKernel{7}
+        # Test that it behaves like a normal PeriodicKernel
+        k_base = PeriodicKernel()
+        x = rand()
+        @test kappa(k, x) == kappa(k_base, x)
+        x = rand(3)
+        @test kernelmatrix(k, x) ≈ kernelmatrix(k_base, x)
+        # Test dimensionality of LGSSM components
+        Nt = 10
+        @testset "$(typeof(t)), $storage, $N" for t in (
+                sort(rand(Nt)), RegularSpacing(0.0, 0.1, Nt)
+            ),
+            storage in (ArrayStorage{Float64}(), ),
+            N in (5, 8)
+
+            k = ApproxPeriodicKernel{N}()
+            As, as, Qs, emission_projections, x0 = lgssm_components(k, t, storage)
+            @test length(As) == Nt
+            @test all(x -> size(x) == (N * 2, N * 2), As)
+            @test length(as) == Nt
+            @test all(x -> size(x) == (N * 2,), as)
+            @test length(Qs) == Nt
+            @test all(x -> size(x) == (N * 2, N * 2), Qs)
+        end
+    end
+
     @testset "block_diagonal" begin
+        rng = Xoshiro(123)
         A = randn(2, 2)
         B = randn(3, 3)
         C = randn(5, 5)
-        test_rrule(TemporalGPs.block_diagonal, A, B, C; check_inferred=false)
-        test_rrule(
+        test_rule(rng, TemporalGPs.block_diagonal, A, B, C; is_primitive=false)
+        test_rule(
+            rng,
             TemporalGPs.block_diagonal,
             SMatrix{2,2}(A),
             SMatrix{3,3}(B),
             SMatrix{5,5}(C);
-            check_inferred=false,
+            is_primitive=false,
         )
     end
 
@@ -209,47 +211,10 @@ println("lti_sde:")
                 @test logpdf(fx, y) ≈ logpdf(fx_naive, y)
             end
 
-            @testset "check args to_vec properly" begin
-                k_vec, k_from_vec = to_vec(kernel.val)
-                @test typeof(k_from_vec(k_vec)) == typeof(kernel.val)
-
-                storage_vec, storage_from_vec = to_vec(storage.val)
-                @test typeof(storage_from_vec(storage_vec)) == typeof(storage.val)
-
-                σ²_vec, σ²_from_vec = to_vec(σ².val)
-                @test typeof(σ²_from_vec(σ²_vec)) == typeof(σ².val)
-
-                t_vec, t_from_vec = to_vec(t.val)
-                @test typeof(t_from_vec(t_vec)) == typeof(t.val)
-            end
-
-            # Just need to ensure we can differentiate through construction properly.
-            if isnothing(kernel.to_vec_grad)
-                @test_broken false # "Gradient tests are not passing"
-                continue
-            elseif kernel.to_vec_grad
-                test_zygote_grad_finite_differences_compatible(
-                    _construction_tester,
-                    f_naive,
-                    storage.val,
-                    σ².val,
-                    t.val;
-                    check_inferred=false,
-                    rtol=1e-6,
-                    atol=1e-6,
-                )
-            else
-                test_zygote_grad(
-                    _construction_tester,
-                    f_naive,
-                    storage.val,
-                    σ².val,
-                    t.val;
-                    check_inferred=false,
-                    rtol=1e-6,
-                    atol=1e-6,
-                )
-            end
+            test_rule(
+                rng, _construction_tester, f_naive, storage.val, σ².val, t.val;
+                is_primitive=false, interface_only=true,
+            )
         end
     end
 end

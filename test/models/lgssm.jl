@@ -16,14 +16,7 @@ using TemporalGPs:
     ScalarOutputLGC,
     Forward,
     Reverse,
-    ordering,
-    NoContext
-using KernelFunctions
-using Test
-using Random: MersenneTwister
-using LinearAlgebra
-using StructArrays
-using Zygote, StaticArrays
+    ordering
 
 println("lgssm:")
 @testset "lgssm" begin
@@ -91,42 +84,28 @@ println("lgssm:")
 
         @testset "step_marginals" begin
             @inferred step_marginals(x, model[1])
-            adjoint_test(step_marginals, (x, model[1]))
-            if storage.val isa SArrayStorage && TEST_ALLOC
-                check_adjoint_allocations(step_marginals, (x, model[1]))
-            end
+            test_rule(rng, step_marginals, x, model[1]; is_primitive=false)
+
         end
         @testset "step_logpdf" begin
             args = (ordering(model[1]), x, (model[1], y))
             @inferred step_logpdf(args...)
-            adjoint_test(step_logpdf, args)
-            if storage.val isa SArrayStorage && TEST_ALLOC
-                check_adjoint_allocations(step_logpdf, args)
-            end
+            test_rule(rng, step_logpdf, args...; is_primitive=false)
         end
         @testset "step_filter" begin
             args = (ordering(model[1]), x, (model[1], y))
             @inferred step_filter(args...)
-            adjoint_test(step_filter, args)
-            if storage.val isa SArrayStorage && TEST_ALLOC
-                check_adjoint_allocations(step_filter, args)
-            end
+            test_rule(rng, step_filter, args...; is_primitive=false)
         end
         @testset "invert_dynamics" begin
             args = (x, x, model[1].transition)
             @inferred invert_dynamics(args...)
-            adjoint_test(invert_dynamics, args)
-            if storage.val isa SArrayStorage && TEST_ALLOC
-                check_adjoint_allocations(invert_dynamics, args)
-            end
+            test_rule(rng, invert_dynamics, args...; is_primitive=false)
         end
         @testset "step_posterior" begin
             args = (ordering(model[1]), x, (model[1], y))
             @inferred step_posterior(args...)
-            adjoint_test(step_posterior, args)
-            if storage.val isa SArrayStorage && TEST_ALLOC
-                check_adjoint_allocations(step_posterior, args)
-            end
+            test_rule(rng, step_posterior, args...; is_primitive=false)
         end
 
         # Run standard battery of LGSSM tests.
@@ -134,7 +113,6 @@ println("lgssm:")
             rng, model;
             rtol=1e-5,
             atol=1e-5,
-            context=NoContext(),
             max_primal_allocs=25,
             max_forward_allocs=25,
             max_backward_allocs=25,

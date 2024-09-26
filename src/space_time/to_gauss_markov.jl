@@ -1,7 +1,3 @@
-using ChainRulesCore
-my_I(T, N) = Matrix{T}(I, N, N)
-ChainRulesCore.@non_differentiable my_I(args...)
-
 function lgssm_components(k::Separable, x::SpaceTimeGrid, storage)
 
     # Compute spatial covariance, and temporal GaussMarkovModel.
@@ -14,17 +10,17 @@ function lgssm_components(k::Separable, x::SpaceTimeGrid, storage)
 
     # Compute components of complete LGSSM.
     Nr = length(r)
-    ident = my_I(eltype(storage), Nr)
-    As = _map(Base.Fix1(kron, ident), As_t)
-    as = _map(Base.Fix2(repeat, Nr), as_t)
-    Qs = _map(Base.Fix1(kron, Kr + ident_eps(1e-12)), Qs_t)
+    ident = Matrix{eltype(storage)}(I, Nr, Nr)
+    As = map(Base.Fix1(kron, ident), As_t)
+    as = map(Base.Fix2(repeat, Nr), as_t)
+    Qs = map(Base.Fix1(kron, Kr + ident_eps(1e-12)), Qs_t)
     emission_proj = _build_st_proj(emission_proj_t, Nr, ident)
     x0 = Gaussian(repeat(x0_t.m, Nr), kron(Kr, x0_t.P))
     return As, as, Qs, emission_proj, x0
 end
 
 function _build_st_proj((Hs, hs)::Tuple{AbstractVector, AbstractVector}, Nr::Integer, ident)
-    return (_map(H -> kron(ident, H), Hs), _map(h -> Fill(h, Nr), hs))
+    return (map(H -> kron(ident, H), Hs), map(h -> Fill(h, Nr), hs))
 end
 
 function build_prediction_obs_vars(

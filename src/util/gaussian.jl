@@ -70,13 +70,6 @@ storage_type(::Gaussian{<:Vector{T}}) where {T<:Real} = ArrayStorage(T)
 storage_type(::Gaussian{<:SVector{D, T}}) where {D, T<:Real} = SArrayStorage(T)
 storage_type(::Gaussian{T}) where {T<:Real} = ScalarStorage(T)
 
-function ChainRulesCore.rrule(::Type{<:Gaussian}, m, P)
-    proj_P = ProjectTo(P)
-    Gaussian_pullback(::ZeroTangent) = NoTangent(), NoTangent(), NoTangent()
-    Gaussian_pullback(Δ) = NoTangent(), Δ.m, proj_P(Δ.P)
-    return Gaussian(m, P), Gaussian_pullback
-end
-
 Base.length(x::Gaussian) = 0
 
 # Zero-adjoint initialisation for the benefit of `scan`.

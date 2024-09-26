@@ -97,12 +97,8 @@ function ε_randn(rng::AbstractRNG, ::SMatrix{Dout, Din, T}) where {Dout, Din, T
     return randn(rng, SVector{Dout, T})
 end
 
-ChainRulesCore.@non_differentiable ε_randn(args...)
-
 scalar_type(::AbstractVector{T}) where {T} = T
 scalar_type(::T) where {T<:Real} = T
-
-ChainRulesCore.@non_differentiable scalar_type(x)
 
 """
     SmallOutputLGC{
@@ -170,16 +166,6 @@ struct LargeOutputLGC{
     A::TA
     a::Ta
     Q::TQ
-end
-
-function ChainRulesCore.rrule(
-    ::Type{<:LargeOutputLGC},
-    A::AbstractMatrix,
-    a::AbstractVector,
-    Q::AbstractMatrix,
-)
-    LargeOutputLGC_pullback(Δ) = NoTangent(), Δ.A, Δ.a, Δ.Q
-    return LargeOutputLGC(A, a, Q), LargeOutputLGC_pullback
 end
 
 dim_out(f::LargeOutputLGC) = size(f.A, 1)

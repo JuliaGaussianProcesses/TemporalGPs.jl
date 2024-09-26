@@ -78,18 +78,11 @@ function restructure(y::AbstractVector{T}, lengths::AbstractVector{<:Integer}) w
     end
 end
 
-function ChainRulesCore.rrule(
-    ::typeof(restructure), y::Vector, lengths::AbstractVector{<:Integer},
-)
-    restructure_pullback(Δ::Vector) = NoTangent(), reduce(vcat, Δ), NoTangent()
-    return restructure(y, lengths), restructure_pullback
-end
-
 # Implementation specific to Fills for AD's sake.
 function restructure(y::Fill{<:Real}, lengths::AbstractVector{<:Integer})
-    return map(l -> Fill(y.value, l), ChainRulesCore.ignore_derivatives(lengths))
+    return map(l -> Fill(y.value, l), lengths)
 end
 
 function restructure(y::AbstractVector, emissions::StructArray)
-    return restructure(y, ChainRulesCore.ignore_derivatives(map(dim_out, emissions)))
+    return restructure(y, map(dim_out, emissions))
 end

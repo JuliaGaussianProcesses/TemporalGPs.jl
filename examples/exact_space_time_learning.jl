@@ -1,6 +1,6 @@
 # This is an extended version of exact_space_time_inference.jl. It combines it with
-# Optim + ParameterHandling + Zygote to learn the kernel parameters.
-# If you understand how to use Optim + ParameterHandling + Zygote for an AbstractGP,
+# Optim + ParameterHandling + Mooncake to learn the kernel parameters.
+# If you understand how to use Optim + ParameterHandling + Mooncake for an AbstractGP,
 # e.g. that shown on the README for this package, and how exact_space_time_inference.jl
 # works, then you should understand this file.
 
@@ -13,7 +13,7 @@ using TemporalGPs: Separable, RectilinearGrid
 # Load standard packages from the Julia ecosystem
 using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
-using Tapir # Algorithmic Differentiation
+using Mooncake # Algorithmic Differentiation
 
 # Declare model parameters using `ParameterHandling.jl` types.
 flat_initial_params, unflatten = ParameterHandling.flatten((
@@ -53,23 +53,14 @@ function objective(flat_params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
-using Tapir: CoDual, primal
-
-Tapir.@is_primitive Tapir.MinimalCtx Tuple{typeof(TemporalGPs.time_exp), AbstractMatrix{<:Real}, Real}
-function Tapir.rrule!!(::CoDual{typeof(TemporalGPs.time_exp)}, A::CoDual, t::CoDual{Float64})
-    B_dB = Tapir.zero_fcodual(TemporalGPs.time_exp(primal(A), primal(t)))
-    B = primal(B_dB)
-    dB = tangent(B_dB)
-    time_exp_pb(::NoRData) = NoRData(), NoRData(), sum(dB .* (primal(A) * B))
-    return B_dB, time_exp_pb
+function objective_grad(rule, flat_params)
+    return Mooncake.value_and_gradient!!(rule, objective, flat_params)[2][2]
 end
-
-rule = Tapir.build_rrule(objective, flat_initial_params);
 
 # Optimise using Optim.
 training_results = Optim.optimize(
     objective,
-    θ -> Tapir.value_and_gradient!!(rule, objective, θ)[2][2],
+    Base.Fix1(objective_grad, Mooncake.build_rrule(objective, flat_initial_params)),
     flat_initial_params + randn(4), # Add some noise to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),

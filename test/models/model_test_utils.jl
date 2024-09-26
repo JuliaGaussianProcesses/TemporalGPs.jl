@@ -1,6 +1,3 @@
-using ChainRulesTestUtils: ChainRulesTestUtils, rand_tangent
-using FillArrays
-using Random: AbstractRNG
 using TemporalGPs:
     ArrayStorage,
     SArrayStorage,
@@ -18,9 +15,6 @@ using TemporalGPs:
     ScalarOutputLGC,
     LargeOutputLGC,
     BottleneckLGC
-
-
-
 
 # Generation of positive semi-definite matrices.
 
@@ -91,15 +85,6 @@ end
 function random_gaussian(rng::AbstractRNG, dim::Int, s::StorageType)
     return Gaussian(random_vector(rng, dim, s), random_nice_psd_matrix(rng, dim, s))
 end
-
-function ChainRulesTestUtils.rand_tangent(rng::AbstractRNG, d::T) where {T<:Gaussian}
-    return Tangent{T}(
-        m=rand_tangent(rng, d.m),
-        P=random_nice_psd_matrix(rng, length(d.m), storage_type(d)),
-    )
-end
-
-
 
 # Generation of SmallOutputLGC.
 
@@ -183,16 +168,6 @@ function random_ti_gmm(rng::AbstractRNG, ordering, Dlat::Int, N::Int, s::Storage
     # large constant to the diagonal to ensure that all Qs are positive definite.
     Qs = Fill(x0.P - As[1] * x0.P * As[1]' + eltype(s)(1e-1) * I, N)
     return GaussMarkovModel(ordering, As, as, Qs, x0)
-end
-
-function ChainRulesTestUtils.rand_tangent(rng::AbstractRNG, gmm::T) where {T<:GaussMarkovModel}
-    return Tangent{T}(
-        ordering = nothing,
-        As = rand_tangent(rng, gmm.As),
-        as = rand_tangent(rng, gmm.as),
-        Qs = gmm_Qs_tangent(rng, gmm.Qs, storage_type(gmm)),
-        x0 = rand_tangent(rng, gmm.x0),
-    )
 end
 
 function gmm_Qs_tangent(
@@ -300,20 +275,6 @@ function random_lgssm(
     T = ScalarOutputLGC{eltype(Hs), eltype(hs), eltype(Σs)}
     emissions = StructArray{T}((Hs, hs, Σs))
     return LGSSM(transitions, emissions)
-end
-
-function ChainRulesTestUtils.rand_tangent(rng::AbstractRNG, ssm::T) where {T<:LGSSM}
-    Hs = ssm.emissions.A
-    hs = ssm.emissions.a
-    Σs = ssm.emissions.Q
-    return Tangent{T}(
-        transitions = rand_tangent(rng, ssm.transitions),
-        emissions = Tangent{typeof(ssm.emissions)}(components=(
-            A=rand_tangent(rng, Hs),
-            a=rand_tangent(rng, hs),
-            Q=gmm_Qs_tangent(rng, Σs, storage_type(ssm)),
-        )),
-    )
 end
 
 # function random_tv_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)

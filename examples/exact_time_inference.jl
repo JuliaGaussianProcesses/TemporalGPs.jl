@@ -4,7 +4,7 @@ using TemporalGPs
 # Utilising TemporalGPs.jl to work with AbstractGPs requires minimal modification to the
 # GP objects from AbstractGPs that you are used to. The primary differences are
 # 1. RegularSpacing is a useful type. It's basically a `range` that's hacked together to
-#    work nicely with Zygote.jl. At some point, it will hopefully disappear.
+#    work nicely with Mooncake.jl. At some point, it will hopefully disappear.
 # 2. Call `to_sde` on your AbstractGP object to say "use TemporalGPs.jl to do inference".
 
 # This is an example of a very, very noise regression problem.

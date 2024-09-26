@@ -16,7 +16,6 @@ end
 @inline emissions(model::LGSSM) = model.emissions
 
 @inline ordering(model::LGSSM) = ordering(transitions(model))
-ChainRulesCore.@non_differentiable ordering(model)
 
 function Base.:(==)(x::LGSSM, y::LGSSM)
     return (transitions(x) == transitions(y)) && (emissions(x) == emissions(y))
@@ -28,8 +27,6 @@ Base.size(model::LGSSM) = (length(model),)
 Base.eachindex(model::LGSSM) = eachindex(transitions(model))
 
 storage_type(model::LGSSM) = storage_type(transitions(model))
-
-ChainRulesCore.@non_differentiable storage_type(x)
 
 function is_of_storage_type(model::LGSSM, s::StorageType)
     return is_of_storage_type((transitions(model), emissions(model)), s)
@@ -210,8 +207,6 @@ function _check_inputs(prior, y)
     end
 end
 
-ChainRulesCore.@non_differentiable _check_inputs(::Any, ::Any)
-
 function _a_bit_of_posterior(prior, y)
     return scan_emit(step_posterior, zip(prior, y), x0(prior), eachindex(prior))
 end
@@ -252,30 +247,6 @@ ident_eps(ε::Real) = UniformScaling(ε)
 
 ident_eps(x::ColVecs, ε::Real) = UniformScaling(convert(eltype(x.X), ε))
 
-ChainRulesCore.@non_differentiable ident_eps(args...)
-
 _collect(U::Adjoint{<:Any, <:Matrix}) = collect(U)
 _collect(U::SMatrix) = U
 _collect(U::BlockDiagonal) = U
-
-# AD stuff. No need to understand this unless you're really plumbing the depths...
-
-function get_adjoint_storage(
-    x::LGSSM, n::Int, Δx::Tangent{T,<:NamedTuple{(:ordering,:transition,:emission)}},
-) where {T}
-    return Tangent{typeof(x)}(
-        transitions = get_adjoint_storage(x.transitions, n, Δx.transition),
-        emissions = get_adjoint_storage(x.emissions, n, Δx.emission)
-    )
-end
-
-function _accum_at(
-    Δxs::Tangent{X},
-    n::Int,
-    Δx::Tangent{T,<:NamedTuple{(:ordering,:transition,:emission)}},
-) where {X<:LGSSM, T}
-    return Tangent{X}(
-        transitions = _accum_at(Δxs.transitions, n, Δx.transition),
-        emissions = _accum_at(Δxs.emissions, n, Δx.emission),
-    )
-end
