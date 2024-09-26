@@ -14,7 +14,7 @@ include("front_matter.jl")
         end
     end
 
-    if GROUP == "test models" begin
+    if GROUP == "test models"
         @testset "models" begin
             println("models:")
             include(joinpath("models", "test_model_test_utils.jl"))
@@ -25,7 +25,7 @@ include("front_matter.jl")
         end
     end
 
-    if GROUP == "test gp" begin
+    if GROUP == "test gp"
         println("gp:")
         @testset "gp" begin
             include(joinpath("gp", "lti_sde.jl"))
@@ -33,7 +33,7 @@ include("front_matter.jl")
         end
     end
 
-    if GROUP == "test space_time" begin
+    if GROUP == "test space_time"
         println("space_time:")
         @testset "space_time" begin
             include(joinpath("space_time", "rectilinear_grid.jl"))
