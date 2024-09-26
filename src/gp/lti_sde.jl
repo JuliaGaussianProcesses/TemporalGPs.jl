@@ -121,7 +121,6 @@ function lgssm_components(
     m = collect(mean_vector(m, t)) # `collect` is needed as there are still issues with Zygote and FillArrays.
     As, as, Qs, (Hs, hs), x0 = lgssm_components(k, t, storage_type)
     hs = add_proj_mean(hs, m)
-
     return As, as, Qs, (Hs, hs), x0
 end
 
@@ -136,7 +135,9 @@ time_exp(A, t) = exp(A * t)
 
 # Generic constructors for base kernels.
 
-function broadcast_components((F, q, H)::Tuple, x0::Gaussian, t::AbstractVector{<:Real}, ::StorageType{T}) where {T}
+function broadcast_components(
+    (F, q, H)::Tuple, x0::Gaussian, t::AbstractVector{<:Real}, ::StorageType{T}
+) where {T}
     P = Symmetric(x0.P)
     t = vcat([first(t) - 1], t)
     As = map(Δt -> time_exp(F, T(Δt)), diff(t))
@@ -147,7 +148,9 @@ function broadcast_components((F, q, H)::Tuple, x0::Gaussian, t::AbstractVector{
     As, as, Qs, Hs, hs
 end
 
-function broadcast_components((F, q, H)::Tuple, x0::Gaussian, t::Union{StepRangeLen, RegularSpacing}, ::StorageType{T}) where {T}
+function broadcast_components(
+    (F, q, H)::Tuple, x0::Gaussian, t::Union{StepRangeLen, RegularSpacing}, ::StorageType{T}
+) where {T}
     P = Symmetric(x0.P)
     A = time_exp(F, T(step(t)))
     As = Fill(A, length(t))
@@ -316,10 +319,7 @@ function TemporalGPs.to_sde(::ConstantKernel, ::SArrayStorage{T}) where {T<:Real
 end
 
 function TemporalGPs.stationary_distribution(k::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
-    return TemporalGPs.Gaussian(
-        SVector{1, T}(0),
-        SMatrix{1, 1, T}( T(only(k.c)) ),
-    )
+    return TemporalGPs.Gaussian(SVector{1, T}(0), SMatrix{1, 1, T}(T(only(k.c))))
 end
 
 # Scaled
