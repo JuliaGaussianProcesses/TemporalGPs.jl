@@ -21,7 +21,9 @@ using TemporalGPs:
     fill_in_missings,
     replace_observation_noise_cov,
     scan_emit,
-    transform_model_and_obs
+    transform_model_and_obs,
+    RectilinearGrid,
+    RegularInTime
 
 ENV["TESTING"] = "TRUE"
 
