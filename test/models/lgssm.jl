@@ -85,7 +85,6 @@ println("lgssm:")
         @testset "step_marginals" begin
             @inferred step_marginals(x, model[1])
             test_rule(rng, step_marginals, x, model[1]; is_primitive=false)
-
         end
         @testset "step_logpdf" begin
             args = (ordering(model[1]), x, (model[1], y))
