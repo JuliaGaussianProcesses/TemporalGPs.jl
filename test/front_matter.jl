@@ -2,8 +2,9 @@
 using AbstractGPs,
     BlockDiagonals,
     FillArrays,
-    LinearAlgebra,
+    JET,
     KernelFunctions,
+    LinearAlgebra,
     Mooncake,
     Random,
     StaticArrays,
@@ -23,7 +24,26 @@ using TemporalGPs:
     scan_emit,
     transform_model_and_obs,
     RectilinearGrid,
-    RegularInTime
+    RegularInTime,
+    posterior_and_lml,
+    predict,
+    predict_marginals,
+    step_marginals,
+    step_logpdf,
+    step_filter,
+    step_rand,
+    invert_dynamics,
+    step_posterior,
+    storage_type,
+    is_of_storage_type,
+    ArrayStorage,
+    SArrayStorage,
+    SmallOutputLGC,
+    LargeOutputLGC,
+    ScalarOutputLGC,
+    Forward,
+    Reverse,
+    ordering
 
 ENV["TESTING"] = "TRUE"
 
@@ -33,9 +53,6 @@ ENV["TESTING"] = "TRUE"
 # To test everything, simply set GROUP to "all"
 # ENV["GROUP"] = "test gp"
 const GROUP = get(ENV, "GROUP", "all")
-
-const TEST_TYPE_INFER = false # Test type stability over the tests
-const TEST_ALLOC = false # Test allocations over the tests
 
 include("test_util.jl")
 include(joinpath("models", "model_test_utils.jl"))

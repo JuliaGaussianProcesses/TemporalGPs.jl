@@ -174,7 +174,7 @@
         end
 
         # Check logpdf and inference run, infer.
-        @inferred logpdf(model, y_missing)
-        @inferred posterior(model, y_missing)
+        @test_opt target_modules=[TemporalGPs] logpdf(model, y_missing)
+        @test_opt target_modules=[TemporalGPs] posterior(model, y_missing)
     end
 end;

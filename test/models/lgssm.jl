@@ -1,23 +1,3 @@
-using TemporalGPs:
-    TemporalGPs,
-    predict,
-    step_marginals,
-    step_logpdf,
-    step_filter,
-    step_rand,
-    invert_dynamics,
-    step_posterior,
-    storage_type,
-    is_of_storage_type,
-    ArrayStorage,
-    SArrayStorage,
-    SmallOutputLGC,
-    LargeOutputLGC,
-    ScalarOutputLGC,
-    Forward,
-    Reverse,
-    ordering
-
 println("lgssm:")
 @testset "lgssm" begin
 
@@ -58,7 +38,8 @@ println("lgssm:")
         # Print current iteration to prevent CI timing out.
         println(
             "(time_varying=$tv, N=$N, Dlat=$Dlat, Dobs=$Dobs, " *
-            "storage=$(storage.name), emissions=$(emission.val), ordering=$order)",
+            "storage=$(storage.name), emissions=$(emission.val), ordering=$order, " *
+            "Q=$Q)",
         )
 
         # Build LGSSM.
@@ -82,30 +63,16 @@ println("lgssm:")
         y = first(rand(model))
         x = TemporalGPs.x0(model)
 
-        interface_only = true
-        @testset "step_marginals" begin
-            @inferred step_marginals(x, model[1])
-            test_rule(rng, step_marginals, x, model[1]; is_primitive=false, interface_only)
-        end
-        @testset "step_logpdf" begin
-            args = (ordering(model[1]), x, (model[1], y))
-            @inferred step_logpdf(args...)
-            test_rule(rng, step_logpdf, args...; is_primitive=false, interface_only)
-        end
-        @testset "step_filter" begin
-            args = (ordering(model[1]), x, (model[1], y))
-            @inferred step_filter(args...)
-            test_rule(rng, step_filter, args...; is_primitive=false, interface_only)
-        end
-        @testset "invert_dynamics" begin
-            args = (x, x, model[1].transition)
-            @inferred invert_dynamics(args...)
-            test_rule(rng, invert_dynamics, args...; is_primitive=false, interface_only)
-        end
-        @testset "step_posterior" begin
-            args = (ordering(model[1]), x, (model[1], y))
-            @inferred step_posterior(args...)
-            test_rule(rng, step_posterior, args...; is_primitive=false, interface_only)
+        perf_flag = storage.val isa SArrayStorage ? :allocs : :none
+        @testset "$f" for (f, args...) in Any[
+            (step_marginals, x, model[1]),
+            (step_logpdf, ordering(model[1]), x, (model[1], y)),
+            (step_filter, ordering(model[1]), x, (model[1], y)),
+            (invert_dynamics, x, x, model[1].transition),
+            (step_posterior, ordering(model[1]), x, (model[1], y)),
+        ]
+            @test_opt target_modules=[TemporalGPs] f(args...)
+            test_rule(rng, f, args...; is_primitive=false, interface_only=true, perf_flag)
         end
 
         # Run standard battery of LGSSM tests.
@@ -116,7 +83,7 @@ println("lgssm:")
             max_primal_allocs=25,
             max_forward_allocs=25,
             max_backward_allocs=25,
-            check_allocs=TEST_ALLOC && storage.val isa SArrayStorage,
+            check_allocs=storage.val isa SArrayStorage,
         )
     end
 end
