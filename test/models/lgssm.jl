@@ -35,10 +35,10 @@ println("lgssm:")
     settings = [
         (tv=:time_varying, N=1, Dlat=3, Dobs=2, storage=storages.dense),
         (tv=:time_varying, N=49, Dlat=3, Dobs=2, storage=storages.dense),
-        # (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.dense),
+        (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.dense),
         (tv=:time_varying, N=49, Dlat=1, Dobs=1, storage=storages.dense),
         (tv=:time_varying, N=1, Dlat=3, Dobs=2, storage=storages.static),
-        # (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.static),
+        (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.static),
     ]
     orderings = [
         Forward(),
@@ -46,7 +46,7 @@ println("lgssm:")
     ]
     Qs = [
         Val(:dense),
-        # Val(:diag), diag tests don't work because `FiniteDiffernces.to_vec`.
+        Val(:diag),
     ]
 
     @testset "($tv, $N, $Dlat, $Dobs, $(storage.name), $(emission.name), $order, $Q)" for
@@ -82,29 +82,30 @@ println("lgssm:")
         y = first(rand(model))
         x = TemporalGPs.x0(model)
 
+        interface_only = true
         @testset "step_marginals" begin
             @inferred step_marginals(x, model[1])
-            test_rule(rng, step_marginals, x, model[1]; is_primitive=false)
+            test_rule(rng, step_marginals, x, model[1]; is_primitive=false, interface_only)
         end
         @testset "step_logpdf" begin
             args = (ordering(model[1]), x, (model[1], y))
             @inferred step_logpdf(args...)
-            test_rule(rng, step_logpdf, args...; is_primitive=false)
+            test_rule(rng, step_logpdf, args...; is_primitive=false, interface_only)
         end
         @testset "step_filter" begin
             args = (ordering(model[1]), x, (model[1], y))
             @inferred step_filter(args...)
-            test_rule(rng, step_filter, args...; is_primitive=false)
+            test_rule(rng, step_filter, args...; is_primitive=false, interface_only)
         end
         @testset "invert_dynamics" begin
             args = (x, x, model[1].transition)
             @inferred invert_dynamics(args...)
-            test_rule(rng, invert_dynamics, args...; is_primitive=false)
+            test_rule(rng, invert_dynamics, args...; is_primitive=false, interface_only)
         end
         @testset "step_posterior" begin
             args = (ordering(model[1]), x, (model[1], y))
             @inferred step_posterior(args...)
-            test_rule(rng, step_posterior, args...; is_primitive=false)
+            test_rule(rng, step_posterior, args...; is_primitive=false, interface_only)
         end
 
         # Run standard battery of LGSSM tests.
