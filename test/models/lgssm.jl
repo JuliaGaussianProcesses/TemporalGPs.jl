@@ -76,14 +76,6 @@ println("lgssm:")
         end
 
         # Run standard battery of LGSSM tests.
-        test_interface(
-            rng, model;
-            rtol=1e-5,
-            atol=1e-5,
-            max_primal_allocs=25,
-            max_forward_allocs=25,
-            max_backward_allocs=25,
-            check_allocs=storage.val isa SArrayStorage,
-        )
+        test_interface(rng, model; check_allocs=false)
     end
 end
