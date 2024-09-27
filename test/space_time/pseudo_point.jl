@@ -101,8 +101,7 @@ using Test
         elbo_naive = elbo(VFE(f_naive(z_naive)), fx_naive, y)
         elbo_sde = elbo(fx, y, z_r)
         @test elbo_naive ≈ elbo_sde rtol=1e-6
-
-        test_zygote_grad_finite_differences_compatible((y, z_r) -> elbo(fx, y, z_r), y, z_r)
+        test_rule(rng, elbo, fx, y, z_r; is_primitive=false)
 
         # Compute approximate posterior marginals naively.
         f_approx_post_naive = posterior(VFE(f_naive(z_naive)), fx_naive, y)

@@ -1,6 +1,6 @@
 # This is an extended version of exact_space_time_inference.jl. It combines it with
-# Optim + ParameterHandling + Zygote to learn the kernel parameters.
-# If you understand how to use Optim + ParameterHandling + Zygote for an AbstractGP,
+# Optim + ParameterHandling + Mooncake to learn the kernel parameters.
+# If you understand how to use Optim + ParameterHandling + Mooncake for an AbstractGP,
 # e.g. that shown on the README for this package, and how exact_space_time_inference.jl
 # works, then you should understand this file.
 
@@ -13,7 +13,7 @@ using TemporalGPs: Separable, RectilinearGrid
 # Load standard packages from the Julia ecosystem
 using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
-using Zygote # Algorithmic Differentiation
+using Mooncake # Algorithmic Differentiation
 
 # Declare model parameters using `ParameterHandling.jl` types.
 flat_initial_params, unflatten = ParameterHandling.flatten((
@@ -47,15 +47,20 @@ y = rand(build_gp(params)(x, 1e-4));
 
 # Specify an objective function for Optim to minimise in terms of x and y.
 # We choose the usual negative log marginal likelihood (NLML).
-function objective(params)
+function objective(flat_params)
+    params = unpack(flat_params)
     f = build_gp(params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
-# Optimise using Optim. Takes a little while to compile because Zygote.
+function objective_grad(rule, flat_params)
+    return Mooncake.value_and_gradient!!(rule, objective, flat_params)[2][2]
+end
+
+# Optimise using Optim.
 training_results = Optim.optimize(
-    objective ∘ unpack,
-    θ -> only(Zygote.gradient(objective ∘ unpack, θ)),
+    objective,
+    Base.Fix1(objective_grad, Mooncake.build_rrule(objective, flat_initial_params)),
     flat_initial_params + randn(4), # Add some noise to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),

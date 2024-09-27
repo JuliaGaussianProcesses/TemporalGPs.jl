@@ -51,8 +51,7 @@ and spatio-temporal problems typically have multiple elements of `y` associated 
 single element of `x`.
 """
 function observations_to_time_form(
-    x::AbstractVector{<:Real},
-    y::AbstractVector{<:Union{Missing, Real}},
+    x::AbstractVector{<:Real}, y::AbstractVector{<:Union{Missing, Real}}
 )
     return y
 end

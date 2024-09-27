@@ -41,7 +41,7 @@ f = to_sde(f_naive, SArrayStorage(Float64))
 
 # Project onto finite-dimensional distribution as usual.
 # x = range(-5.0; step=0.1, length=10_000)
-x = RegularSpacing(0.0, 0.1, 10_000) # Hack for Zygote.
+x = RegularSpacing(0.0, 0.1, 10_000) # Hack for AD.
 fx = f(x, 0.1)
 
 # Sample from the prior as usual.
@@ -63,7 +63,7 @@ rand(f_post(x))
 logpdf(f_post(x), y)
 ```
 
-## Learning kernel parameters with [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl), [ParameterHandling.jl](https://github.com/invenia/ParameterHandling.jl), and [Zygote.jl](https://github.com/FluxML/Zygote.jl/)
+## Learning kernel parameters with [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl), [ParameterHandling.jl](https://github.com/invenia/ParameterHandling.jl), and [Mooncake.jl](https://github.com/compintell/Mooncake.jl/)
 
 TemporalGPs.jl doesn't provide scikit-learn-like functionality to train your model (find good kernel parameter settings).
 Instead, we offer the functionality needed to easily implement your own training functionality using standard tools from the Julia ecosystem, as shown below.
@@ -76,7 +76,7 @@ using TemporalGPs
 # Load standard packages from the Julia ecosystem
 using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
-using Zygote # Algorithmic Differentiation
+using Mooncake # Algorithmic Differentiation
 
 using ParameterHandling: flatten
 
@@ -115,7 +115,7 @@ objective(params)
 # Optim.jl for more info on available optimisers and their properties.
 training_results = Optim.optimize(
     objective ∘ unpack,
-    θ -> only(Zygote.gradient(objective ∘ unpack, θ)),
+    θ -> only(Mooncake.gradient(objective ∘ unpack, θ)),
     flat_initial_params + randn(3), # Add some noise to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),
@@ -152,7 +152,7 @@ This tells TemporalGPs that you want all parameters of `f` and anything derived 
 
 "naive" timings are with the usual [AbstractGPs.jl](https://https://github.com/JuliaGaussianProcesses/AbstractGPs.jl/) inference routines, and is the default implementation for GPs. "lgssm" timings are conducted using `to_sde` with no additional arguments. "static-lgssm" uses the `SArrayStorage(Float64)` option discussed above.
 
-Gradient computations use Zygote. Custom adjoints have been implemented to achieve this level of performance.
+Gradient computations use Mooncake. Custom adjoints have been implemented to achieve this level of performance.
 
 
 

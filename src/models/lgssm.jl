@@ -11,16 +11,11 @@ struct LGSSM{Ttransitions<:GaussMarkovModel, Temissions<:StructArray} <: Abstrac
     emissions::Temissions
 end
 
-@inline function transitions(model::LGSSM)
-    return Zygote.literal_getfield(model, Val(:transitions))
-end
+@inline transitions(model::LGSSM) = model.transitions
 
-@inline function emissions(model::LGSSM)
-    return Zygote.literal_getfield(model, Val(:emissions))
-end
+@inline emissions(model::LGSSM) = model.emissions
 
 @inline ordering(model::LGSSM) = ordering(transitions(model))
-ChainRulesCore.@non_differentiable ordering(model)
 
 function Base.:(==)(x::LGSSM, y::LGSSM)
     return (transitions(x) == transitions(y)) && (emissions(x) == emissions(y))
@@ -32,8 +27,6 @@ Base.size(model::LGSSM) = (length(model),)
 Base.eachindex(model::LGSSM) = eachindex(transitions(model))
 
 storage_type(model::LGSSM) = storage_type(transitions(model))
-
-ChainRulesCore.@non_differentiable storage_type(x)
 
 function is_of_storage_type(model::LGSSM, s::StorageType)
     return is_of_storage_type((transitions(model), emissions(model)), s)
@@ -58,17 +51,11 @@ struct ElementOfLGSSM{Tordering, Ttransition, Temission}
     emission::Temission
 end
 
-@inline function ordering(x::ElementOfLGSSM)
-    return Zygote.literal_getfield(x, Val(:ordering))
-end
+@inline ordering(x::ElementOfLGSSM) = x.ordering
 
-@inline function transition_dynamics(x::ElementOfLGSSM)
-    return Zygote.literal_getfield(x, Val(:transition))
-end
+@inline transition_dynamics(x::ElementOfLGSSM) = x.transition
 
-@inline function emission_dynamics(x::ElementOfLGSSM)
-    return Zygote.literal_getfield(x, Val(:emission))
-end
+@inline emission_dynamics(x::ElementOfLGSSM) = x.emission
 
 @inline function Base.getindex(model::LGSSM, n::Int)
     return ElementOfLGSSM(ordering(model), model.transitions[n], model.emissions[n])
@@ -206,11 +193,10 @@ end
 function posterior(prior::LGSSM, y::AbstractVector)
     _check_inputs(prior, y)
     new_trans, xf = _a_bit_of_posterior(prior, y)
-    A = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:A)), new_trans)
-    a = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:a)), new_trans)
-    Q = zygote_friendly_map(x -> Zygote.literal_getfield(x, Val(:Q)), new_trans)
-    ems = Zygote.literal_getfield(prior, Val(:emissions))
-    return LGSSM(GaussMarkovModel(reverse(ordering(prior)), A, a, Q, xf), ems)
+    A = zygote_friendly_map(x -> x.A, new_trans)
+    a = zygote_friendly_map(x -> x.a, new_trans)
+    Q = zygote_friendly_map(x -> x.Q, new_trans)
+    return LGSSM(GaussMarkovModel(reverse(ordering(prior)), A, a, Q, xf), prior.emissions)
 end
 
 function _check_inputs(prior, y)
@@ -220,8 +206,6 @@ function _check_inputs(prior, y)
         throw(error("Dimension mismatch. length(prior) is $lp, but length(y) is $ly"))
     end
 end
-
-ChainRulesCore.@non_differentiable _check_inputs(::Any, ::Any)
 
 function _a_bit_of_posterior(prior, y)
     return scan_emit(step_posterior, zip(prior, y), x0(prior), eachindex(prior))
@@ -263,30 +247,6 @@ ident_eps(ε::Real) = UniformScaling(ε)
 
 ident_eps(x::ColVecs, ε::Real) = UniformScaling(convert(eltype(x.X), ε))
 
-ChainRulesCore.@non_differentiable ident_eps(args...)
-
 _collect(U::Adjoint{<:Any, <:Matrix}) = collect(U)
 _collect(U::SMatrix) = U
 _collect(U::BlockDiagonal) = U
-
-# AD stuff. No need to understand this unless you're really plumbing the depths...
-
-function get_adjoint_storage(
-    x::LGSSM, n::Int, Δx::Tangent{T,<:NamedTuple{(:ordering,:transition,:emission)}},
-) where {T}
-    return Tangent{typeof(x)}(
-        transitions = get_adjoint_storage(x.transitions, n, Δx.transition),
-        emissions = get_adjoint_storage(x.emissions, n, Δx.emission)
-    )
-end
-
-function _accum_at(
-    Δxs::Tangent{X},
-    n::Int,
-    Δx::Tangent{T,<:NamedTuple{(:ordering,:transition,:emission)}},
-) where {X<:LGSSM, T}
-    return Tangent{X}(
-        transitions = _accum_at(Δxs.transitions, n, Δx.transition),
-        emissions = _accum_at(Δxs.emissions, n, Δx.emission),
-    )
-end

@@ -30,45 +30,6 @@ function dense_zygote_friendly_map(f::Tf, x) where {Tf}
     return ys
 end
 
-function ChainRulesCore.rrule(::typeof(dense_zygote_friendly_map), f::Tf, x) where {Tf}
-
-    # Perform first iteration.
-    y_1, pb_1 = rrule_via_ad(Zygote.ZygoteRuleConfig(NoContext()), f, _getindex(x, 1))
-
-    # Allocate for outputs.
-    ys = Array{typeof(y_1)}(undef, size(x))
-    ys[1] = y_1
-
-    # Allocate for pullbacks.
-    pbs = Array{typeof(pb_1)}(undef, size(x))
-    pbs[1] = pb_1
-
-    for n in 2:length(x)
-        y, pb = rrule_via_ad(Zygote.ZygoteRuleConfig(NoContext()), f, _getindex(x, n))
-        ys[n] = y
-        pbs[n] = pb
-    end
-
-    function zygote_friendly_map_pullback(Δ)
-        Δ isa AbstractZero && return NoTangent(), NoTangent(), NoTangent()
-
-        # Do first iteration.
-        Δx_1 = pbs[1](Δ[1])
-
-        # Allocate for cotangents.
-        Δxs = get_adjoint_storage(x, 1, Δx_1[2])
-
-        for n in 2:length(x)
-            Δx = pbs[n](Δ[n])
-            Δxs = _accum_at(Δxs, n, Δx[2])
-        end
-
-        return NoTangent(), NoTangent(), Δxs
-    end
-
-    return ys, zygote_friendly_map_pullback
-end
-
 zygote_friendly_map(f, x::Fill) = map(f, x)
 
 function zygote_friendly_map(

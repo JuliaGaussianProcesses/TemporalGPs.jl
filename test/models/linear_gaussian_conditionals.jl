@@ -1,19 +1,9 @@
-using TemporalGPs: posterior_and_lml, predict, predict_marginals
-using Test
-
 println("linear_gaussian_conditionals:")
 @testset "linear_gaussian_conditionals" begin
     Dlats = [1, 3]
     Dobss = [1, 2]
-    # Dlats = [3]
-    # Dobss = [2]
-    storages = [
-        (name="dense storage Float64", val=ArrayStorage(Float64)),
-    ]
-    Q_types = [
-        Val(:dense),
-        Val(:diag),
-    ]
+    storages = [(name="dense storage Float64", val=ArrayStorage(Float64))]
+    Q_types = [Val(:dense), Val(:diag)]
 
     @testset "SmallOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))" for
         Dlat in Dlats,
@@ -27,11 +17,9 @@ println("linear_gaussian_conditionals:")
         x = random_gaussian(rng, Dlat, storage.val)
         model = random_small_output_lgc(rng, Dlat, Dobs, Q_type, storage.val)
 
+        check_allocs = storage.val isa SArrayStorage
         test_interface(
-            rng, model, x;
-            check_adjoints=true,
-            check_inferred=TEST_TYPE_INFER,
-            check_allocs=TEST_ALLOC && storage.val isa SArrayStorage,
+            rng, model, x; check_adjoints=true, check_inferred=true, check_allocs
         )
 
         Q_type == Val(:diag) && @testset "missing data" begin
@@ -57,9 +45,8 @@ println("linear_gaussian_conditionals:")
             @test lml ≈ lml_new atol=1e-8 rtol=1e-8
 
             # Check that everything infers and AD gives the right answer.
-            @inferred posterior_and_lml(x, model, y_missing)
-            # BROKEN: gradients with Zygote look fine but are failing because of ChainRulesTestUtils checks see https://github.com/JuliaDiff/ChainRulesTestUtils.jl/issues/270
-            # test_zygote_grad(posterior_and_lml, x, model, y_missing)
+            @test_opt target_modules=[TemporalGPs] posterior_and_lml(x, model, y_missing)
+            test_rule(rng, posterior_and_lml, x, model, y_missing; is_primitive=false)
         end
     end
 
@@ -103,28 +90,25 @@ println("linear_gaussian_conditionals:")
                 @test lml_vanilla ≈ lml_large rtol=1e-8 atol=1e-8
 
                 # Check that everything infers and AD gives the right answer.
-                @inferred posterior_and_lml(x, model, y_missing)
-                x̄ = adjoint_test(posterior_and_lml, (x, model, y_missing))
-                @test x̄[2].Q isa NamedTuple{(:diag, )}
+                @test_opt target_modules=[TemporalGPs] posterior_and_lml(x, model, y_missing)
+                test_rule(rng, posterior_and_lml, x, model, y_missing; is_primitive=false)
             end
         end
 
+        check_allocs = storage.val isa SArrayStorage
         test_interface(
-            rng, model, x;
-            check_adjoints=true,
-            check_inferred=TEST_TYPE_INFER,
-            check_allocs=TEST_ALLOC && storage.val isa SArrayStorage,
+            rng, model, x; check_adjoints=true, check_inferred=true, check_allocs
         )
     end
 
-    @testset "ScalarOutputLGC (Dlat=$Dlat, ($storage.name))" for
+    @testset "ScalarOutputLGC (Dlat=$Dlat, $(storage.name))" for
         Dlat in Dlats,
         storage in [
             (name="dense storage Float64", val=ArrayStorage(Float64)),
             (name="static storage Float64", val=SArrayStorage(Float64)),
         ]
 
-        println("ScalarOutputLGC (Dlat=$Dlat, ($storage.name))")
+        println("ScalarOutputLGC (Dlat=$Dlat, $(storage.name))")
 
         rng = MersenneTwister(123456)
         x = random_gaussian(rng, Dlat, storage.val)
@@ -141,11 +125,9 @@ println("linear_gaussian_conditionals:")
             @test lml_vanilla ≈ lml_scalar
         end
 
+        check_allocs = storage.val isa SArrayStorage
         test_interface(
-            rng, model, x;
-            check_adjoints=true,
-            check_inferred=TEST_TYPE_INFER,
-            check_allocs=TEST_ALLOC && storage.val isa SArrayStorage,
+            rng, model, x; check_adjoints=true, check_inferred=true, check_allocs
         )
     end
 
@@ -168,10 +150,7 @@ println("linear_gaussian_conditionals:")
         @test TemporalGPs.dim_in(model) == Din
 
         test_interface(
-            rng, model, x;
-            check_adjoints=true,
-            check_inferred=TEST_TYPE_INFER,
-            check_allocs=TEST_ALLOC,
+            rng, model, x; check_adjoints=true, check_inferred=true, check_allocs=false
         )
 
         @testset "consistency with SmallOutputLGC" begin
@@ -203,9 +182,8 @@ println("linear_gaussian_conditionals:")
                 @test lml_vanilla ≈ lml_large rtol=1e-8 atol=1e-8
 
                 # Check that everything infers and AD gives the right answer.
-                @inferred posterior_and_lml(x, model, y_missing)
-                x̄ = adjoint_test(posterior_and_lml, (x, model, y_missing))
-                @test x̄[2].fan_out.Q isa NamedTuple{(:diag, )}
+                @test_opt target_modules=[TemporalGPs] posterior_and_lml(x, model, y_missing)
+                test_rule(rng, posterior_and_lml, x, model, y_missing; is_primitive=false)
             end
         end
     end

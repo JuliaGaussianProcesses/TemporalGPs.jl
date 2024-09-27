@@ -20,7 +20,6 @@ jobs:
       matrix:
         version:
           - '1'
-          - '1.6'
         os:
           - ubuntu-latest
         arch:
@@ -28,7 +27,6 @@ jobs:
         group:
           - 'test util'
           - 'test models'
-          - 'test models-lgssm'
           - 'test gp'
           - 'test space_time'
     steps:

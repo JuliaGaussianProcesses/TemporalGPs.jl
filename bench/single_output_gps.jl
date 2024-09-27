@@ -14,7 +14,7 @@ Pkg.instantiate();
 
 using Revise
 using DrWatson, Stheno, BenchmarkTools, PGFPlotsX, ProgressMeter, TemporalGPs, Random,
-    DataFrames, Zygote
+    DataFrames, Mooncake
 
 using DrWatson: @dict, @tagsave
 
@@ -146,14 +146,14 @@ let
 
         # Generate results including construction of GP.
         results = @benchmark(build_and_logpdf($(impl.val), $k, $σ², $l, $x, $σ²_n, $y))
-        grad_results = @benchmark(Zygote.gradient(
+        grad_results = @benchmark(Mooncake.gradient(
             $build_and_logpdf, $(impl.val), $k, $σ², $l, $x, $σ²_n, $y,
         ))
 
         # Generate results excluding construction of GP.
         fx = build(impl.val, k, σ², l, x, σ²_n)
         no_build_results = @benchmark(logpdf($fx, $y))
-        no_build_grad_results = @benchmark(Zygote.gradient(logpdf, $fx, $y))
+        no_build_grad_results = @benchmark(Mooncake.gradient(logpdf, $fx, $y))
 
         # Save results in predictable location.
         @tagsave(

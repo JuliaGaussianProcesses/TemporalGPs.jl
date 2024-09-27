@@ -1,6 +1,3 @@
-using Random
-using TemporalGPs: RectilinearGrid, Separable
-
 @testset "separable_kernel" begin
     rng = MersenneTwister(123456)
 

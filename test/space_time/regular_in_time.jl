@@ -1,5 +1,3 @@
-using TemporalGPs: RegularInTime
-
 @testset "regular_in_time" begin
     T = 11
     Nts = [rand(1:4) for _ in 1:T]

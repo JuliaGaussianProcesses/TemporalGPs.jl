@@ -1,13 +1,4 @@
-using TemporalGPs:
-    x0,
-    fill_in_missings,
-    replace_observation_noise_cov,
-    transform_model_and_obs
-using Random: randperm
-using ChainRulesTestUtils
-using Zygote: Context
-
-@info "missings:"
+@info "missings"
 @testset "missings" begin
 
     rng = MersenneTwister(123456)
@@ -125,10 +116,15 @@ using Zygote: Context
 
         # Only test the bits of AD that we haven't tested before.
         @testset "AD: transform_model_and_obs" begin
-            fdm = central_fdm(2, 1)
-            adjoint_test(fill_in_missings, (model.emissions.Q, y_missing); fdm=fdm)
-            adjoint_test(replace_observation_noise_cov, (model, model.emissions.Q))
-            adjoint_test(transform_model_and_obs, (model, y_missing); fdm=fdm)
+            test_rule(rng, fill_in_missings, model.emissions.Q, y_missing; is_primitive=false)
+            test_rule(
+                rng, replace_observation_noise_cov, model, model.emissions.Q;
+                is_primitive=false, interface_only=true,
+            )
+            test_rule(
+                rng, transform_model_and_obs, model, y_missing;
+                is_primitive=false, interface_only=true,
+            )
         end
     end
 
@@ -177,9 +173,8 @@ using Zygote: Context
             return yn_missing
         end
 
-        # Check logpdf and inference run, infer, and play nicely with AD.
-        @inferred logpdf(model, y_missing)
-        test_zygote_grad_finite_differences_compatible(y -> logpdf(model, y) ⊢ NoTangent(), y_missing)
-        @inferred posterior(model, y_missing)
+        # Check logpdf and inference run, infer.
+        @test_opt target_modules=[TemporalGPs] logpdf(model, y_missing)
+        @test_opt target_modules=[TemporalGPs] posterior(model, y_missing)
     end
 end;

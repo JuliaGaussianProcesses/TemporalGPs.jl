@@ -1,5 +1,5 @@
 # This is an extended version of exact_time_inference.jl. It combines it with
-# Optim + ParameterHandling + Zygote to learn the kernel parameters.
+# Optim + ParameterHandling + Mooncake to learn the kernel parameters.
 # Each of these other packages know nothing about TemporalGPs, they're just general-purpose
 # packages which play nicely with TemporalGPs (and AbstractGPs).
 
@@ -12,7 +12,7 @@ using TemporalGPs: RegularSpacing
 # Load standard packages from the Julia ecosystem
 using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
-using Zygote # Algorithmic Differentiation
+using Mooncake # Algorithmic Differentiation
 
 # Declare model parameters using `ParameterHandling.jl` types.
 # var_kernel is the variance of the kernel, λ the inverse length scale, and var_noise the
@@ -42,15 +42,20 @@ y = rand(f(x, params.var_noise));
 
 # Specify an objective function for Optim to minimise in terms of x and y.
 # We choose the usual negative log marginal likelihood (NLML).
-function objective(params)
+function objective(flat_params)
+    params = unpack(flat_params)
     f = build_gp(params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
-# Optimise using Optim. Zygote takes a little while to compile.
+function objective_grad(rule, flat_params)
+    return Mooncake.value_and_gradient!!(rule, objective, flat_params)[2][2]
+end
+
+# Optimise using Optim. Mooncake takes a little while to compile.
 training_results = Optim.optimize(
-    objective ∘ unpack,
-    θ -> only(Zygote.gradient(objective ∘ unpack, θ)),
+    objective,
+    Base.Fix1(objective_grad, Mooncake.build_rrule(objective, flat_initial_params)),
     flat_initial_params .+ randn.(), # Perturb the parameters to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),

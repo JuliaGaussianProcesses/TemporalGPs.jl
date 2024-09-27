@@ -435,7 +435,7 @@ end
 #
 
 using BenchmarkTools, FillArrays, Kronecker, LinearAlgebra, Random, Stheno,
-    TemporalGPs, Zygote
+    TemporalGPs, Mooncake
 
 using TemporalGPs: predict
 
@@ -468,11 +468,11 @@ A_dense = collect(A);
 # using ProfileView
 # @profview [predict(mf, Pf, A, a, Q) for _ in 1:10]
 
-@benchmark Zygote.pullback(predict, $mf, $Pf, $A, $a, $Q)
-@benchmark Zygote.pullback(predict, $mf, $Pf, $A_dense, $a, $Q)
+@benchmark Mooncake.pullback(predict, $mf, $Pf, $A, $a, $Q)
+@benchmark Mooncake.pullback(predict, $mf, $Pf, $A_dense, $a, $Q)
 
-_, back = Zygote.pullback(predict, mf, Pf, A, a, Q);
-_, back_dense = Zygote.pullback(predict, mf, Pf, A_dense, a, Q);
+_, back = Mooncake.pullback(predict, mf, Pf, A, a, Q);
+_, back_dense = Mooncake.pullback(predict, mf, Pf, A_dense, a, Q);
 
 mp = copy(mf);
 Pp = collect(Pf);
@@ -509,7 +509,7 @@ T = Float64;
 #
 
 using BenchmarkTools, BlockDiagonals, FillArrays, Kronecker, LinearAlgebra, Random, Stheno,
-    TemporalGPs, Zygote
+    TemporalGPs, Mooncake
 
 using TemporalGPs: predict
 
@@ -550,11 +550,11 @@ Q_dense = collect(Q);
 # using ProfileView
 # @profview [predict(mf, Pf, A, a, Q) for _ in 1:10]
 
-@benchmark Zygote.pullback(predict, $mf, $Pf, $A, $a, $Q)
-@benchmark Zygote.pullback(predict, $mf, $Pf, $A_dense, $a, $Q_dense)
+@benchmark Mooncake.pullback(predict, $mf, $Pf, $A, $a, $Q)
+@benchmark Mooncake.pullback(predict, $mf, $Pf, $A_dense, $a, $Q_dense)
 
-_, back = Zygote.pullback(predict, mf, Pf, A, a, Q);
-_, back_dense = Zygote.pullback(predict, mf, Pf, A_dense, a, Q_dense);
+_, back = Mooncake.pullback(predict, mf, Pf, A, a, Q);
+_, back_dense = Mooncake.pullback(predict, mf, Pf, A_dense, a, Q_dense);
 
 mp = copy(mf);
 Pp = collect(Pf);

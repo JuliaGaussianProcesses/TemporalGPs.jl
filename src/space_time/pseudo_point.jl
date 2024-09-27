@@ -54,9 +54,6 @@ function AbstractGPs.dtc(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVecto
     return logpdf(dtcify(z_r, fx), y)
 end
 
-# This stupid rule saves an absurb amount of compute time.
-ChainRulesCore.@non_differentiable count(::typeof(ismissing), yn)
-
 """
     elbo(fx::FiniteLTISDE, y::AbstractVector{<:Real}, z_r::AbstractVector)
 
@@ -73,6 +70,7 @@ function AbstractGPs.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVect
 
     k = fx_dtc.f.f.kernel
     Cf_diags = kernel_diagonals(k, fx_dtc.x)
+    # return Cf_diags
 
     # Transform a vector into a vector-of-vectors.
     y_vecs = restructure(y, lgssm.emissions)
@@ -85,11 +83,10 @@ function AbstractGPs.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVect
         end,
         zip(Σs, Cf_diags, marg_diags, y_vecs),
     )
+    # return -sum(tmp) / 2
 
     return logpdf(lgssm, y_vecs) - sum(tmp) / 2
 end
-
-Zygote.accum(x::NamedTuple{(:diag, )}, y::Diagonal) = Zygote.accum(x, (diag=y.diag, ))
 
 function kernel_diagonals(k::DTCSeparable, x::RectilinearGrid)
     space_kernel = k.k.l
@@ -101,14 +98,8 @@ end
 
 function kernel_diagonals(k::DTCSeparable, x::RegularInTime)
     space_kernel = k.k.l
-    time_kernel = k.k.r
-    time_vars = kernelmatrix_diag(time_kernel, get_times(x))
-    return Diagonal.(
-        kernelmatrix_diag.(
-            Ref(space_kernel),
-            x.vs
-        ) .* time_vars
-    )
+    time_vars = kernelmatrix_diag(k.k.r, get_times(x))
+    return map((v, tv) -> Diagonal(kernelmatrix_diag(space_kernel, v) * tv), x.vs, time_vars)
 end
 
 function kernel_diagonals(k::ScaledKernel, x::AbstractVector)
@@ -139,19 +130,19 @@ function lgssm_components(k_dtc::DTCSeparable, x::SpaceTimeGrid, storage::Storag
     # Get some size info.
     M = length(z_space)
     N = length(x_space)
-    ident_M = my_I(eltype(storage), M)
+    ident_M = Matrix{eltype(storage)}(I, M, M)
 
     # G is the time-invariant component of the H-matrices. It is only time-invariant because
     # we have the same obsevation locations at each point in time.
     Λu_Cuf = cholesky(Symmetric(K_space_z + 1e-12I)) \ K_space_zx
 
     # Construct approximately low-rank model spatio-temporal LGSSM.
-    As = _map(A -> kron(ident_M, A), As_t)
-    as = _map(a -> repeat(a, M), as_t)
-    Qs = _map(Q -> kron(K_space_z, Q), Qs_t)
+    As = map(A -> kron(ident_M, A), As_t)
+    as = map(a -> repeat(a, M), as_t)
+    Qs = map(Q -> kron(K_space_z, Q), Qs_t)
     Cs = Fill(Λu_Cuf, length(ts))
-    cs = _map(h -> Fill(h, N), hs_t) # This should currently be zero.
-    Hs = _map(H -> kron(ident_M, H), Hs_t)
+    cs = map(h -> Fill(h, N), hs_t) # This should currently be zero.
+    Hs = map(H -> kron(ident_M, H), Hs_t)
     hs = Fill(Zeros(M), length(ts))
     x0 = Gaussian(repeat(x0_t.m, M), kron(K_space_z, x0_t.P))
     return As, as, Qs, (Cs, cs, Hs, hs), x0
@@ -175,22 +166,19 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
     # Get some size info.
     M = length(z_space)
     N = length(ts)
-    ident_M = my_I(eltype(storage), M)
+    ident_M = Matrix{eltype(storage)}(I, M, M)
 
     # Construct approximately low-rank model spatio-temporal LGSSM.
-    As = _map(kron, Fill(ident_M, N), As_t)
-    as = _map(a -> repeat(a, M), as_t)
-    Qs = _map(kron, Fill(K_space_z, N), Qs_t)
+    As = map(kron, Fill(ident_M, N), As_t)
+    as = map(a -> repeat(a, M), as_t)
+    Qs = map(kron, Fill(K_space_z, N), Qs_t)
     x_big = _reduce(vcat, x.vs)
     C__ = kernelmatrix(space_kernel, z_space, x_big)
     C = \(K_space_z_chol, C__)
-    Cs = partition(ChainRulesCore.ignore_derivatives(map(length, x.vs)), C)
+    Cs = partition(map(length, x.vs), C)
 
     cs = fill.(hs_t, length.(x.vs)) # This should currently be zero.
-    Hs = _map(
-        ((I, H_t), ) -> kron(I, H_t),
-        zip(Fill(ident_M, N), Hs_t),
-    )
+    Hs = map(((I, H_t), ) -> kron(I, H_t), zip(Fill(ident_M, N), Hs_t))
     hs = Fill(Zeros(M), N)
     x0 = Gaussian(repeat(x0_t.m, M), kron(K_space_z, x0_t.P))
 
@@ -211,22 +199,12 @@ function partition(lengths::AbstractVector{<:Integer}, A::Matrix{<:Real})
     return map((s, d) -> collect(view(A, :, s:s+d-1)), starts, lengths)
 end
 
-function ChainRulesCore.rrule(
-    ::typeof(partition),
-    lengths::AbstractVector{<:Integer},
-    A::Matrix{<:Real},
-)
-    partition_pullback(::NoTangent) = NoTangent(), NoTangent(), NoTangent()
-    partition_pullback(Δ::Vector) = NoTangent(), NoTangent(), reduce(hcat, Δ)
-    return partition(lengths, A), partition_pullback
-end
-
 function build_emissions(
     (Cs, cs, Hs, hs)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
     Σs::AbstractVector,
 )
-    Hst = _map(adjoint, Hs)
-    Cst = _map(adjoint, Cs)
+    Hst = map(adjoint, Hs)
+    Cst = map(adjoint, Cs)
     fan_outs = StructArray{LargeOutputLGC{eltype(Cs), eltype(cs), eltype(Σs)}}((Cst, cs, Σs))
     return StructArray{BottleneckLGC{eltype(Hst), eltype(hs), eltype(fan_outs)}}((Hst, hs, fan_outs))
 end
@@ -378,16 +356,16 @@ end
 function dtc_post_emissions(k::ScaledKernel, x_new::AbstractVector, storage::StorageType)
     (Cs, cs, Hs, hs), Σs = dtc_post_emissions(k.kernel, x_new, storage)
     σ = sqrt(convert(eltype(storage_type), only(k.σ²)))
-    return (Cs, cs, _map(H->σ * H, Hs), _map(h->σ * h, hs)), _map(Σ->σ^2 * Σ, Σs)
+    return (Cs, cs, map(H->σ * H, Hs), map(h->σ * h, hs)), map(Σ->σ^2 * Σ, Σs)
 end
 
 function dtc_post_emissions(k::KernelSum, x_new::AbstractVector, storage::StorageType)
     post_emissions = dtc_post_emissions.(k.kernels, Ref(x_new), Ref(storage))
     Cs_cs_Hs_hs = getindex.(post_emissions, 1)
     Σs = getindex.(post_emissions, 2)
-    Cs = _map(vcat, getindex.(Cs_cs_Hs_hs, 1)...)
+    Cs = map(vcat, getindex.(Cs_cs_Hs_hs, 1)...)
     cs = sum(getindex.(Cs_cs_Hs_hs, 2))
-    Hs = _map(block_diagonal, getindex.(Cs_cs_Hs_hs, 3)...)
-    hs = _map(vcat, getindex.(Cs_cs_Hs_hs, 4)...)
+    Hs = map(block_diagonal, getindex.(Cs_cs_Hs_hs, 3)...)
+    hs = map(vcat, getindex.(Cs_cs_Hs_hs, 4)...)
     return (Cs, cs, Hs, hs), sum(Σs)
 end

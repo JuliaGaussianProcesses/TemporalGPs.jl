@@ -1,29 +1,44 @@
 name = "TemporalGPs"
 uuid = "e155a3c4-0841-43e1-8b83-a0e4f03cc18f"
-authors = ["willtebbutt <wt0881@my.bristol.ac.uk> and contributors"]
-version = "0.6.8"
+authors = ["Will Tebbutt and contributors"]
+version = "0.7.0"
 
 [deps]
 AbstractGPs = "99985d1d-32ba-4be9-9821-2ec096f28918"
 Bessels = "0e736298-9ec6-45e8-9647-e4fc86a2fe38"
 BlockDiagonals = "0a1fb500-61f7-11e9-3c65-f5ef3456f9f0"
-ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
 KernelFunctions = "ec8451be-7e33-11e9-00cf-bbf324bd1392"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
-Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+
+[weakdeps]
+Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+
+[extensions]
+TemporalGPsMooncakeExt = "Mooncake"
 
 [compat]
 AbstractGPs = "0.5.17"
+BenchmarkTools = "1"
 Bessels = "0.2.8"
 BlockDiagonals = "0.1.7"
-ChainRulesCore = "1"
 FillArrays = "0.13.0 - 0.13.7, 1"
+JET = "0.9"
 KernelFunctions = "0.9, 0.10.1"
+Mooncake = "0.4.3"
 StaticArrays = "1"
 StructArrays = "0.5, 0.6"
-Zygote = "0.6.65"
 julia = "1.6"
+
+[extras]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
+Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["BenchmarkTools", "JET", "Mooncake", "Pkg", "Test"]

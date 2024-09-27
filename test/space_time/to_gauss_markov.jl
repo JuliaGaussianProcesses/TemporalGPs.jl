@@ -1,5 +1,3 @@
-using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
-
 @testset "to_gauss_markov" begin
     rng = MersenneTwister(123456)
     Nr = 3
@@ -7,13 +5,12 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
     Nt_pr = 2
 
     @testset "restructure" begin
-        adjoint_test(
-            x -> TemporalGPs.restructure(x, [26, 24, 20, 30]), (randn(100), );
-            check_inferred=false,
+        test_rule(
+            rng, TemporalGPs.restructure, randn(100), [26, 24, 20, 30]; is_primitive=false
         )
-        adjoint_test(
-            x -> TemporalGPs.restructure(x, [26, 24, 20, 30]), (Fill(randn(), 100), );
-            check_inferred=false,
+        test_rule(
+            rng, TemporalGPs.restructure, Fill(randn(), 100), [26, 24, 20, 30];
+            is_primitive=false,
         )
     end
 
@@ -89,33 +86,16 @@ using TemporalGPs: RectilinearGrid, Separable, is_of_storage_type
             # No statistical tests run on `rand`, which seems somewhat dangerous, but there's
             # not a lot to be done about it unfortunately.
             @testset "rand" begin
-                y = rand(rng, fx_post_sde)
-                @test y isa AbstractVector{<:Real}
-                @test length(y) == length(x_pr)
+                _y = rand(rng, fx_post_sde)
+                @test _y isa AbstractVector{<:Real}
+                @test length(_y) == length(x_pr)
             end
 
         end
 
-        # # I'm not checking correctness here, just that it runs. No custom adjoints have been
-        # # written that are involved in this that aren't tested, so there should be no need
-        # # to check correctness.
-        # @testset "logpdf AD" begin
-        #     out, pb = Zygote._pullback(NoContext(), logpdf, ft_sde, y)
-        #     pb(rand_zygote_tangent(out))
-        # end
-        # # adjoint_test(logpdf, (ft_sde, y); fdm=central_fdm(2, 1), check_inferred=false)
-
-        # if t.val isa RegularSpacing
-        #     adjoint_test(
-        #         (r, Δt, y) -> begin
-        #             x = RectilinearGrid(r, RegularSpacing(t.val.t0, Δt, Nt))
-        #             _f = to_sde(GP(k.val, GPC()))
-        #             _ft = _f(x, σ².val...)
-        #             return logpdf(_ft, y)
-        #         end,
-        #         (r, t.val.Δt, y_sde);
-        #         check_inferred=false,
-        #     )
-        # end
+        # I'm not checking correctness here, just that it runs. No custom adjoints have been
+        # written that are involved in this that aren't tested, so there should be no need
+        # to check correctness.
+        test_rule(rng, logpdf, ft_sde, y; is_primitive=false, interface_only=true)
     end
 end
