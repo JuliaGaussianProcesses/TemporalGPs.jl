@@ -1,3 +1,18 @@
+# 0.7
+
+Mooncake.jl (and probably Enzyme.jl) is now able to differentiate everything in
+TemporalGPs.jl _reasonably_ efficiently, and only requires a single rule (for time_exp).
+This is in stark contrast with Zygote.jl, which required roughly 2.5k lines to achieve
+reasonable performance. This code was not robust, required maintenance from time-to-time,
+and generally made making progress on improvements to this library hard to make.
+Consequently, in this version of TemporalGPs, we have removed all Zygote-related
+functionality, and now recommend that Mooncake.jl (or perhaps Enzyme.jl) is used to
+differentiate code in this package. In some places Mooncake.jl achieves worse performance
+than Zygote.jl, but it is worth it for the amount of code that has been removed.
+
+If you wish to use Zygote + TemporalGPs, you should restrict yourself to the 0.6 series of
+this package.
+
 # 0.5.12
 
 - A collection of examples of inference, and inference + learning, have been added.
