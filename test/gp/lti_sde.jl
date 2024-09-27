@@ -3,8 +3,6 @@ using KernelFunctions: kappa
 using TemporalGPs: build_lgssm, StorageType, is_of_storage_type, lgssm_components
 using Test
 
-_logistic(x) = 1 / (1 + exp(-x))
-
 # Everything is tested once the LGSSM is constructed, so it is sufficient just to ensure
 # that Zygote can handle construction.
 function _construction_tester(f_naive::GP, storage::StorageType, σ², t::AbstractVector)
@@ -92,51 +90,40 @@ println("lti_sde:")
         N = 13
         kernels = vcat(
             # Base kernels.
-            (name="base-Matern12Kernel", val=Matern12Kernel(), to_vec_grad=false),
+            (name="base-Matern12Kernel", val=Matern12Kernel()),
             map([Matern32Kernel, Matern52Kernel]) do k
-                (; name="base-$k", val=k(), to_vec_grad=false)
+                (; name="base-$k", val=k())
             end,
 
             # Scaled kernels.
             map([1e-1, 1.0, 10.0, 100.0]) do σ²
-                (; name="scaled-σ²=$σ²", val=σ² * Matern32Kernel(), to_vec_grad=false)
+                (; name="scaled-σ²=$σ²", val=σ² * Matern32Kernel())
             end,
 
             # Stretched kernels.
             map([1e-2, 0.1, 1.0, 10.0, 100.0]) do λ
-                (; name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ), to_vec_grad=false)
+                (; name="stretched-λ=$λ", val=Matern32Kernel() ∘ ScaleTransform(λ))
             end,
 
             # Approx periodic kernels
             map([7, 11]) do N
-                (
-                    name="approx-periodic-N=$N",
-                    val=ApproxPeriodicKernel{N}(; r=1.0),
-                    to_vec_grad=true,
-                )
+                (name="approx-periodic-N=$N", val=ApproxPeriodicKernel{N}(; r=1.0))
             end,
-            # TEST_TOFIX
-            # Gradients should be fixed on those composites.
-            # Error is mostly due do an incompatibility of Tangents
-            # between Zygote and FiniteDifferences.
 
             # Product kernels
             (
                 name="prod-Matern12Kernel-Matern32Kernel",
                 val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) * Matern32Kernel() ∘
                     ScaleTransform(1.1),
-                to_vec_grad=nothing,
             ),
             (
                 name="prod-Matern32Kernel-Matern52Kernel-ConstantKernel",
                 val=3.0 * Matern32Kernel() * Matern52Kernel() * ConstantKernel(),
-                to_vec_grad=nothing,
             ),
             # THIS IS KNOWN NOT TO WORK!
             # (
             #     name="prod-(Matern32Kernel + ConstantKernel) * Matern52Kernel",
             #     val=(Matern32Kernel() + ConstantKernel()) * Matern52Kernel(),
-            #     to_vec_grad=nothing,
             # ),
 
             # Summed kernels.
@@ -144,32 +131,30 @@ println("lti_sde:")
                 name="sum-Matern12Kernel-Matern32Kernel",
                 val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) +
                     0.3 * Matern32Kernel() ∘ ScaleTransform(1.1),
-                to_vec_grad=nothing,
             ),
             (
                 name="sum-Matern32Kernel-Matern52Kernel-ConstantKernel",
                 val=2.0 * Matern32Kernel() +
                     0.5 * Matern52Kernel() +
                     1.0 * ConstantKernel(),
-                to_vec_grad=nothing,
             ),
         )
 
         # Construct a Gauss-Markov model with either dense storage or static storage.
         storages = (
             (name="dense storage Float64", val=ArrayStorage(Float64)),
-            # (name="static storage Float64", val=SArrayStorage(Float64)),
+            (name="static storage Float64", val=SArrayStorage(Float64)),
         )
 
         # Either regular spacing or irregular spacing in time.
         ts = (
             (name="irregular spacing", val=collect(RegularSpacing(0.0, 0.3, N))),
-            # (name="regular spacing", val=RegularSpacing(0.0, 0.3, N)),
+            (name="regular spacing", val=RegularSpacing(0.0, 0.3, N)),
         )
 
         σ²s = (
             (name="homoscedastic noise", val=(0.1,)),
-            # (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1, )),
+            (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1, )),
         )
 
         means = (
@@ -178,14 +163,20 @@ println("lti_sde:")
             (name="Custom Mean", val=CustomMean(x -> 2x)),
         )
 
-        @testset "$(kernel.name), $(m.name), $(storage.name), $(t.name), $(σ².name)" for kernel in
-                                                                                         kernels,
+        @testset "$(kernel.name), $(m.name), $(storage.name), $(t.name), $(σ².name)" for
+            kernel in kernels,
             m in means,
             storage in storages,
             t in ts,
             σ² in σ²s
 
             println("$(kernel.name), $(storage.name), $(m.name), $(t.name), $(σ².name)")
+
+            if kernel.val isa TemporalGPs.ApproxPeriodicKernel &&
+                storage.val isa SArrayStorage
+                @info "skipping because ApproxPeriodicKernel not compatible with SArrayStorage"
+                continue
+            end
 
             # Construct Gauss-Markov model.
             f_naive = GP(m.val, kernel.val)
@@ -216,5 +207,11 @@ println("lti_sde:")
                 is_primitive=false, interface_only=true,
             )
         end
+    end
+    @testset "time_exp AD" begin
+        test_rule(
+            Xoshiro(123), t -> TemporalGPs.time_exp([1.0 2.0; 3.0 4.0], t), rand();
+            is_primitive=false,
+        )
     end
 end
