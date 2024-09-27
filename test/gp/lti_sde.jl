@@ -5,10 +5,9 @@ using Test
 
 # Everything is tested once the LGSSM is constructed, so it is sufficient just to ensure
 # that Zygote can handle construction.
-function _construction_tester(f_naive::GP, storage::StorageType, σ², t::AbstractVector)
+function _logpdf_tester(f_naive::GP, y, storage::StorageType, σ², t::AbstractVector)
     f = to_sde(f_naive, storage)
-    fx = f(t, σ²...)
-    return build_lgssm(fx)
+    return logpdf(f(t, σ²...), y)
 end
 
 println("lti_sde:")
@@ -112,15 +111,14 @@ println("lti_sde:")
 
             # Product kernels
             (
-                name="prod-Matern12Kernel-Matern32Kernel",
-                val=1.5 * Matern12Kernel() ∘ ScaleTransform(0.1) * Matern32Kernel() ∘
-                    ScaleTransform(1.1),
+                name="prod-Matern52Kernel-Matern32Kernel",
+                val=(1.5 * Matern52Kernel() * Matern32Kernel()) ∘ ScaleTransform(0.01),
             ),
             (
                 name="prod-Matern32Kernel-Matern52Kernel-ConstantKernel",
                 val=3.0 * Matern32Kernel() * Matern52Kernel() * ConstantKernel(),
             ),
-            # THIS IS KNOWN NOT TO WORK!
+            # This is known not to work at all (not a gradient problem).
             # (
             #     name="prod-(Matern32Kernel + ConstantKernel) * Matern52Kernel",
             #     val=(Matern32Kernel() + ConstantKernel()) * Matern52Kernel(),
@@ -203,8 +201,8 @@ println("lti_sde:")
             end
 
             test_rule(
-                rng, _construction_tester, f_naive, storage.val, σ².val, t.val;
-                is_primitive=false, interface_only=true,
+                rng, _logpdf_tester, f_naive, y, storage.val, σ².val, t.val;
+                is_primitive=false,
             )
         end
     end

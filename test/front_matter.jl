@@ -54,5 +54,16 @@ ENV["TESTING"] = "TRUE"
 # ENV["GROUP"] = "test gp"
 const GROUP = get(ENV, "GROUP", "all")
 
+# Some test-local type piracy. ConstantKernel doesn't have a default constructor, so
+# Mooncake's testing functionality doesn't work with it properly. To resolve this, I just
+# add a default-style constructor here.
+@eval function KernelFunctions.ConstantKernel{P}(c::Vector{P}) where {P<:Real}
+    $(Expr(:new, :(ConstantKernel{P}), :c))
+end
+
+@eval function PeriodicKernel{P}(c::Vector{P}) where {P<:Real}
+    $(Expr(:new, :(PeriodicKernel{P}), :c))
+end
+
 include("test_util.jl")
 include(joinpath("models", "model_test_utils.jl"))
