@@ -26,6 +26,7 @@ BenchmarkTools = "1"
 Bessels = "0.2.8"
 BlockDiagonals = "0.1.7"
 FillArrays = "0.13.0 - 0.13.7, 1"
+JET = "0.9"
 KernelFunctions = "0.9, 0.10.1"
 Mooncake = "0.4.3"
 StaticArrays = "1"
@@ -34,9 +35,10 @@ julia = "1.6"
 
 [extras]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["BenchmarkTools", "Mooncake", "Pkg", "Test"]
+test = ["BenchmarkTools", "JET", "Mooncake", "Pkg", "Test"]
