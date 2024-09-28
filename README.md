@@ -15,20 +15,11 @@ TemporalGPs.jl is registered, so simply type the following at the REPL:
 ```
 While you can install TemporalGPs without AbstractGPs and KernelFunctions, in practice the latter are needed for all common tasks in TemporalGPs.
 
-## Note !!!
-
-This package is currently not guaranteed to work with all current versions of dependencies. If something is not working on the current release of TemporalGPs,
-please try out v0.6.7, which pins some dependencies in order to circumvent some of the problems. You can do so by typing instead:
-```julia
-] add AbstractGPs KernelFunctions TemporalGPs@0.6.7
-```
-Please report an issue if this work-around fails.
-
 # Example Usage
 
 Most examples can be found in the [examples](https://github.com/JuliaGaussianProcesses/TemporalGPs.jl/tree/master/examples) directory. In particular see the associated [README](https://github.com/JuliaGaussianProcesses/TemporalGPs.jl/tree/master/examples/README.md).
 
-This is a small problem by TemporalGPs' standard. See timing results below for expected performance on larger problems.
+The following is a small problem by TemporalGPs' standard. See timing results below for expected performance on larger problems.
 
 ```julia
 using AbstractGPs, KernelFunctions, TemporalGPs
