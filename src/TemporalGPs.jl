@@ -35,7 +35,6 @@ module TemporalGPs
     # Various bits-and-bobs. Often commiting some type piracy.
     include(joinpath("util", "linear_algebra.jl"))
     include(joinpath("util", "scan.jl"))
-    include(joinpath("util", "zygote_friendly_map.jl"))
 
     include(joinpath("util", "gaussian.jl"))
     include(joinpath("util", "mul.jl"))

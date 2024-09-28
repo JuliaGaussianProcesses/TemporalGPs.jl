@@ -73,15 +73,11 @@ function AbstractGPs.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVect
 
     # Transform a vector into a vector-of-vectors.
     y_vecs = restructure(y, lgssm.emissions)
-
-    tmp = zygote_friendly_map(
-        ((Σ, Cf_diag, marg_diag, yn), ) -> begin
-            Σ_, _ = fill_in_missings(Σ, yn)
-            return sum(diag(Σ_ \ (Cf_diag - marg_diag.P))) -
-                count(ismissing, yn) + size(Σ_, 1)
-        end,
-        zip(Σs, Cf_diags, marg_diags, y_vecs),
-    )
+    tmp = map(Σs, Cf_diags, marg_diags, y_vecs) do Σ, Cf_diag, marg_diag, yn
+        Σ_, _ = fill_in_missings(Σ, yn)
+        return sum(diag(Σ_ \ (Cf_diag - marg_diag.P))) -
+            count(ismissing, yn) + size(Σ_, 1)
+    end
     return logpdf(lgssm, y_vecs) - sum(tmp) / 2
 end
 
