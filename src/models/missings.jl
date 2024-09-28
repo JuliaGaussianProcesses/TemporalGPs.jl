@@ -4,8 +4,6 @@
 # 3. (The adopted strategy) - replace missings with arbitrary observations and _large_
 #   observation noises. While not optimal, type-stability is preserved inside the
 #   performance-sensitive code.
-#
-# In an ideal world, strategy 1 would work. Unfortunately Zygote isn't up to it yet.
 
 function AbstractGPs.logpdf(
     model::LGSSM, y::AbstractVector{Union{Missing, T}},
