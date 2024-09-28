@@ -1,6 +1,6 @@
 # Several strategies for missing data handling were attempted.
 # 1. Use `missing`s as expected. This turned out to be problematic for type-stability.
-# 2. Sentinel values (NaNs). Also problematic for type-stability because Zygote.
+# 2. Sentinel values (NaNs).
 # 3. (The adopted strategy) - replace missings with arbitrary observations and _large_
 #   observation noises. While not optimal, type-stability is preserved inside the
 #   performance-sensitive code.
