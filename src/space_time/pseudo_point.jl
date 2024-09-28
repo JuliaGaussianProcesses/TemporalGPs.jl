@@ -70,7 +70,6 @@ function AbstractGPs.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVect
 
     k = fx_dtc.f.f.kernel
     Cf_diags = kernel_diagonals(k, fx_dtc.x)
-    # return Cf_diags
 
     # Transform a vector into a vector-of-vectors.
     y_vecs = restructure(y, lgssm.emissions)
@@ -83,8 +82,6 @@ function AbstractGPs.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVect
         end,
         zip(Σs, Cf_diags, marg_diags, y_vecs),
     )
-    # return -sum(tmp) / 2
-
     return logpdf(lgssm, y_vecs) - sum(tmp) / 2
 end
 
