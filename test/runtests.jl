@@ -7,7 +7,6 @@ include("front_matter.jl")
         println("util:")
         @testset "util" begin
             include(joinpath("util", "scan.jl"))
-            include(joinpath("util", "zygote_friendly_map.jl"))
             include(joinpath("util", "gaussian.jl"))
             include(joinpath("util", "mul.jl"))
             include(joinpath("util", "regular_data.jl"))

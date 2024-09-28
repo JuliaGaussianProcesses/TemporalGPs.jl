@@ -71,6 +71,7 @@ using Test
     x_pr_r = randn(rng, 10)
 
     @testset "kernel=$(k.name), x=$(x.name)" for k in kernels, x in xs
+        @info "kernel=$(k.name), x=$(x.name)"
 
         # Compute pseudo-input locations. These have to share time points with `x`.
         t = get_times(x.val)

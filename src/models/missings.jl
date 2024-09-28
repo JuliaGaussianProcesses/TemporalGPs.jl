@@ -1,11 +1,9 @@
 # Several strategies for missing data handling were attempted.
 # 1. Use `missing`s as expected. This turned out to be problematic for type-stability.
-# 2. Sentinel values (NaNs). Also problematic for type-stability because Zygote.
+# 2. Sentinel values (NaNs).
 # 3. (The adopted strategy) - replace missings with arbitrary observations and _large_
 #   observation noises. While not optimal, type-stability is preserved inside the
 #   performance-sensitive code.
-#
-# In an ideal world, strategy 1 would work. Unfortunately Zygote isn't up to it yet.
 
 function AbstractGPs.logpdf(
     model::LGSSM, y::AbstractVector{Union{Missing, T}},
@@ -28,7 +26,7 @@ function transform_model_and_obs(
     model::LGSSM, y::AbstractVector{<:Union{Missing, T}},
 ) where {T<:Union{<:AbstractVector, <:Real}}
     Σs_filled_in, y_filled_in = fill_in_missings(
-        zygote_friendly_map(noise_cov, emissions(model)), y,
+        map(noise_cov, emissions(model)), y,
     )
     model_with_missings = replace_observation_noise_cov(model, Σs_filled_in)
     return model_with_missings, y_filled_in
@@ -54,11 +52,11 @@ function _logpdf_volume_compensation(y::AbstractVector{<:Union{Missing, <:Real}}
     return count(ismissing, y) * log(2π * _large_var_const()) / 2
 end
 
-function fill_in_missings(Σs::Vector, y::AbstractVector{Union{Missing, T}}) where {T}
+function fill_in_missings(Σs::AbstractVector, y::AbstractVector{Union{Missing, T}}) where {T}
     return _fill_in_missings(Σs, y)
 end
 
-function _fill_in_missings(Σs::Vector, y::AbstractVector{Union{Missing, T}}) where {T}
+function _fill_in_missings(Σs::AbstractVector, y::AbstractVector{Union{Missing, T}}) where {T}
 
     # Fill in observation covariance matrices with very large values.
     Σs_filled_in = map(eachindex(y)) do n

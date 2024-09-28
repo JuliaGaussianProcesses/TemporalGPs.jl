@@ -193,9 +193,9 @@ end
 function posterior(prior::LGSSM, y::AbstractVector)
     _check_inputs(prior, y)
     new_trans, xf = _a_bit_of_posterior(prior, y)
-    A = zygote_friendly_map(x -> x.A, new_trans)
-    a = zygote_friendly_map(x -> x.a, new_trans)
-    Q = zygote_friendly_map(x -> x.Q, new_trans)
+    A = map(x -> x.A, new_trans)
+    a = map(x -> x.a, new_trans)
+    Q = map(x -> x.Q, new_trans)
     return LGSSM(GaussMarkovModel(reverse(ordering(prior)), A, a, Q, xf), prior.emissions)
 end
 

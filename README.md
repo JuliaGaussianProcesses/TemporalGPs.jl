@@ -76,13 +76,14 @@ This tells TemporalGPs that you want all parameters of `f` and anything derived 
 
 
 
-# Benchmarking Results
+# Benchmarking Results (Old)
 
 ![](/examples/benchmarks.png)
 
 "naive" timings are with the usual [AbstractGPs.jl](https://https://github.com/JuliaGaussianProcesses/AbstractGPs.jl/) inference routines, and is the default implementation for GPs. "lgssm" timings are conducted using `to_sde` with no additional arguments. "static-lgssm" uses the `SArrayStorage(Float64)` option discussed above.
 
-Gradient computations use Mooncake. Custom adjoints have been implemented to achieve this level of performance.
+Gradient computations were performed using [Zygote.jl](https://github.com/FluxML/Zygote.jl/), and required many custom adjoints.
+You should see similar results to this using [Mooncake.jl](https://github.com/compintell/Mooncake.jl) or [Enzyme.jl](https://github.com/EnzymeAD/Enzyme.jl).
 
 
 # Relevant literature
