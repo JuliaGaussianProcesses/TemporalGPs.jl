@@ -6,9 +6,6 @@
 using AbstractGPs
 using TemporalGPs
 
-# Load up the separable kernel from TemporalGPs.
-using TemporalGPs: RegularSpacing
-
 # Load standard packages from the Julia ecosystem
 using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
@@ -27,6 +24,9 @@ flat_initial_params, unpack = ParameterHandling.value_flatten((
 # Pull out the raw values.
 params = unpack(flat_initial_params);
 
+# Functionality to load build a TemporalGPs.jl GP given the model parameters.
+# Specifying SArrayStorage ensures that StaticArrays.jl is used to represent model
+# parameters under the hood, which enables very strong peformance.
 function build_gp(params)
     k = params.var_kernel * Matern52Kernel() ∘ ScaleTransform(params.λ)
     return to_sde(GP(params.mean, k), SArrayStorage(Float64))
@@ -34,7 +34,7 @@ end
 
 # Specify a collection of inputs. Must be increasing.
 T = 1_000_000;
-x = RegularSpacing(0.0, 1e-4, T);
+x = TemporalGPs.RegularSpacing(0.0, 1e-4, T);
 
 # Generate some noisy synthetic data from the GP.
 f = build_gp(params)
@@ -48,6 +48,7 @@ function objective(flat_params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
+# A helper function to get the gradient.
 function objective_grad(rule, flat_params)
     return Mooncake.value_and_gradient!!(rule, objective, flat_params)[2][2]
 end
@@ -74,7 +75,7 @@ f_post = posterior(f_final(x, final_params.var_noise), y);
 
 # Specify some locations at which to make predictions.
 T_pr = 1_200_000;
-x_pr = RegularSpacing(0.0, 1e-4, T_pr);
+x_pr = TemporalGPs.RegularSpacing(0.0, 1e-4, T_pr);
 
 # Compute the exact posterior marginals at `x_pr`.
 f_post_marginals = marginals(f_post(x_pr));
