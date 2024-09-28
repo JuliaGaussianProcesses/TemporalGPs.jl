@@ -3,8 +3,9 @@ using KernelFunctions: kappa
 using TemporalGPs: build_lgssm, StorageType, is_of_storage_type, lgssm_components
 using Test
 
-# Everything is tested once the LGSSM is constructed, so it is sufficient just to ensure
-# that Zygote can handle construction.
+# Everything is tested once the LGSSM is constructed, so the logpdf bit of this test
+# function is probably redundant. It is good to do a little bit of integration testing
+# though.
 function _logpdf_tester(f_naive::GP, y, storage::StorageType, σ², t::AbstractVector)
     f = to_sde(f_naive, storage)
     return logpdf(f(t, σ²...), y)
