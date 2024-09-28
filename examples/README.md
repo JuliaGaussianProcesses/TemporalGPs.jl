@@ -2,7 +2,7 @@
 
 Ideally, you would have worked through a few examples involving AbstractGPs.jl, as the code
 in TemporalGPs.jl implements the (primary) interface specified there.
-Equally, these examples stand alone, so if you're not familiar with AbstractGPS.jl, don't
+Equally, these examples stand alone, so if you're not familiar with AbstractGPs.jl, don't
 worry too much.
 
 The examples in this directory are best worked through in the following order:
