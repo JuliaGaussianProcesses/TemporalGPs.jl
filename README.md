@@ -58,7 +58,7 @@ logpdf(f_post(x), y)
 
 TemporalGPs.jl doesn't provide scikit-learn-like functionality to train your model (find good kernel parameter settings).
 Instead, we offer the functionality needed to easily implement your own training functionality using standard tools from the Julia ecosystem.
-See [exact_time_learning.jl](https://github.com/compintell/Mooncake.jl/examples/exact_time_learning.jl).
+See [exact_time_learning.jl](https://github.com/JuliaGaussianProcesses/TemporalGPs.jl/blob/master/examples/exact_time_learning.jl).
 
 In this example we optimised the parameters, but we could just as easily have utilised e.g. [AdvancedHMC.jl](https://github.com/TuringLang/AdvancedHMC.jl) in conjunction with a prior over the parameters to perform approximate Bayesian inference in them -- indeed, [this is often a very good idea](http://proceedings.mlr.press/v118/lalchand20a/lalchand20a.pdf).
 We leave this as an exercise for the interested user (see e.g. the examples in [Stheno.jl](https://github.com/willtebbutt/Stheno.jl/) for inspiration).
