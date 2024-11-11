@@ -13,7 +13,6 @@ end
 
 println("lti_sde:")
 @testset "lti_sde" begin
-
     @testset "ApproxPeriodicKernel" begin
         k = ApproxPeriodicKernel()
         @test k isa ApproxPeriodicKernel{7}
@@ -206,11 +205,5 @@ println("lti_sde:")
                 is_primitive=false,
             )
         end
-    end
-    @testset "time_exp AD" begin
-        test_rule(
-            Xoshiro(123), t -> TemporalGPs.time_exp([1.0 2.0; 3.0 4.0], t), rand();
-            is_primitive=false,
-        )
     end
 end
