@@ -27,11 +27,11 @@ function random_vector(rng::AbstractRNG, N::Int, ::SArrayStorage{T}) where {T<:R
 end
 
 function random_matrix(rng::AbstractRNG, M::Int, N::Int, ::ArrayStorage{T}) where {T<:Real}
-    return randn(rng, T, M, N)
+    return diagm(M, N, ones(T, min(M, N))) .+ T(1e-1) .* randn(rng, T, M, N)
 end
 
 function random_matrix(rng::AbstractRNG, M::Int, N::Int, ::SArrayStorage{T}) where {T<:Real}
-    return SMatrix{M, N}(randn(rng, T, M, N))
+    return SMatrix{M, N}(random_matrix(rng, M, N, ArrayStorage{T}()))
 end
 
 function random_nice_psd_matrix(
@@ -46,7 +46,7 @@ function random_nice_psd_matrix(
     m_λ = N > 1 ? mean(λ) : mean(λ) + T(1.0)
     σ_λ = N > 1 ? std(λ) : T(1.0)
     λ .= 2 .* (λ .- (m_λ + 0.1)) ./ σ_λ
-    @. λ = T(1 / (1 + exp(-λ)) * 0.9 + 0.1)
+    @. λ = T(1 / (1 + exp(-λ)) * 0.9 + 1.0)
     return collect(Symmetric(Γ * Diagonal(λ) * Γ'))
 end
 
@@ -102,7 +102,7 @@ function random_scalar_output_lgc(rng::AbstractRNG, Dlat::Int, s::StorageType)
     return ScalarOutputLGC(
         random_vector(rng, Dlat, s)',
         randn(rng, eltype(s)),
-        rand(rng, eltype(s)) + 0.1,
+        rand(rng, eltype(s)) + eltype(s)(1.0),
     )
 end
 
