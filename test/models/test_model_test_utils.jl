@@ -15,8 +15,8 @@
             @test is_of_storage_type(A, storage.val)
             @test size(A) == (4, 3)
         end
-        @testset "random_nice_psd_matrix" begin
-            Σ = random_nice_psd_matrix(rng, 11, storage.val)
+        @testset "random_psd_matrix" begin
+            Σ = random_psd_matrix(rng, 11, 0.1, 0.9, storage.val)
             @test all(eigvals(Σ) .> 0)
             @test all(eigvals(Σ) .< 1)
             @test is_of_storage_type(Σ, storage.val)
