@@ -27,53 +27,70 @@ function random_vector(rng::AbstractRNG, N::Int, ::SArrayStorage{T}) where {T<:R
 end
 
 function random_matrix(rng::AbstractRNG, M::Int, N::Int, ::ArrayStorage{T}) where {T<:Real}
-    return randn(rng, T, M, N)
+    return diagm(M, N, ones(T, min(M, N))) .+ T(1e-1) .* randn(rng, T, M, N)
 end
 
 function random_matrix(rng::AbstractRNG, M::Int, N::Int, ::SArrayStorage{T}) where {T<:Real}
-    return SMatrix{M, N}(randn(rng, T, M, N))
+    return SMatrix{M, N}(random_matrix(rng, M, N, ArrayStorage{T}()))
 end
 
-function random_nice_psd_matrix(
-    rng::AbstractRNG, N::Integer, ::Val{:dense}, ::ArrayStorage{T},
+function random_psd_matrix(
+    rng::AbstractRNG,
+    N::Int,
+    eig_lb::Float64,
+    eig_ub::Float64,
+    ::Val{:dense},
+    ::ArrayStorage{T},
 ) where {T}
 
-    # Generate random positive definite matrix.
-    S = Symmetric(kernelmatrix(Matern12Kernel(), 5 .* randn(rng, T, N)) + T(1e-1) * I)
+    # Matrix not guaranteed to be positive definite if eigenvalues can be less than 0.
+    @assert eig_lb > 0
 
-    # Centre (make eigenvals N(0, 2^2)) and bound the eigenvalues between 0 and 1.
-    λ, Γ = eigen(S)
-    m_λ = N > 1 ? mean(λ) : mean(λ) + T(1.0)
-    σ_λ = N > 1 ? std(λ) : T(1.0)
-    λ .= 2 .* (λ .- (m_λ + 0.1)) ./ σ_λ
-    @. λ = T(1 / (1 + exp(-λ)) * 0.9 + 0.1)
-    return collect(Symmetric(Γ * Diagonal(λ) * Γ'))
+    # Generate a random orthogonal matrix by computing the QR decomposition of a random
+    # matrix, and extracting the "Q" component.
+    Q = collect(qr(randn(rng, N, N)).Q)
+
+    # Generate eigenvalues in the desired range.
+    λs = rand(rng, N) .* T(eig_ub - eig_lb) .+ T(eig_lb)
+
+    # Construct a positive definite matrix.
+    return collect(Symmetric(Q * Diagonal(λs) * Q'))
+
+    # # Centre (make eigenvals N(0, 2^2)) and bound the eigenvalues between 0 and 1.
+    # λ, Γ = eigen(S)
+    # m_λ = N > 1 ? mean(λ) : mean(λ) + T(1.0)
+    # σ_λ = N > 1 ? std(λ) : T(1.0)
+    # λ .= 2 .* (λ .- (m_λ + 0.1)) ./ σ_λ
+    # @. λ = T(1 / (1 + exp(-λ)) * 0.9 + 0.1)
+    # return collect(Symmetric(Γ * Diagonal(λ) * Γ'))
 end
 
-function random_nice_psd_matrix(
-    rng::AbstractRNG, N::Integer, ::Val{:dense}, ::SArrayStorage{T},
+function random_psd_matrix(
+    rng::AbstractRNG, N::Int, lb::Float64, ub::Float64, ::Val{:dense}, ::SArrayStorage{T},
 ) where {T}
-    return SMatrix{N, N, T}(random_nice_psd_matrix(rng, N, Val(:dense), ArrayStorage(T)))
+    return SMatrix{N, N, T}(random_psd_matrix(rng, N, lb, ub, Val(:dense), ArrayStorage(T)))
 end
 
-function random_nice_psd_matrix(rng::AbstractRNG, N::Integer, storage::StorageType)
-    return random_nice_psd_matrix(rng, N, Val(:dense), storage)
+function random_psd_matrix(
+    rng::AbstractRNG, N::Integer, lb::Float64, ub::Float64, storage::StorageType
+)
+    return random_psd_matrix(rng, N, lb, ub, Val(:dense), storage)
 end
 
-function random_nice_psd_matrix(
-    rng::AbstractRNG, N::Integer, ::Val{:diag}, ::ArrayStorage{T},
+function random_psd_matrix(
+    rng::AbstractRNG, N::Integer, lb::Float64, ub::Float64, ::Val{:diag}, ::ArrayStorage{T},
 ) where {T}
-    return Diagonal(rand(T, N) .+ T(1.0))
+    return Diagonal(rand(rng, T, N) .* T(ub - lb) .+ T(lb))
 end
 
-function random_nice_psd_matrix(
-    rng::AbstractRNG, N::Integer, ::Val{:diag}, ::SArrayStorage{T},
+function random_psd_matrix(
+    rng::AbstractRNG, N::Integer, lb::Float64, ub::Float64, ::Val{:diag}, ::SArrayStorage{T},
 ) where {T}
-    return Diagonal(rand(SVector{N, T}) .+ T(1.0))
+    return Diagonal(rand(rng, SVector{N, T}) .* T(ub - lb) .+ T(lb))
 end
 
-function random_nice_psd_matrix(rng::AbstractRNG, ::Integer, ::ScalarStorage{T}) where {T}
-    return rand(rng, T) + convert(T, 1.0)
+function random_psd_matrix(rng::AbstractRNG, ::Integer, lb::Float64, ub::Float64, ::ScalarStorage{T}) where {T}
+    return rand(rng, T) * T(ub - lb) + T(lb)
 end
 
 
@@ -83,7 +100,7 @@ end
 #
 
 function random_gaussian(rng::AbstractRNG, dim::Int, s::StorageType)
-    return Gaussian(random_vector(rng, dim, s), random_nice_psd_matrix(rng, dim, s))
+    return Gaussian(random_vector(rng, dim, s), random_psd_matrix(rng, dim, 0.9, 1.1, s))
 end
 
 # Generation of SmallOutputLGC.
@@ -94,7 +111,7 @@ function random_small_output_lgc(
     return SmallOutputLGC(
         random_matrix(rng, Dobs, Dlat, s),
         random_vector(rng, Dobs, s),
-        random_nice_psd_matrix(rng, Dobs, Q_type, s),
+        random_psd_matrix(rng, Dobs, 0.9, 1.1, Q_type, s),
     )
 end
 
@@ -102,7 +119,7 @@ function random_scalar_output_lgc(rng::AbstractRNG, Dlat::Int, s::StorageType)
     return ScalarOutputLGC(
         random_vector(rng, Dlat, s)',
         randn(rng, eltype(s)),
-        rand(rng, eltype(s)) + 0.1,
+        rand(rng, eltype(s)) + eltype(s)(1.0),
     )
 end
 
@@ -118,7 +135,7 @@ function random_large_output_lgc(
     return LargeOutputLGC(
         random_matrix(rng, Dobs, Dlat, s),
         random_vector(rng, Dobs, s),
-        random_nice_psd_matrix(rng, Dobs, Q_type, s),
+        random_psd_matrix(rng, Dobs, 0.9, 1.1, Q_type, s),
     )
 end
 
@@ -145,57 +162,25 @@ end
 
 function random_tv_gmm(rng::AbstractRNG, ordering, Dlat::Int, N::Int, s::StorageType)
 
-    As = map(_ -> -random_nice_psd_matrix(rng, Dlat, s), 1:N)
+    As = map(_ -> random_matrix(rng, Dlat, Dlat, s), 1:N)
     as = map(_ -> random_vector(rng, Dlat, s), 1:N)
     x0 = random_gaussian(rng, Dlat, s)
 
     # For some reason this operation seems to be _incredibly_ inaccurate. My guess is that
     # the numerics are horrible for some reason, but I'm not sure why. Hence we add a pretty
     # large constant to the diagonal to ensure that all Qs are positive definite.
-    Qs = map(n -> x0.P - Symmetric(As[n] * x0.P * As[n]') + eltype(s)(1e-1) * I, 1:N)
+    Qs = map(n -> x0.P - Symmetric(As[n] * x0.P * As[n]') + eltype(s)(1.0) * I, 1:N)
 
     return GaussMarkovModel(ordering, As, as, Qs, x0)
 end
 
 function random_ti_gmm(rng::AbstractRNG, ordering, Dlat::Int, N::Int, s::StorageType)
-
-    As = Fill(-random_nice_psd_matrix(rng, Dlat, s), N)
+    As = Fill(-random_psd_matrix(rng, Dlat, 0.1, 0.3, s), N)
     as = Fill(random_vector(rng, Dlat, s), N)
     x0 = random_gaussian(rng, Dlat, s)
-
-    # For some reason this operation seems to be _incredibly_ inaccurate. My guess is that
-    # the numerics are horrible for some reason, but I'm not sure why. Hence we add a pretty
-    # large constant to the diagonal to ensure that all Qs are positive definite.
-    Qs = Fill(x0.P - As[1] * x0.P * As[1]' + eltype(s)(1e-1) * I, N)
+    Qs = Fill(x0.P - As[1] * x0.P * As[1]', N)
     return GaussMarkovModel(ordering, As, as, Qs, x0)
 end
-
-function gmm_Qs_tangent(
-    rng::AbstractRNG, Qs::T, storage_type::StorageType,
-) where {T<:Vector{<:AbstractMatrix}}
-    return map(Q -> random_nice_psd_matrix(rng, size(Q, 1), storage_type), Qs)
-end
-
-function gmm_Qs_tangent(
-    rng::AbstractRNG, Qs::T, storage_type::StorageType,
-) where {T<:Fill{<:AbstractMatrix}}
-    Δ = random_nice_psd_matrix(rng, size(first(Qs), 1), storage_type)
-    return Tangent{T}(value=Δ)
-end
-
-function gmm_Qs_tangent(
-    rng::AbstractRNG, Qs::T, storage_type::StorageType,
-) where {T<:Vector{<:Real}}
-    return map(Q -> convert(eltype(storage_type), rand(rng) + 0.1), Qs)
-end
-
-function gmm_Qs_tangent(
-    rng::AbstractRNG, Qs::T, storage_type::StorageType,
-) where {T<:Fill{<:Real}}
-    return Tangent{T}(value=convert(eltype(storage_type), rand(rng) + 0.1))
-end
-
-
 
 # Generation of LGSSMs.
 
@@ -213,7 +198,7 @@ function random_lgssm(
     transitions = random_tv_gmm(rng, ordering, Dlat, N, storage)
     Hs = map(_ -> random_matrix(rng, Dobs, Dlat, storage), 1:N)
     hs = map(_ -> random_vector(rng, Dobs, storage), 1:N)
-    Σs = map(_ -> random_nice_psd_matrix(rng, Dobs, Q_type, storage), 1:N)
+    Σs = map(_ -> random_psd_matrix(rng, Dobs, 0.9, 1.1, Q_type, storage), 1:N)
     T = emission_type{eltype(Hs), eltype(hs), eltype(Σs)}
     emissions = StructArray{T}((Hs, hs, Σs))
     return LGSSM(transitions, emissions)
@@ -233,7 +218,7 @@ function random_lgssm(
     transitions = random_ti_gmm(rng, ordering, Dlat, N, storage)
     Hs = Fill(random_matrix(rng, Dobs, Dlat, storage), N)
     hs = Fill(random_vector(rng, Dobs, storage), N)
-    Σs = Fill(random_nice_psd_matrix(rng, Dobs, Q_type, storage), N)
+    Σs = Fill(random_psd_matrix(rng, Dobs, 0.9, 1.1, Q_type, storage), N)
     T = emission_type{eltype(Hs), eltype(hs), eltype(Σs)}
     emissions = StructArray{T}((Hs, hs, Σs))
     return LGSSM(transitions, emissions)
@@ -276,29 +261,6 @@ function random_lgssm(
     emissions = StructArray{T}((Hs, hs, Σs))
     return LGSSM(transitions, emissions)
 end
-
-# function random_tv_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
-#     return ScalarLGSSM(random_tv_lgssm(rng, Dlat, 1, N, storage))
-# end
-
-# function random_ti_scalar_lgssm(rng::AbstractRNG, Dlat::Int, N::Int, storage)
-#     return ScalarLGSSM(random_ti_lgssm(rng, Dlat, 1, N, storage))
-# end
-
-# function random_tv_posterior_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
-#     lgssm = random_tv_lgssm(rng, Dlat, Dobs, N, storage)
-#     y = rand(rng, lgssm)
-#     Σs = map(_ -> random_nice_psd_matrix(rng, Dobs, storage), eachindex(y))
-#     return posterior(lgssm, y, Σs)
-# end
-
-# function random_ti_posterior_lgssm(rng::AbstractRNG, Dlat::Int, Dobs::Int, N::Int, storage)
-#     lgssm = random_ti_lgssm(rng, Dlat, Dobs, N, storage)
-#     y = rand(rng, lgssm)
-#     Σs = Fill(random_nice_psd_matrix(rng, Dobs, storage), length(lgssm))
-#     return posterior(lgssm, y, Σs)
-# end
-
 
 #
 # Validation of internal consistency.
@@ -352,16 +314,3 @@ function validate_dims(model::LGSSM)
 
     return nothing
 end
-
-# function __verify_model_properties(model, Dlat, Dobs, N, storage_type)
-#     @test is_of_storage_type(model, storage_type)
-#     @test length(model) == N
-#     @test dim_obs(model) == Dobs
-#     @test dim_latent(model) == Dlat
-#     validate_dims(model)
-#     return nothing
-# end
-
-# function __verify_model_properties(model, Dlat, N, storage_type)
-#     return __verify_model_properties(model, Dlat, 1, N, storage_type)
-# end

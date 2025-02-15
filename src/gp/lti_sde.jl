@@ -130,9 +130,6 @@ function add_proj_mean(hs::AbstractVector, m)
     return map((h, m) -> h + vcat(m, Zeros(length(h) - 1)), hs, m)
 end
 
-# Really just a hook for AD.
-time_exp(A, t) = exp(A * t)
-
 # Generic constructors for base kernels.
 
 function broadcast_components(
@@ -140,7 +137,7 @@ function broadcast_components(
 ) where {T}
     P = Symmetric(x0.P)
     t = vcat([first(t) - 1], t)
-    As = map(Δt -> time_exp(F, T(Δt)), diff(t))
+    As = map(Δt -> exp(F * T(Δt)), diff(t))
     as = Fill(Zeros{T}(size(first(As), 1)), length(As))
     Qs = map(A -> P - A * P * A', As)
     Hs = Fill(H, length(As))
@@ -152,7 +149,7 @@ function broadcast_components(
     (F, q, H)::Tuple, x0::Gaussian, t::Union{StepRangeLen, RegularSpacing}, ::StorageType{T}
 ) where {T}
     P = Symmetric(x0.P)
-    A = time_exp(F, T(step(t)))
+    A = exp(F * T(step(t)))
     As = Fill(A, length(t))
     as = Fill(Zeros{T}(size(F, 1)), length(t))
     Q = Symmetric(P) - A * Symmetric(P) * A'
@@ -187,8 +184,6 @@ function stationary_distribution(k::SimpleKernel, ::ArrayStorage{T}) where {T<:R
     return Gaussian(collect(x.m), collect(x.P))
 end
 
-safe_to_product(::Kernel) = false
-
 # Matern-1/2
 
 function to_sde(::Matern12Kernel, ::SArrayStorage{T}) where {T<:Real}
@@ -204,8 +199,6 @@ function stationary_distribution(::Matern12Kernel, ::SArrayStorage{T}) where {T<
         SMatrix{1, 1, T}(1),
     )
 end
-
-safe_to_product(::Matern12Kernel) = true
 
 # Matern - 3/2
 
@@ -224,8 +217,6 @@ function stationary_distribution(::Matern32Kernel, ::SArrayStorage{T}) where {T<
     )
 end
 
-safe_to_product(::Matern32Kernel) = true
-
 # Matern - 5/2
 
 function to_sde(::Matern52Kernel, ::SArrayStorage{T}) where {T<:Real}
@@ -243,8 +234,6 @@ function stationary_distribution(::Matern52Kernel, ::SArrayStorage{T}) where {T<
     return Gaussian(m, P)
 end
 
-safe_to_product(::Matern52Kernel) = true
-
 # Cosine
 
 function to_sde(::CosineKernel, ::SArrayStorage{T}) where {T}
@@ -259,8 +248,6 @@ function stationary_distribution(::CosineKernel, ::SArrayStorage{T}) where {T<:R
     P = SMatrix{2, 2, T}(1, 0, 0, 1)
     return Gaussian(m, P)
 end
-
-safe_to_product(::CosineKernel) = true
 
 # ApproxPeriodicKernel
 
@@ -319,8 +306,6 @@ function stationary_distribution(kernel::ApproxPeriodicKernel{N}, storage::Array
     return Gaussian(m, P)
 end
 
-safe_to_product(::ApproxPeriodicKernel) = true
-
 # Constant
 
 function TemporalGPs.to_sde(::ConstantKernel, ::SArrayStorage{T}) where {T<:Real}
@@ -334,9 +319,6 @@ function TemporalGPs.stationary_distribution(k::ConstantKernel, ::SArrayStorage{
     return TemporalGPs.Gaussian(SVector{1, T}(0), SMatrix{1, 1, T}(T(only(k.c))))
 end
 
-safe_to_product(::ConstantKernel) = true
-
-
 # Scaled
 
 function to_sde(k::ScaledKernel, storage::StorageType{T}) where {T<:Real}
@@ -348,8 +330,6 @@ end
 function stationary_distribution(k::ScaledKernel, storage::StorageType)
     return stationary_distribution(k.kernel, storage)
 end
-
-safe_to_product(k::ScaledKernel) = safe_to_product(k.kernel)
 
 function lgssm_components(k::ScaledKernel, ts::AbstractVector, storage_type::StorageType)
     As, as, Qs, emission_proj, x0 = lgssm_components(k.kernel, ts, storage_type)
@@ -378,8 +358,6 @@ function stationary_distribution(
     return stationary_distribution(k.kernel, storage)
 end
 
-safe_to_product(::TransformedKernel{<:Kernel, <:ScaleTransform}) = false
-
 function lgssm_components(
     k::TransformedKernel{<:Kernel, <:ScaleTransform},
     ts::AbstractVector,
@@ -396,11 +374,7 @@ apply_stretch(a, ts::RegularSpacing) = RegularSpacing(a * ts.t0, a * ts.Δt, ts.
 
 # Product
 
-safe_to_product(k::KernelProduct) = all(safe_to_product, k.kernels)
-
 function lgssm_components(k::KernelProduct, ts::AbstractVector, storage::StorageType)
-
-    safe_to_product(k) || throw(ArgumentError("Not all kernels in k are safe to product."))
 
     sde_kernels = to_sde.(k.kernels, Ref(storage))
     F_kernels = getindex.(sde_kernels, 1)

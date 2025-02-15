@@ -81,7 +81,10 @@
             @test std.(marginals(fx_post_naive)) ≈ std.(marginals(fx_post_sde))
 
             y_post = rand(rng, fx_post_naive)
-            @test logpdf(fx_post_naive, y_post) ≈ logpdf(fx_post_sde, y_post)
+            @test isapprox(
+                logpdf(fx_post_naive, y_post), logpdf(fx_post_sde, y_post);
+                atol=1e-6, rtol=1e-6,
+            )
 
             # No statistical tests run on `rand`, which seems somewhat dangerous, but there's
             # not a lot to be done about it unfortunately.

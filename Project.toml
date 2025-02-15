@@ -1,7 +1,7 @@
 name = "TemporalGPs"
 uuid = "e155a3c4-0841-43e1-8b83-a0e4f03cc18f"
 authors = ["Will Tebbutt and contributors"]
-version = "0.7.1"
+version = "0.7.2"
 
 [deps]
 AbstractGPs = "99985d1d-32ba-4be9-9821-2ec096f28918"
@@ -14,12 +14,6 @@ Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 
-[weakdeps]
-Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
-
-[extensions]
-TemporalGPsMooncakeExt = "Mooncake"
-
 [compat]
 AbstractGPs = "0.5.17"
 BenchmarkTools = "1"
@@ -28,7 +22,7 @@ BlockDiagonals = "0.1.7"
 FillArrays = "0.13.0 - 0.13.7, 1"
 JET = "0.9"
 KernelFunctions = "0.9, 0.10.1"
-Mooncake = "0.4.3"
+Mooncake = "0.4.94"
 StaticArrays = "1"
 StructArrays = "0.5, 0.6"
 julia = "1.6"

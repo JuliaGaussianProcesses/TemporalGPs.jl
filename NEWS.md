@@ -1,3 +1,9 @@
+# 0.7.1
+
+time_exp has been removed in favour of assuming that whichever AD library is being used can
+successfully AD through the matrix exponential. Guard rails to prevent mis-use of previous
+rule have been remved.
+
 # 0.7
 
 Mooncake.jl (and probably Enzyme.jl) is now able to differentiate everything in
