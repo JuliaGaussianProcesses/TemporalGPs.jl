@@ -8,9 +8,8 @@ element types are `Tl` and `Tr` respectively, comprising `length(xl) * length(xr
 elements. Linear indexing is the same as `product(eachindex(xl), eachindex(xr))` - `xl`
 iterates more quickly than `xr`.
 """
-struct RectilinearGrid{
-    Tl, Tr, Txl<:AbstractVector{Tl}, Txr<:AbstractVector{Tr},
-} <: AbstractVector{Tuple{Tl, Tr}}
+struct RectilinearGrid{Tl,Tr,Txl<:AbstractVector{Tl},Txr<:AbstractVector{Tr}} <:
+       AbstractVector{Tuple{Tl,Tr}}
     xl::Txl
     xr::Txr
 end
@@ -21,12 +20,9 @@ get_times(x::RectilinearGrid) = x.xr
 
 Base.size(X::RectilinearGrid) = (length(X.xl) * length(X.xr),)
 
-function Base.collect(X::RectilinearGrid{Tl, Tr}) where{Tl, Tr}
+function Base.collect(X::RectilinearGrid{Tl,Tr}) where {Tl,Tr}
     return vec(
-        map(
-            ((p, q),) -> (X.xl[p], X.xr[q]),
-            product(eachindex(X.xl), eachindex(X.xr)),
-        )
+        map(((p, q),) -> (X.xl[p], X.xr[q]), product(eachindex(X.xl), eachindex(X.xr)))
     )
 end
 
@@ -42,13 +38,9 @@ Base.show(io::IO, x::RectilinearGrid) = Base.show(io::IO, collect(x))
 A `SpaceTimeGrid` is a `RectilinearGrid` in which the left vector corresponds to space, and
 the right `time`. The left eltype is arbitrary, but the right must be `Real`.
 """
-const SpaceTimeGrid{Tr, Tt<:Real} = RectilinearGrid{
-    Tr, Tt, <:AbstractVector{Tr}, <:AbstractVector{Tt},
+const SpaceTimeGrid{Tr,Tt<:Real} = RectilinearGrid{
+    Tr,Tt,<:AbstractVector{Tr},<:AbstractVector{Tt}
 }
-
-
-
-
 
 #
 # Implement internal API for transforming between "flat" representation, which is useful for
@@ -75,14 +67,15 @@ function sort_in_time(x::SpaceTimeGrid)
 end
 
 # See docstring elsewhere for context.
-function observations_to_time_form(x::SpaceTimeGrid, y::AbstractVector{<:Union{Real, Missing}})
+function observations_to_time_form(
+    x::SpaceTimeGrid, y::AbstractVector{<:Union{Real,Missing}}
+)
     return restructure(y, Fill(length(get_space(x)), length(get_times(x))))
 end
 
 function observations_to_time_form(x::SpaceTimeGrid, ::AbstractVector{Missing})
     return fill(missing, length(get_times(x)))
 end
-
 
 function get_zeros(x::SpaceTimeGrid{T}) where {T<:Real}
     return fill(Diagonal(zeros(T, length(get_space(x)))), length(get_times(x)))

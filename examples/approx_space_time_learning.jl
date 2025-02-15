@@ -19,10 +19,10 @@ using ParameterHandling: flatten
 
 # Declare model parameters using `ParameterHandling.jl` types.
 flat_initial_params, unflatten = flatten((
-    var_kernel = positive(0.6),
-    λ_space = positive(0.5),
-    λ_time = positive(0.1),
-    var_noise = positive(0.1),
+    var_kernel=positive(0.6),
+    λ_space=positive(0.5),
+    λ_time=positive(0.1),
+    var_noise=positive(0.1),
 ));
 
 # Construct a function to unpack flattened parameters and pull out the raw values.
@@ -35,7 +35,6 @@ function build_gp(params)
     k = params.var_kernel * Separable(k_space, k_time)
     return to_sde(GP(k), ArrayStorage(Float64))
 end
-
 
 # Construct inputs. Spatial locations change at each point in time.
 # Also works with RectilinearGrids of inputs.
@@ -72,14 +71,13 @@ training_results = Optim.optimize(
     objective,
     Base.Fix1(objective_grad, Mooncake.build_rrule(objective, flat_initial_params)),
     flat_initial_params + randn(4), # Add some noise to make learning non-trivial
-    BFGS(
-        alphaguess = Optim.LineSearches.InitialStatic(scaled=true),
-        linesearch = Optim.LineSearches.BackTracking(),
+    BFGS(;
+        alphaguess=Optim.LineSearches.InitialStatic(; scaled=true),
+        linesearch=Optim.LineSearches.BackTracking(),
     ),
-    Optim.Options(show_trace = true);
+    Optim.Options(; show_trace=true);
     inplace=false,
 );
-
 
 # Extracting the final values of the parameters.
 # Should be close to truth.
@@ -108,5 +106,5 @@ if get(ENV, "TESTING", "FALSE") == "FALSE"
             layout=(1, 2),
         ),
         "approx_space_time_learning.png",
-    );
+    )
 end

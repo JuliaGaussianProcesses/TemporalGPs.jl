@@ -32,7 +32,7 @@ y_sign = sign.(y .- 0.5)
 Λ_like(ω, γ) = 2 * γ * ω # The augmented likelihood precision (diagonal)
 
 # These are the values corresponding to our problem
-γ = 0.5 
+γ = 0.5
 g = 0.5 * y_sign
 β = 0
 
@@ -69,9 +69,9 @@ f_post_samples = [rand(f_post(x_pr)) for _ in 1:5];
 if get(ENV, "TESTING", "FALSE") == "FALSE"
     using Plots
     plt = plot()
-    plot!(plt, f_post(x_pr); ribbon_scale=3.0, label="");
-    plot!(plt, x_pr, f_post_samples; color=:red, alpha=0.3, label="");
-    plot!(plt, x, f_true; label="", lw=2.0, color=:blue); # Plot the true latent GP on top 
-    scatter!(plt, x, y; label="", markersize=1.0, alpha=1.0); # Plot the data
-    savefig(plt, "augmented_inference.png");
+    plot!(plt, f_post(x_pr); ribbon_scale=3.0, label="")
+    plot!(plt, x_pr, f_post_samples; color=:red, alpha=0.3, label="")
+    plot!(plt, x, f_true; label="", lw=2.0, color=:blue) # Plot the true latent GP on top 
+    scatter!(plt, x, y; label="", markersize=1.0, alpha=1.0) # Plot the data
+    savefig(plt, "augmented_inference.png")
 end

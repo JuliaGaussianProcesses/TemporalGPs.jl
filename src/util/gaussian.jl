@@ -13,7 +13,7 @@ possible that in the intervening period of time things have improved and this ty
 longer necessary in addition to the `MvNormal` type in `Distributions`. I've not had the
 time to remove it though.
 """
-struct Gaussian{Tm, TP}
+struct Gaussian{Tm,TP}
     m::Tm
     P::TP
 end
@@ -58,16 +58,16 @@ function Base.isapprox(x::Gaussian, y::Gaussian; kwargs...)
     return isapprox(mean(x), mean(y); kwargs...) && isapprox(cov(x), cov(y); kwargs...)
 end
 
-function AbstractGPs.marginals(x::Gaussian{T, T}) where {T<:Real}
+function AbstractGPs.marginals(x::Gaussian{T,T}) where {T<:Real}
     return AbstractGPs.Normal{T}(mean(x), sqrt(cov(x)))
 end
 
-function AbstractGPs.marginals(x::Gaussian{<:AbstractVector, <:AbstractMatrix})
+function AbstractGPs.marginals(x::Gaussian{<:AbstractVector,<:AbstractMatrix})
     return AbstractGPs.Normal.(mean(x), sqrt.(diag(cov(x))))
 end
 
 storage_type(::Gaussian{<:Vector{T}}) where {T<:Real} = ArrayStorage(T)
-storage_type(::Gaussian{<:SVector{D, T}}) where {D, T<:Real} = SArrayStorage(T)
+storage_type(::Gaussian{<:SVector{D,T}}) where {D,T<:Real} = SArrayStorage(T)
 storage_type(::Gaussian{T}) where {T<:Real} = ScalarStorage(T)
 
 Base.length(x::Gaussian) = 0

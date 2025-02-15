@@ -45,12 +45,11 @@
     )
 
     σ²s = (
-        (name="homoscedastic noise", val=(0.1, ),),
-        (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1, )),
+        (name="homoscedastic noise", val=(0.1,)),
+        (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1,)),
     )
 
-    @testset "$(kernel.name), $(storage.name), $(t.name), $(σ².name)" for
-        kernel in kernels,
+    @testset "$(kernel.name), $(storage.name), $(t.name), $(σ².name)" for kernel in kernels,
         storage in storages,
         t in ts,
         σ² in σ²s
@@ -79,13 +78,13 @@
         fx_post = f_post(x_pr, post_obs_var)
         y_post = rand(fx_post)
 
-        @test mean.(marginals(fx_post_naive)) ≈ mean.(marginals(fx_post)) rtol=1e-5
-        @test std.(marginals(fx_post_naive)) ≈ std.(marginals(fx_post)) rtol=1e-5
+        @test mean.(marginals(fx_post_naive)) ≈ mean.(marginals(fx_post)) rtol = 1e-5
+        @test std.(marginals(fx_post_naive)) ≈ std.(marginals(fx_post)) rtol = 1e-5
         m_and_v = mean_and_var(fx_post)
         @test m_and_v[1] ≈ mean.(marginals(fx_post))
         @test m_and_v[2] ≈ var.(marginals(fx_post))
-        @test mean(fx_post) ≈ m_and_v[1] rtol=1e-5
-        @test var(fx_post) ≈ m_and_v[2] rtol=1e-5
-        @test logpdf(fx_post_naive, y_post) ≈ logpdf(fx_post, y_post) rtol=1e-5
+        @test mean(fx_post) ≈ m_and_v[1] rtol = 1e-5
+        @test var(fx_post) ≈ m_and_v[2] rtol = 1e-5
+        @test logpdf(fx_post_naive, y_post) ≈ logpdf(fx_post, y_post) rtol = 1e-5
     end
 end

@@ -26,7 +26,7 @@
             @test is_of_storage_type(x, storage.val)
             @test length(x.m) == 3
             @test size(x.P) == (3, 3)
-            @test all(eigvals(x.P) .> 0) 
+            @test all(eigvals(x.P) .> 0)
         end
         @testset "GaussMarkovModel" begin
             @testset "time-varying" begin

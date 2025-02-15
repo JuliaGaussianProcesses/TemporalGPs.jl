@@ -44,9 +44,9 @@ f_post_samples = [rand(f_post(x_pr)) for _ in 1:5];
 # Visualise the posterior. The if block is just to prevent it running in CI.
 if get(ENV, "TESTING", "FALSE") == "FALSE"
     using Plots
-    plt = plot();
-    scatter!(plt, x, y; label="", markersize=0.1, alpha=0.1);
-    plot!(plt, f_post(x_pr); ribbon_scale=3.0, label="");
-    plot!(x_pr, f_post_samples; color=:red, label="");
-    savefig(plt, "exact_time_inference.png");
+    plt = plot()
+    scatter!(plt, x, y; label="", markersize=0.1, alpha=0.1)
+    plot!(plt, f_post(x_pr); ribbon_scale=3.0, label="")
+    plot!(x_pr, f_post_samples; color=:red, label="")
+    savefig(plt, "exact_time_inference.png")
 end

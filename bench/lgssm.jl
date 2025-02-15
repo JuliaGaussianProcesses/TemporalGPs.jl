@@ -2,8 +2,8 @@ using Pkg
 Pkg.activate(".")
 Pkg.instantiate()
 
-using BenchmarkTools, BlockDiagonals, FillArrays, LinearAlgebra, Random, Stheno,
-    TemporalGPs, Mooncake
+using BenchmarkTools,
+    BlockDiagonals, FillArrays, LinearAlgebra, Random, Stheno, TemporalGPs, Mooncake
 
 using DataFrames, DrWatson, PGFPlotsX
 
@@ -14,8 +14,6 @@ const n_blas_threads = 4;
 BLAS.set_num_threads(n_blas_threads);
 
 const exp_dir_name = "lgssm"
-
-
 
 #
 # Utilities
@@ -60,8 +58,6 @@ function block_diagonal_dynamics_constructor(rng, N_space, N_time, N_blocks)
     return f(RectilinearGrid(x, t), 0.1)
 end
 
-
-
 #
 # Save settings.
 #
@@ -73,17 +69,11 @@ wsave(
 
             # Method to execute `predict` and construct / evaluate its pullback.
             :implementation => [
+                (name="naive", dynamics_constructor=dense_dynamics_constructor),
+                (name="dense", dynamics_constructor=dense_dynamics_constructor),
                 (
-                    name = "naive",
-                    dynamics_constructor = dense_dynamics_constructor,
-                ),
-                (
-                    name = "dense",
-                    dynamics_constructor = dense_dynamics_constructor,
-                ),
-                (
-                    name = "block-diagonal",
-                    dynamics_constructor = block_diagonal_dynamics_constructor,
+                    name="block-diagonal",
+                    dynamics_constructor=block_diagonal_dynamics_constructor,
                 ),
             ],
 
@@ -99,8 +89,6 @@ wsave(
         ),
     ),
 )
-
-
 
 #
 # Run benchmarking experiments.
@@ -160,25 +148,14 @@ let
     end
 end
 
-
-
-
 #
 # Process results.
 #
 
 let
     # Define some plotting settings for each of the implementation types.
-    colour_map = Dict(
-        "naive" => "black",
-        "dense" => "blue",
-        "block-diagonal" => "red",
-    )
-    marker_map = Dict(
-        "naive" => "square",
-        "dense" => "triangle",
-        "block-diagonal" => "*",
-    )
+    colour_map = Dict("naive" => "black", "dense" => "blue", "block-diagonal" => "red")
+    marker_map = Dict("naive" => "square", "dense" => "triangle", "block-diagonal" => "*")
 
     try
         mkdir(plotsdir())
@@ -196,14 +173,14 @@ let
             row = merge(
                 copy(row), # No need to copy in following blocks.
                 (
-                    implementation_name = row.setting[:implementation].name,
-                    N_space = row.setting[:N_space],
-                    N_time = row.setting[:N_time],
-                    N_blocks = row.setting[:N_blocks],
+                    implementation_name=row.setting[:implementation].name,
+                    N_space=row.setting[:N_space],
+                    N_time=row.setting[:N_time],
+                    N_blocks=row.setting[:N_blocks],
                 ),
             )
             return row
-        end
+        end,
     )
 
     # Plot timing curves for each block size for each implementation. This is used to assess
@@ -216,42 +193,29 @@ let
         setting_name = "N_blocks=$N_blocks-impl_name=$impl_name"
         plots = [
             (
-                plot = (@pgf Axis(
-                    {
-                        title = "rand",
-                        legend_pos = "north west",
-                        xmode="log",
-                    }
-                )),
-                result_name = :rand_results,
-                save_name = "rand_$setting_name.tex",
+                plot=(@pgf Axis({
+                    title = "rand", legend_pos = "north west", xmode = "log"
+                })),
+                result_name=:rand_results,
+                save_name="rand_$setting_name.tex",
             ),
             (
-                plot = (@pgf Axis(
-                    {
-                        title = "logpdf",
-                        legend_pos = "north west",
-                        xmode="log",
-                    },
-                )),
-                result_name = :logpdf_results,
-                save_name = "logpdf_$setting_name.tex",
+                plot=(@pgf Axis({
+                    title = "logpdf", legend_pos = "north west", xmode = "log"
+                },)),
+                result_name=:logpdf_results,
+                save_name="logpdf_$setting_name.tex",
             ),
             (
-                plot = (@pgf Axis(
-                    {
-                        title = "logpdf gradient",
-                        legend_pos = "north west",
-                        xmode="log",
-                    },
-                )),
-                result_name = :logpdf_gradient_results,
-                save_name = "logpdf_gradient_$setting_name.tex",
+                plot=(@pgf Axis({
+                    title = "logpdf gradient", legend_pos = "north west", xmode = "log"
+                },)),
+                result_name=:logpdf_gradient_results,
+                save_name="logpdf_gradient_$setting_name.tex",
             ),
         ]
 
         by(group, :N_space) do space_group
-
             space_group = sort(space_group, :N_time)
             for plt in plots
                 push!(
@@ -259,8 +223,8 @@ let
                     (@pgf Plot(
                         {
                             color = colour_map[impl_name],
-                            mark_options={fill=colour_map[impl_name]},
-                            mark=marker_map[impl_name],
+                            mark_options = {fill = colour_map[impl_name]},
+                            mark = marker_map[impl_name],
                         },
                         Coordinates(
                             space_group.N_time,
@@ -283,7 +247,6 @@ let
     end
 end
 
-
 #
 # Hacked together benchmarks for playing around.
 #
@@ -303,8 +266,6 @@ using Profile, ProfileView
 @profview logpdf(model, y)
 @profview logpdf(model, y)
 
-
-
 # Test simple things quickly.
 rng = MersenneTwister(123456);
 T = 1_000_000;
@@ -316,7 +277,6 @@ fx_sde_static = to_sde(f, SArrayStorage(Float64))(x);
 y = rand(fx_sde_static);
 @benchmark logpdf($fx_sde_dense, $y)
 @benchmark logpdf($fx_sde_static, $y)
-
 
 using Profile, ProfileView
 

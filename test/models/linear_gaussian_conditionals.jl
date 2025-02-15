@@ -5,8 +5,8 @@ println("linear_gaussian_conditionals:")
     storages = [(name="dense storage Float64", val=ArrayStorage(Float64))]
     Q_types = [Val(:dense), Val(:diag)]
 
-    @testset "SmallOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))" for
-        Dlat in Dlats,
+    @testset "SmallOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))" for Dlat in
+                                                                                         Dlats,
         Dobs in Dobss,
         Q_type in Q_types,
         storage in storages
@@ -26,7 +26,7 @@ println("linear_gaussian_conditionals:")
 
             # Generate observation with a missing.
             y = conditional_rand(rng, model, rand(rng, x))
-            y_missing = Vector{Union{Missing, eltype(y)}}(undef, length(y))
+            y_missing = Vector{Union{Missing,eltype(y)}}(undef, length(y))
             y_missing .= y
             y_missing[1] = missing
 
@@ -35,23 +35,23 @@ println("linear_gaussian_conditionals:")
 
             # Modify the model and compute the logpdf and posterior.
             new_model = SmallOutputLGC(
-                model.A[2:end, :], model.a[2:end], model.Q[2:end, 2:end],
+                model.A[2:end, :], model.a[2:end], model.Q[2:end, 2:end]
             )
             y_new = y[2:end]
             x_post_new, lml_new = posterior_and_lml(x, new_model, y_new)
 
             # Verify that both things give the same answer.
             @test x_post ≈ x_post_new
-            @test lml ≈ lml_new atol=1e-8 rtol=1e-8
+            @test lml ≈ lml_new atol = 1e-8 rtol = 1e-8
 
             # Check that everything infers and AD gives the right answer.
-            @test_opt target_modules=[TemporalGPs] posterior_and_lml(x, model, y_missing)
+            @test_opt target_modules = [TemporalGPs] posterior_and_lml(x, model, y_missing)
             test_rule(rng, posterior_and_lml, x, model, y_missing; is_primitive=false)
         end
     end
 
-    @testset "LargeOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))" for
-        Dlat in Dlats,
+    @testset "LargeOutputLGC (Dlat=$Dlat, Dobs=$Dobs, Q=$(Q_type), $(storage.name))" for Dlat in
+                                                                                         Dlats,
         Dobs in Dobss,
         Q_type in Q_types,
         storage in storages
@@ -77,7 +77,7 @@ println("linear_gaussian_conditionals:")
             Q_type == Val(:diag) && @testset "missing data" begin
 
                 # Create missing data.
-                y_missing = Vector{Union{Missing, eltype(y)}}(undef, length(y))
+                y_missing = Vector{Union{Missing,eltype(y)}}(undef, length(y))
                 y_missing .= y
                 y_missing[1] = missing
 
@@ -87,10 +87,12 @@ println("linear_gaussian_conditionals:")
 
                 # Check that they give roughly the same answer.
                 @test x_post_vanilla ≈ x_post_large
-                @test lml_vanilla ≈ lml_large rtol=1e-8 atol=1e-8
+                @test lml_vanilla ≈ lml_large rtol = 1e-8 atol = 1e-8
 
                 # Check that everything infers and AD gives the right answer.
-                @test_opt target_modules=[TemporalGPs] posterior_and_lml(x, model, y_missing)
+                @test_opt target_modules = [TemporalGPs] posterior_and_lml(
+                    x, model, y_missing
+                )
                 test_rule(rng, posterior_and_lml, x, model, y_missing; is_primitive=false)
             end
         end
@@ -101,8 +103,7 @@ println("linear_gaussian_conditionals:")
         )
     end
 
-    @testset "ScalarOutputLGC (Dlat=$Dlat, $(storage.name))" for
-        Dlat in Dlats,
+    @testset "ScalarOutputLGC (Dlat=$Dlat, $(storage.name))" for Dlat in Dlats,
         storage in [
             (name="dense storage Float64", val=ArrayStorage(Float64)),
             (name="static storage Float64", val=SArrayStorage(Float64)),
@@ -133,8 +134,8 @@ println("linear_gaussian_conditionals:")
 
     Dmids = [1, 3]
 
-    @testset "BottleneckLGC (Din=$Din, Dmid=$Dmid, Dout=$Dout, Q=$(Q_type))" for
-        Din in Dlats,
+    @testset "BottleneckLGC (Din=$Din, Dmid=$Dmid, Dout=$Dout, Q=$(Q_type))" for Din in
+                                                                                 Dlats,
         Dout in Dobss,
         Dmid in Dmids,
         Q_type in Q_types
@@ -162,14 +163,14 @@ println("linear_gaussian_conditionals:")
             y = rand(rng, predict(x, model))
             x_vanilla, lml_vanilla = posterior_and_lml(x, vanilla_model, y)
             x_bottle, lml_bottle = posterior_and_lml(x, model, y)
-            @test x_vanilla.P ≈ x_bottle.P rtol=1e-6
-            @test x_vanilla.m ≈ x_bottle.m rtol=1e-6
-            @test lml_vanilla ≈ lml_bottle rtol=1e-6
+            @test x_vanilla.P ≈ x_bottle.P rtol = 1e-6
+            @test x_vanilla.m ≈ x_bottle.m rtol = 1e-6
+            @test lml_vanilla ≈ lml_bottle rtol = 1e-6
 
             Q_type == Val(:diag) && @testset "missing data" begin
 
                 # Create missing data.
-                y_missing = Vector{Union{Missing, eltype(y)}}(undef, length(y))
+                y_missing = Vector{Union{Missing,eltype(y)}}(undef, length(y))
                 y_missing .= y
                 y_missing[1] = missing
 
@@ -178,11 +179,13 @@ println("linear_gaussian_conditionals:")
                 x_post_large, lml_large = posterior_and_lml(x, model, y_missing)
 
                 # Check that they give roughly the same answer.
-                @test x_post_vanilla ≈ x_post_large rtol=1e-5 atol=1e-5
-                @test lml_vanilla ≈ lml_large rtol=1e-8 atol=1e-8
+                @test x_post_vanilla ≈ x_post_large rtol = 1e-5 atol = 1e-5
+                @test lml_vanilla ≈ lml_large rtol = 1e-8 atol = 1e-8
 
                 # Check that everything infers and AD gives the right answer.
-                @test_opt target_modules=[TemporalGPs] posterior_and_lml(x, model, y_missing)
+                @test_opt target_modules = [TemporalGPs] posterior_and_lml(
+                    x, model, y_missing
+                )
                 test_rule(rng, posterior_and_lml, x, model, y_missing; is_primitive=false)
             end
         end

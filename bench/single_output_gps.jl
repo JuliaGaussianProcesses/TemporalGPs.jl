@@ -6,15 +6,20 @@ using Pkg
 Pkg.activate(".");
 Pkg.instantiate();
 
-
-
 #
 # Load the various packages on which this script depends.
 #
 
 using Revise
-using DrWatson, Stheno, BenchmarkTools, PGFPlotsX, ProgressMeter, TemporalGPs, Random,
-    DataFrames, Mooncake
+using DrWatson,
+    Stheno,
+    BenchmarkTools,
+    PGFPlotsX,
+    ProgressMeter,
+    TemporalGPs,
+    Random,
+    DataFrames,
+    Mooncake
 
 using DrWatson: @dict, @tagsave
 
@@ -23,8 +28,6 @@ LinearAlgebra.BLAS.set_num_threads(1)
 
 const exp_dir_name = "single_output_gps"
 const data_dir = joinpath(datadir(), exp_dir_name)
-
-
 
 build_gp(k_base, σ², l) = GP(σ² * k_base ∘ ScaleTransform(1 / l), GPC())
 
@@ -63,20 +66,32 @@ function build_and_logpdf(val::Val, k_base, σ², l, x, σ²_n, y)
     return logpdf(build(val, k_base, σ², l, x, σ²_n), y)
 end
 
-
-
 # Specify which experiments to run.
 tagsave(
     joinpath(datadir(), exp_dir_name, "meta", "settings.bson"),
     Dict(
         :Ns => [
-            2, 5, 10,
-            20, 50, 100,
-            200, 500, 1_000,
-            2_000, 5_000, 10_000,
-            20_000, 50_000, 100_000,
-            200_000, 500_000, 1_000_000,
-            2_000_000, 5_000_000, 10_000_000,
+            2,
+            5,
+            10,
+            20,
+            50,
+            100,
+            200,
+            500,
+            1_000,
+            2_000,
+            5_000,
+            10_000,
+            20_000,
+            50_000,
+            100_000,
+            200_000,
+            500_000,
+            1_000_000,
+            2_000_000,
+            5_000_000,
+            10_000_000,
         ],
         :kernels => [
             # (k=Matern12Kernel(), sym=:Matern12Kernel, name="Matern12Kernel"),
@@ -84,41 +99,14 @@ tagsave(
             (k=Matern52Kernel(), sym=:Matern52Kernel, name="Matern52Kernel"),
         ],
         :implementations => [
-            (
-                name="naive",
-                val=Val(:naive),
-                colour="blue",
-                marker="square*",
-            ),
-            (
-                name="heap",
-                val=Val(:heap),
-                colour="black",
-                marker="*",
-            ),
-            (
-                name="stack",
-                val=Val(:stack),
-                colour="red",
-                marker="triangle*",
-            ),
-            (
-                name="heap-F32",
-                val=Val(:heapF32),
-                colour="green",
-                marker="*",
-            ),
-            (
-                name="stack-F32",
-                val=Val(:stackF32),
-                colour="purple",
-                marker="triangle*",
-            ),
-        ]
-    )
+            (name="naive", val=Val(:naive), colour="blue", marker="square*"),
+            (name="heap", val=Val(:heap), colour="black", marker="*"),
+            (name="stack", val=Val(:stack), colour="red", marker="triangle*"),
+            (name="heap-F32", val=Val(:heapF32), colour="green", marker="*"),
+            (name="stack-F32", val=Val(:stackF32), colour="purple", marker="triangle*"),
+        ],
+    ),
 )
-
-
 
 # Run to execute all benchmarking experiments specified in settings.bson.
 let
@@ -126,7 +114,6 @@ let
     settings_list = dict_list(settings)
     progress = Progress(length(settings_list))
     for (p, setting) in enumerate(settings_list)
-
         N = setting[:Ns]
         kernel = setting[:kernels]
         impl = setting[:implementations]
@@ -146,9 +133,9 @@ let
 
         # Generate results including construction of GP.
         results = @benchmark(build_and_logpdf($(impl.val), $k, $σ², $l, $x, $σ²_n, $y))
-        grad_results = @benchmark(Mooncake.gradient(
-            $build_and_logpdf, $(impl.val), $k, $σ², $l, $x, $σ²_n, $y,
-        ))
+        grad_results = @benchmark(
+            Mooncake.gradient($build_and_logpdf, $(impl.val), $k, $σ², $l, $x, $σ²_n, $y)
+        )
 
         # Generate results excluding construction of GP.
         fx = build(impl.val, k, σ², l, x, σ²_n)
@@ -160,7 +147,7 @@ let
             joinpath(
                 datadir(),
                 exp_dir_name,
-                savename(Dict(:N=>N, :k=>kernel.sym, :impl=>impl.name), "bson"),
+                savename(Dict(:N => N, :k => kernel.sym, :impl => impl.name), "bson"),
             ),
             Dict(
                 "setting" => setting,
@@ -176,8 +163,6 @@ let
     end
 end
 
-
-
 # Run to generate figures specified in settings.bson.
 let
 
@@ -191,43 +176,55 @@ let
             row = merge(
                 copy(row),
                 (
-                    kernel = row.setting[:kernels].name,
-                    impl = row.setting[:implementations].name,
-                    total_time = time(row.results) / 1e9,
-                    grad_total_time = time(row.grad_results) / 1e9,
-                    run_time = time(row.no_build_results) / 1e9,
-                    grad_run_time = time(row.no_build_grad_results) / 1e9,
+                    kernel=row.setting[:kernels].name,
+                    impl=row.setting[:implementations].name,
+                    total_time=time(row.results) / 1e9,
+                    grad_total_time=time(row.grad_results) / 1e9,
+                    run_time=time(row.no_build_results) / 1e9,
+                    grad_run_time=time(row.no_build_grad_results) / 1e9,
                 ),
             )
             row = merge(
                 row,
                 (
-                    build_time = row.total_time - row.run_time,
-                    grad_build_time = row.grad_total_time - row.grad_run_time,
-                    total_rate = row.total_time / row.N,
-                    grad_total_rate = row.grad_total_time / row.N,
-                    run_rate = row.run_time / row.N,
-                    grad_run_rate = row.grad_run_time / row.N,
-                )
+                    build_time=row.total_time - row.run_time,
+                    grad_build_time=row.grad_total_time - row.grad_run_time,
+                    total_rate=row.total_time / row.N,
+                    grad_total_rate=row.grad_total_time / row.N,
+                    run_rate=row.run_time / row.N,
+                    grad_run_rate=row.grad_run_time / row.N,
+                ),
             )
             row = merge(
                 row,
                 (
-                    grad_ratio_total = row.grad_total_time / row.total_time,
-                    grad_ratio_build = row.grad_build_time / row.build_time,
-                    grad_ratio_run = row.grad_run_time / row.run_time,
-                    build_fraction = row.build_time / row.total_time,
-                    grad_build_fraction = row.grad_build_time / row.grad_total_time,
+                    grad_ratio_total=row.grad_total_time / row.total_time,
+                    grad_ratio_build=row.grad_build_time / row.build_time,
+                    grad_ratio_run=row.grad_run_time / row.run_time,
+                    build_fraction=row.build_time / row.total_time,
+                    grad_build_fraction=row.grad_build_time / row.grad_total_time,
                 ),
             )
             return row
-        end
+        end,
     )
 
     # List the things to generate plots for.
-    plot_keys = [:total_time, :grad_total_time, :run_time, :grad_run_time, :build_time,
-        :grad_build_time, :build_fraction, :grad_build_fraction, :grad_ratio_total,
-        :grad_ratio_run, :grad_ratio_build, :total_rate, :grad_total_rate, :run_rate,
+    plot_keys = [
+        :total_time,
+        :grad_total_time,
+        :run_time,
+        :grad_run_time,
+        :build_time,
+        :grad_build_time,
+        :build_fraction,
+        :grad_build_fraction,
+        :grad_ratio_total,
+        :grad_ratio_run,
+        :grad_ratio_build,
+        :total_rate,
+        :grad_total_rate,
+        :run_rate,
         :grad_run_rate,
     ]
 
@@ -235,15 +232,15 @@ let
         result = sort(result, :N)
         impl, kernel = first(result).impl, first(result).kernel
         return (
-            label = "\\label {$(impl)-$(kernel)}",
-            legend_entry = LegendEntry(kernel * " -- " * impl),
+            label="\\label {$(impl)-$(kernel)}",
+            legend_entry=LegendEntry(kernel * " -- " * impl),
             Pair.(
                 plot_keys,
                 map(plot_keys) do key
                     @pgf PlotInc(
                         {
                             color = colour_map[impl],
-                            mark_options={fill=colour_map[impl]}
+                            mark_options = {fill = colour_map[impl]},
                         },
                         Coordinates(result[!, :N], result[!, key]),
                     )
@@ -251,8 +248,6 @@ let
             )...,
         )
     end
-
-
 
     #
     # Plot stuff using the resources generated above.
@@ -272,55 +267,50 @@ let
         (:total_rate, :grad_total_rate, 10.0 .^ (-8:2:-1)),
         (:run_rate, :grad_run_rate, 10.0 .^ (-8:2:-1)),
     )
-        for (xmode, ymode, name_suffix) in (
-            ("normal", "log", ""),
-            ("log", "log", "_log"),
-        )
+        for (xmode, ymode, name_suffix) in (("normal", "log", ""), ("log", "log", "_log"))
             push!(
                 plots_to_save,
                 (
                     name=string(field) * name_suffix,
                     data=@pgf GroupPlot( # Generate group plot
                         {
-                            group_style =
-                            {
-                                group_size="2 by 1",
-                                horizontal_sep=horz_sep,
-                                yticklabels_at="edge left",
+                            group_style = {
+                                group_size = "2 by 1",
+                                horizontal_sep = horz_sep,
+                                yticklabels_at = "edge left",
                             },
                         },
                         { # Style for lhs plot
-                            xmode=xmode,
-                            ymode=ymode,
-                            xlabel="N",
-                            ylabel="time (s)",
+                            xmode = xmode,
+                            ymode = ymode,
+                            xlabel = "N",
+                            ylabel = "time (s)",
                             # legend_to_name="legend:$(string(field))",
                             xmajorgrids,
                             ymajorgrids,
-                            width="0.48\\textwidth",
-                            ytick=yticks,
-                            ymin=minimum(yticks),
-                            ymax=maximum(yticks),
-                            xtick=x_ticks,
-                            xmin=0,
-                            xmax=1e8,
+                            width = "0.48\\textwidth",
+                            ytick = yticks,
+                            ymin = minimum(yticks),
+                            ymax = maximum(yticks),
+                            xtick = x_ticks,
+                            xmin = 0,
+                            xmax = 1e8,
                         },
                         plots[!, field], # lhs plot
                         { # style for rhs plot
-                            xmode=xmode,
-                            ymode=ymode,
-                            xlabel="N",
+                            xmode = xmode,
+                            ymode = ymode,
+                            xlabel = "N",
                             xmajorgrids,
                             ymajorgrids,
-                            width="0.48\\textwidth",
-                            ytick=yticks,
-                            ymin=minimum(yticks),
-                            ymax=maximum(yticks),
-                            xtick=x_ticks,
-                            xmin=0,
-                            xmax=1e8,
-                            legend_style =
-                            {
+                            width = "0.48\\textwidth",
+                            ytick = yticks,
+                            ymin = minimum(yticks),
+                            ymax = maximum(yticks),
+                            xtick = x_ticks,
+                            xmin = 0,
+                            xmax = 1e8,
+                            legend_style = {
                                 font = "\\tiny",
                                 at = Coordinate(1 + 0.1, 1),
                                 anchor = "north west",
@@ -342,45 +332,44 @@ let
         push!(
             plots_to_save,
             (
-                name = "build_fraction",
-                data = @pgf GroupPlot( # Generate group plot
+                name="build_fraction",
+                data=@pgf GroupPlot( # Generate group plot
                     {
-                        group_style =
-                        {
-                            group_size="2 by 1",
-                            horizontal_sep=horz_sep,
-                            xticklabels_at="edge bottom",
-                            yticklabels_at="edge left",
+                        group_style = {
+                            group_size = "2 by 1",
+                            horizontal_sep = horz_sep,
+                            xticklabels_at = "edge bottom",
+                            yticklabels_at = "edge left",
                         },
                     },
                     { # Style for lhs plot
-                        xmode="log",
-                        ymode="normal",
-                        xlabel="N",
-                        legend_to_name="legend:build-fraction",
-                        legend_columns=3,
+                        xmode = "log",
+                        ymode = "normal",
+                        xlabel = "N",
+                        legend_to_name = "legend:build-fraction",
+                        legend_columns = 3,
                         transpose_legend,
                         xmajorgrids,
                         ymajorgrids,
-                        width="0.48\\textwidth",
-                        xtick=x_ticks,
-                        ytick=yticks,
-                        ymin=minimum(yticks),
-                        ymax=maximum(yticks),
+                        width = "0.48\\textwidth",
+                        xtick = x_ticks,
+                        ytick = yticks,
+                        ymin = minimum(yticks),
+                        ymax = maximum(yticks),
                     },
                     plots[!, :build_fraction], # lhs plot
                     plots[!, :legend_entry],
                     { # style for rhs plot
-                        xmode="log",
-                        ymode="normal",
-                        xlabel="N",
+                        xmode = "log",
+                        ymode = "normal",
+                        xlabel = "N",
                         xmajorgrids,
                         ymajorgrids,
-                        width="0.48\\textwidth",
-                        xtick=x_ticks,
-                        ytick=yticks,
-                        ymin=minimum(yticks),
-                        ymax=maximum(yticks),
+                        width = "0.48\\textwidth",
+                        xtick = x_ticks,
+                        ytick = yticks,
+                        ymin = minimum(yticks),
+                        ymax = maximum(yticks),
                     },
                     plots[!, :grad_build_fraction], # rhs plot
                 )
@@ -398,21 +387,21 @@ let
             plots_to_save,
             (
                 name=string(field),
-                data = @pgf Axis(
+                data=@pgf Axis(
                     {
-                        xmode="log",
-                        ymode="normal",
-                        xlabel="N",
-                        width="0.45\\textwidth",
+                        xmode = "log",
+                        ymode = "normal",
+                        xlabel = "N",
+                        width = "0.45\\textwidth",
                         xmajorgrids,
                         ymajorgrids,
-                        xtick=x_ticks,
-                        ytick=yticks,
+                        xtick = x_ticks,
+                        ytick = yticks,
                     },
                     plots[!, field],
                     # legend_entries,
                 )
-            )
+            ),
         )
     end
 
@@ -420,10 +409,6 @@ let
     plots_dir = joinpath(plotsdir(), exp_dir_name)
     mkpath(plots_dir)
     for plot in plots_to_save
-        pgfsave(
-            joinpath(plots_dir, plot.name * ".tex"),
-            plot.data;
-            include_preamble=true,
-        )
+        pgfsave(joinpath(plots_dir, plot.name * ".tex"), plot.data; include_preamble=true)
     end
 end

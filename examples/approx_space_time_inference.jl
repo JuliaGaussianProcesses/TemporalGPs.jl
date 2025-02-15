@@ -62,5 +62,5 @@ if get(ENV, "TESTING", "FALSE") == "FALSE"
             layout=(1, 2),
         ),
         "approx_space_time_inference.png",
-    );
+    )
 end

@@ -2,7 +2,6 @@ include("front_matter.jl")
 
 # Run the tests.
 @testset "TemporalGPs.jl" begin
-
     if GROUP == "quality"
         Aqua.test_all(TemporalGPs)
         @test JuliaFormatter.format(TemporalGPs; verbose=false, overwrite=false)
@@ -51,17 +50,16 @@ end
 
 # Run the examples.
 if GROUP == "examples"
-
     using Pkg
     pkgpath = joinpath(@__DIR__, "..")
     Pkg.activate(joinpath(pkgpath, "examples"))
-    Pkg.develop(path=pkgpath)
+    Pkg.develop(; path=pkgpath)
     Pkg.resolve()
     Pkg.instantiate()
 
     function include_with_info(filename)
         @info "Running examples/$filename"
-        include(joinpath(pkgpath, "examples", filename))
+        return include(joinpath(pkgpath, "examples", filename))
     end
 
     include_with_info("exact_time_inference.jl")

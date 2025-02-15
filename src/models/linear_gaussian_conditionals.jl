@@ -46,7 +46,7 @@ be equivalent to
 function predict(x::Gaussian, f::AbstractLGC)
     A, a, Q = get_fields(f)
     m, P = get_fields(x)
-    
+
     # Symmetric wrapper needed for numerical stability. Do not unwrap.
     return Gaussian(A * m + a, (A * symmetric(P)) * A' + Q)
 end
@@ -61,10 +61,7 @@ Equivalent to
 ```
 """
 function predict_marginals(x::Gaussian, f::AbstractLGC)
-    return Gaussian(
-        f.A * x.m + f.a,
-        Diagonal(diag_At_B(f.A', x.P * f.A') + diag(f.Q)),
-    )
+    return Gaussian(f.A * x.m + f.a, Diagonal(diag_At_B(f.A', x.P * f.A') + diag(f.Q)))
 end
 
 """
@@ -93,8 +90,8 @@ Generate the vector of random numbers needed inside [`conditional_rand`](@ref).
 """
 ε_randn(rng::AbstractRNG, f::AbstractLGC) = ε_randn(rng, f.A)
 ε_randn(rng::AbstractRNG, A::AbstractMatrix{T}) where {T<:Real} = randn(rng, T, size(A, 1))
-function ε_randn(rng::AbstractRNG, ::SMatrix{Dout, Din, T}) where {Dout, Din, T<:Real}
-    return randn(rng, SVector{Dout, T})
+function ε_randn(rng::AbstractRNG, ::SMatrix{Dout,Din,T}) where {Dout,Din,T<:Real}
+    return randn(rng, SVector{Dout,T})
 end
 
 scalar_type(::AbstractVector{T}) where {T} = T
@@ -110,9 +107,8 @@ a.k.a. LGC. An [`AbstractLGC`](@ref) designed for problems in which `A` is a mat
 `size(A, 1) > size(A, 2)`, but one should expect worse accuracy and performance than a
 [`LargeOutputLGC`](@ref) in such circumstances.
 """
-struct SmallOutputLGC{
-    TA<:AbstractMatrix, Ta<:AbstractVector, TQ<:AbstractMatrix,
-} <: AbstractLGC
+struct SmallOutputLGC{TA<:AbstractMatrix,Ta<:AbstractVector,TQ<:AbstractMatrix} <:
+       AbstractLGC
     A::TA
     a::Ta
     Q::TQ
@@ -141,7 +137,7 @@ function posterior_and_lml(x::Gaussian, f::SmallOutputLGC, y::AbstractVector{<:R
 end
 
 function posterior_and_lml(
-    x::Gaussian, f::SmallOutputLGC, y::AbstractVector{<:Union{Missing, <:Real}},
+    x::Gaussian, f::SmallOutputLGC, y::AbstractVector{<:Union{Missing,<:Real}}
 )
     # This implicitly assumes that Q is Diagonal. MethodError if not.
     A, a, Q = get_fields(f)
@@ -160,9 +156,8 @@ outputs are greater than that of the inputs. These specialisations both improve 
 stability and performance (time and memory), so it's worth using if your model lives in
 this regime.
 """
-struct LargeOutputLGC{
-    TA<:AbstractMatrix, Ta<:AbstractVector, TQ<:AbstractMatrix,
-} <: AbstractLGC
+struct LargeOutputLGC{TA<:AbstractMatrix,Ta<:AbstractVector,TQ<:AbstractMatrix} <:
+       AbstractLGC
     A::TA
     a::Ta
     Q::TQ
@@ -204,7 +199,7 @@ end
 _compute_lml(δ, F, β, c, Q) = -(δ'δ - β'β + c + logdet(F) + logdet(Q)) / 2
 
 function posterior_and_lml(
-    x::Gaussian, f::LargeOutputLGC, y::AbstractVector{<:Union{Missing, <:Real}},
+    x::Gaussian, f::LargeOutputLGC, y::AbstractVector{<:Union{Missing,<:Real}}
 )
     A, a, Q = get_fields(f)
     # This implicitly assumes that Q is Diagonal. MethodError if not.
@@ -213,8 +208,6 @@ function posterior_and_lml(
     return x_post, lml_raw + _logpdf_volume_compensation(y)
 end
 
-
-
 """
     ScalarOutputLGC
 
@@ -222,9 +215,7 @@ An [`AbstractLGC`](@ref) that operates on a vector-valued input space and a scal
 Similar to [`SmallOutputLGC`](@ref) when its `dim_out` is 1 but, for example, [`conditional_rand`](@ref)
 returns a `Real` rather than an `AbstractVector` of length 1.
 """
-struct ScalarOutputLGC{
-    TA<:Adjoint{<:Any, <:AbstractVector}, Ta<:Real, TQ<:Real,
-} <: AbstractLGC
+struct ScalarOutputLGC{TA<:Adjoint{<:Any,<:AbstractVector},Ta<:Real,TQ<:Real} <: AbstractLGC
     A::TA
     a::Ta
     Q::TQ
@@ -256,8 +247,6 @@ function posterior_and_lml(x::Gaussian, f::ScalarOutputLGC, y::T) where {T<:Real
     return Gaussian(m + B'α, P - B'B), lml
 end
 
-
-
 """
     BottleneckLGC
 
@@ -276,7 +265,7 @@ Note that this type does not enforce that `size(H, 1) < size(H, 2)`, nor that
 your model satisfies these properties.
 """
 struct BottleneckLGC{
-    TH<:AbstractMatrix{<:Real}, Th<:AbstractVector{<:Real}, Tout<:LargeOutputLGC,
+    TH<:AbstractMatrix{<:Real},Th<:AbstractVector{<:Real},Tout<:LargeOutputLGC
 } <: AbstractLGC
     H::TH
     h::Th
@@ -318,7 +307,6 @@ function predict_marginals(x::Gaussian, f::BottleneckLGC)
 end
 
 function posterior_and_lml(x::Gaussian, f::BottleneckLGC, y::AbstractVector)
-
     xm, xP = get_fields(x)
     H, _, fan_out = get_fields(f)
 

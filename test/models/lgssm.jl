@@ -1,6 +1,5 @@
 println("lgssm:")
 @testset "lgssm" begin
-
     rng = MersenneTwister(123456)
 
     storages = (
@@ -20,17 +19,12 @@ println("lgssm:")
         (tv=:time_varying, N=1, Dlat=3, Dobs=2, storage=storages.static),
         (tv=:time_invariant, N=49, Dlat=3, Dobs=2, storage=storages.static),
     ]
-    orderings = [
-        Forward(),
-        Reverse(),
-    ]
-    Qs = [
-        Val(:dense),
-        Val(:diag),
-    ]
+    orderings = [Forward(), Reverse()]
+    Qs = [Val(:dense), Val(:diag)]
 
-    @testset "($tv, $N, $Dlat, $Dobs, $(storage.name), $(emission.name), $order, $Q)" for
-        (tv, N, Dlat, Dobs, storage) in settings,
+    @testset "($tv, $N, $Dlat, $Dobs, $(storage.name), $(emission.name), $order, $Q)" for (
+            tv, N, Dlat, Dobs, storage
+        ) in settings,
         emission in emission_types,
         order in orderings,
         Q in Qs
@@ -71,7 +65,7 @@ println("lgssm:")
             (invert_dynamics, x, x, model[1].transition),
             (step_posterior, ordering(model[1]), x, (model[1], y)),
         ]
-            @test_opt target_modules=[TemporalGPs] f(args...)
+            @test_opt target_modules = [TemporalGPs] f(args...)
             test_rule(rng, f, args...; is_primitive=false, interface_only=true, perf_flag)
         end
 

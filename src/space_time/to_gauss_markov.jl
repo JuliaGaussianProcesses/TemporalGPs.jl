@@ -19,7 +19,7 @@ function lgssm_components(k::Separable, x::SpaceTimeGrid, storage)
     return As, as, Qs, emission_proj, x0
 end
 
-function _build_st_proj((Hs, hs)::Tuple{AbstractVector, AbstractVector}, Nr::Integer, ident)
+function _build_st_proj((Hs, hs)::Tuple{AbstractVector,AbstractVector}, Nr::Integer, ident)
     return (map(H -> kron(ident, H), Hs), map(h -> Fill(h, Nr), hs))
 end
 

@@ -31,7 +31,7 @@ function random_matrix(rng::AbstractRNG, M::Int, N::Int, ::ArrayStorage{T}) wher
 end
 
 function random_matrix(rng::AbstractRNG, M::Int, N::Int, ::SArrayStorage{T}) where {T<:Real}
-    return SMatrix{M, N}(random_matrix(rng, M, N, ArrayStorage{T}()))
+    return SMatrix{M,N}(random_matrix(rng, M, N, ArrayStorage{T}()))
 end
 
 function random_psd_matrix(
@@ -66,9 +66,9 @@ function random_psd_matrix(
 end
 
 function random_psd_matrix(
-    rng::AbstractRNG, N::Int, lb::Float64, ub::Float64, ::Val{:dense}, ::SArrayStorage{T},
+    rng::AbstractRNG, N::Int, lb::Float64, ub::Float64, ::Val{:dense}, ::SArrayStorage{T}
 ) where {T}
-    return SMatrix{N, N, T}(random_psd_matrix(rng, N, lb, ub, Val(:dense), ArrayStorage(T)))
+    return SMatrix{N,N,T}(random_psd_matrix(rng, N, lb, ub, Val(:dense), ArrayStorage(T)))
 end
 
 function random_psd_matrix(
@@ -78,22 +78,22 @@ function random_psd_matrix(
 end
 
 function random_psd_matrix(
-    rng::AbstractRNG, N::Integer, lb::Float64, ub::Float64, ::Val{:diag}, ::ArrayStorage{T},
+    rng::AbstractRNG, N::Integer, lb::Float64, ub::Float64, ::Val{:diag}, ::ArrayStorage{T}
 ) where {T}
     return Diagonal(rand(rng, T, N) .* T(ub - lb) .+ T(lb))
 end
 
 function random_psd_matrix(
-    rng::AbstractRNG, N::Integer, lb::Float64, ub::Float64, ::Val{:diag}, ::SArrayStorage{T},
+    rng::AbstractRNG, N::Integer, lb::Float64, ub::Float64, ::Val{:diag}, ::SArrayStorage{T}
 ) where {T}
-    return Diagonal(rand(rng, SVector{N, T}) .* T(ub - lb) .+ T(lb))
+    return Diagonal(rand(rng, SVector{N,T}) .* T(ub - lb) .+ T(lb))
 end
 
-function random_psd_matrix(rng::AbstractRNG, ::Integer, lb::Float64, ub::Float64, ::ScalarStorage{T}) where {T}
+function random_psd_matrix(
+    rng::AbstractRNG, ::Integer, lb::Float64, ub::Float64, ::ScalarStorage{T}
+) where {T}
     return rand(rng, T) * T(ub - lb) + T(lb)
 end
-
-
 
 #
 # Generation of Gaussians.
@@ -106,7 +106,7 @@ end
 # Generation of SmallOutputLGC.
 
 function random_small_output_lgc(
-    rng::AbstractRNG, Dlat::Int, Dobs::Int, Q_type::Val, s::StorageType,
+    rng::AbstractRNG, Dlat::Int, Dobs::Int, Q_type::Val, s::StorageType
 )
     return SmallOutputLGC(
         random_matrix(rng, Dobs, Dlat, s),
@@ -124,13 +124,11 @@ function random_scalar_output_lgc(rng::AbstractRNG, Dlat::Int, s::StorageType)
 end
 
 function lgc_from_scalar_output_lgc(lgc::ScalarOutputLGC)
-    return SmallOutputLGC(
-        collect(lgc.A), [lgc.a], reshape([lgc.Q], 1, 1),
-    )
+    return SmallOutputLGC(collect(lgc.A), [lgc.a], reshape([lgc.Q], 1, 1))
 end
 
 function random_large_output_lgc(
-    rng::AbstractRNG, Dlat::Int, Dobs::Int, Q_type::Val, s::StorageType,
+    rng::AbstractRNG, Dlat::Int, Dobs::Int, Q_type::Val, s::StorageType
 )
     return LargeOutputLGC(
         random_matrix(rng, Dobs, Dlat, s),
@@ -140,7 +138,7 @@ function random_large_output_lgc(
 end
 
 function random_bottleneck_lgc(
-    rng::AbstractRNG, Dlat::Int, Dmid::Int, Dobs::Int, Q_type::Val, s::StorageType,
+    rng::AbstractRNG, Dlat::Int, Dmid::Int, Dobs::Int, Q_type::Val, s::StorageType
 )
     return BottleneckLGC(
         random_matrix(rng, Dmid, Dlat, s),
@@ -157,11 +155,9 @@ function small_output_lgc_from_bottleneck(model::BottleneckLGC)
     )
 end
 
-
 # Generation of GaussMarkovModels.
 
 function random_tv_gmm(rng::AbstractRNG, ordering, Dlat::Int, N::Int, s::StorageType)
-
     As = map(_ -> random_matrix(rng, Dlat, Dlat, s), 1:N)
     as = map(_ -> random_vector(rng, Dlat, s), 1:N)
     x0 = random_gaussian(rng, Dlat, s)
@@ -186,9 +182,9 @@ end
 
 function random_lgssm(
     rng::AbstractRNG,
-    ordering::Union{Forward, Reverse},
+    ordering::Union{Forward,Reverse},
     ::Val{:time_varying},
-    emission_type::Type{<:Union{SmallOutputLGC, LargeOutputLGC}},
+    emission_type::Type{<:Union{SmallOutputLGC,LargeOutputLGC}},
     Dlat::Int,
     Dobs::Int,
     N::Int,
@@ -199,16 +195,16 @@ function random_lgssm(
     Hs = map(_ -> random_matrix(rng, Dobs, Dlat, storage), 1:N)
     hs = map(_ -> random_vector(rng, Dobs, storage), 1:N)
     Σs = map(_ -> random_psd_matrix(rng, Dobs, 0.9, 1.1, Q_type, storage), 1:N)
-    T = emission_type{eltype(Hs), eltype(hs), eltype(Σs)}
+    T = emission_type{eltype(Hs),eltype(hs),eltype(Σs)}
     emissions = StructArray{T}((Hs, hs, Σs))
     return LGSSM(transitions, emissions)
 end
 
 function random_lgssm(
     rng::AbstractRNG,
-    ordering::Union{Forward, Reverse},
+    ordering::Union{Forward,Reverse},
     ::Val{:time_invariant},
-    emission_type::Type{<:Union{SmallOutputLGC, LargeOutputLGC}},
+    emission_type::Type{<:Union{SmallOutputLGC,LargeOutputLGC}},
     Dlat::Int,
     Dobs::Int,
     N::Int,
@@ -219,14 +215,14 @@ function random_lgssm(
     Hs = Fill(random_matrix(rng, Dobs, Dlat, storage), N)
     hs = Fill(random_vector(rng, Dobs, storage), N)
     Σs = Fill(random_psd_matrix(rng, Dobs, 0.9, 1.1, Q_type, storage), N)
-    T = emission_type{eltype(Hs), eltype(hs), eltype(Σs)}
+    T = emission_type{eltype(Hs),eltype(hs),eltype(Σs)}
     emissions = StructArray{T}((Hs, hs, Σs))
     return LGSSM(transitions, emissions)
 end
 
 function random_lgssm(
     rng::AbstractRNG,
-    ordering::Union{Forward, Reverse},
+    ordering::Union{Forward,Reverse},
     ::Val{:time_varying},
     ::Type{ScalarOutputLGC},
     Dlat::Int,
@@ -238,14 +234,14 @@ function random_lgssm(
     Hs = map(_ -> random_vector(rng, Dlat, storage)', 1:N)
     hs = map(_ -> randn(rng, eltype(storage)), 1:N)
     Σs = map(_ -> convert(eltype(storage), rand(rng) + 0.1), 1:N)
-    T = ScalarOutputLGC{eltype(Hs), eltype(hs), eltype(Σs)}
+    T = ScalarOutputLGC{eltype(Hs),eltype(hs),eltype(Σs)}
     emissions = StructArray{T}((Hs, hs, Σs))
     return LGSSM(transitions, emissions)
 end
 
 function random_lgssm(
     rng::AbstractRNG,
-    ordering::Union{Forward, Reverse},
+    ordering::Union{Forward,Reverse},
     ::Val{:time_invariant},
     ::Type{ScalarOutputLGC},
     Dlat::Int,
@@ -257,7 +253,7 @@ function random_lgssm(
     Hs = Fill(random_vector(rng, Dlat, storage)', N)
     hs = Fill(randn(rng, eltype(storage)), N)
     Σs = Fill(convert(eltype(storage), rand(rng) + 0.1), N)
-    T = ScalarOutputLGC{eltype(Hs), eltype(hs), eltype(Σs)}
+    T = ScalarOutputLGC{eltype(Hs),eltype(hs),eltype(Σs)}
     emissions = StructArray{T}((Hs, hs, Σs))
     return LGSSM(transitions, emissions)
 end
@@ -266,9 +262,9 @@ end
 # Validation of internal consistency.
 #
 
-function validate_dims(model::Union{SmallOutputLGC, LargeOutputLGC})
+function validate_dims(model::Union{SmallOutputLGC,LargeOutputLGC})
     @test size(model.A) == (dim_out(model), dim_in(model))
-    @test size(model.a) == (dim_out(model), )
+    @test size(model.a) == (dim_out(model),)
     @test size(model.Q) == (dim_out(model), dim_out(model))
     return nothing
 end

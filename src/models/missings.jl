@@ -6,28 +6,28 @@
 #   performance-sensitive code.
 
 function AbstractGPs.logpdf(
-    model::LGSSM, y::AbstractVector{Union{Missing, T}},
-) where {T<:Union{<:AbstractVector, <:Real}}
+    model::LGSSM, y::AbstractVector{Union{Missing,T}}
+) where {T<:Union{<:AbstractVector,<:Real}}
     model_with_missings, y_filled_in = transform_model_and_obs(model, y)
     return logpdf(model_with_missings, y_filled_in) + _logpdf_volume_compensation(y, model)
 end
 
-function _filter(model::LGSSM, y::AbstractVector{Union{Missing, T}}) where {T}
+function _filter(
+    model::LGSSM, y::AbstractVector{Union{Missing,<:Union{AbstractVector,Real}}}
+)
     model_with_missings, y_filled_in = transform_model_and_obs(model, y)
     return _filter(model_with_missings, y_filled_in)
 end
 
-function posterior(model::LGSSM, y::AbstractVector{Union{Missing, T}}) where {T}
+function posterior(model::LGSSM, y::AbstractVector{Union{Missing,T}}) where {T}
     model_with_missings, y_filled_in = transform_model_and_obs(model, y)
     return posterior(model_with_missings, y_filled_in)
 end
 
 function transform_model_and_obs(
-    model::LGSSM, y::AbstractVector{<:Union{Missing, T}},
-) where {T<:Union{<:AbstractVector, <:Real}}
-    Σs_filled_in, y_filled_in = fill_in_missings(
-        map(noise_cov, emissions(model)), y,
-    )
+    model::LGSSM, y::AbstractVector{<:Union{Missing,T}}
+) where {T<:Union{<:AbstractVector,<:Real}}
+    Σs_filled_in, y_filled_in = fill_in_missings(map(noise_cov, emissions(model)), y)
     model_with_missings = replace_observation_noise_cov(model, Σs_filled_in)
     return model_with_missings, y_filled_in
 end
@@ -48,15 +48,17 @@ function _logpdf_volume_compensation(y, model)
     return y_obs_count * log(2π * _large_var_const()) / 2
 end
 
-function _logpdf_volume_compensation(y::AbstractVector{<:Union{Missing, <:Real}})
+function _logpdf_volume_compensation(y::AbstractVector{<:Union{Missing,<:Real}})
     return count(ismissing, y) * log(2π * _large_var_const()) / 2
 end
 
-function fill_in_missings(Σs::AbstractVector, y::AbstractVector{Union{Missing, T}}) where {T}
+function fill_in_missings(Σs::AbstractVector, y::AbstractVector{Union{Missing,T}}) where {T}
     return _fill_in_missings(Σs, y)
 end
 
-function _fill_in_missings(Σs::AbstractVector, y::AbstractVector{Union{Missing, T}}) where {T}
+function _fill_in_missings(
+    Σs::AbstractVector, y::AbstractVector{Union{Missing,T}}
+) where {T}
 
     # Fill in observation covariance matrices with very large values.
     Σs_filled_in = map(eachindex(y)) do n
@@ -73,14 +75,14 @@ function _fill_in_missings(Σs::AbstractVector, y::AbstractVector{Union{Missing,
     return Σs_filled_in, y_filled_in
 end
 
-function fill_in_missings(Σ::Diagonal, y::AbstractVector{<:Union{Missing, <:Real}})
+function fill_in_missings(Σ::Diagonal, y::AbstractVector{<:Union{Missing,<:Real}})
     Σ_diag_filled, y_filled = fill_in_missings(Σ.diag, y)
     return Diagonal(Σ_diag_filled), y_filled
 end
 
 # We need to densify anyway, might as well do it here and save having to implement the
 # rrule twice.
-function fill_in_missings(Σs::Fill, y::AbstractVector{Union{Missing, T}}) where {T}
+function fill_in_missings(Σs::Fill, y::AbstractVector{Union{Missing,T}}) where {T}
     return fill_in_missings(collect(Σs), y)
 end
 

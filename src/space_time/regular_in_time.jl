@@ -6,8 +6,8 @@
 Represents data that has multiple observations at each of a given collection of time slices.
 """
 struct RegularInTime{
-    Tt, Tv, Tts<:AbstractVector{Tt}, Tvs<:AbstractVector{<:AbstractVector{Tv}},
-} <: AbstractVector{Tuple{Tt, Tv}}
+    Tt,Tv,Tts<:AbstractVector{Tt},Tvs<:AbstractVector{<:AbstractVector{Tv}}
+} <: AbstractVector{Tuple{Tt,Tv}}
     ts::Tts
     vs::Tvs
 end
@@ -16,7 +16,7 @@ get_space(x::RegularInTime) = x.vs
 
 get_times(x::RegularInTime) = x.ts
 
-Base.size(x::RegularInTime) = (sum(length, x.vs), )
+Base.size(x::RegularInTime) = (sum(length, x.vs),)
 
 function Base.collect(x::RegularInTime)
     time_inputs = reduce(vcat, [fill(t, length(x)) for (t, x) in zip(x.ts, x.vs)])
@@ -36,10 +36,6 @@ function Base.getindex(x::RegularInTime, n::Int)
 end
 
 Base.show(io::IO, x::RegularInTime) = Base.show(io::IO, collect(x))
-
-
-
-
 
 #
 # Implement internal API for transforming between "flat" representation, which is useful for
@@ -64,13 +60,13 @@ destructure(::RegularInTime, y::AbstractVector{<:AbstractVector{<:Real}}) = redu
 
 function restructure(y::AbstractVector{<:Real}, lengths::AbstractVector{<:Integer})
     idxs_start = cumsum(vcat(0, lengths)) .+ 1
-    idxs_end = idxs_start[1:end-1] .+ lengths .- 1
+    idxs_end = idxs_start[1:(end - 1)] .+ lengths .- 1
     return map(n -> y[idxs_start[n]:idxs_end[n]], eachindex(lengths))
 end
 
 function restructure(y::AbstractVector{T}, lengths::AbstractVector{<:Integer}) where {T}
     idxs_start = cumsum(vcat(0, lengths)) .+ 1
-    idxs_end = idxs_start[1:end-1] .+ lengths .- 1
+    idxs_end = idxs_start[1:(end - 1)] .+ lengths .- 1
     return map(eachindex(lengths)) do n
         y_missing = Vector{T}(undef, lengths[n])
         y_missing .= y[idxs_start[n]:idxs_end[n]]
@@ -84,5 +80,14 @@ function restructure(y::Fill{<:Real}, lengths::AbstractVector{<:Integer})
 end
 
 function restructure(y::AbstractVector, emissions::StructArray)
+    return restructure(y, map(dim_out, emissions))
+end
+
+# Resolve ambiguities.
+function restructure(y::Fill{<:Real}, emissions::StructArray)
+    return restructure(y, map(dim_out, emissions))
+end
+
+function restructure(y::AbstractVector{<:Real}, emissions::StructArray)
     return restructure(y, map(dim_out, emissions))
 end

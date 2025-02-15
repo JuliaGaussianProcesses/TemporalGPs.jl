@@ -27,7 +27,7 @@ println("lti_sde:")
         @testset "$(typeof(t)), $storage, $N" for t in (
                 sort(rand(Nt)), RegularSpacing(0.0, 0.1, Nt)
             ),
-            storage in (ArrayStorage{Float64}(), ),
+            storage in (ArrayStorage{Float64}(),),
             N in (5, 8)
 
             k = ApproxPeriodicKernel{N}()
@@ -152,7 +152,7 @@ println("lti_sde:")
 
         σ²s = (
             (name="homoscedastic noise", val=(0.1,)),
-            (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1, )),
+            (name="heteroscedastic noise", val=(rand(rng, N) .+ 1e-1,)),
         )
 
         means = (
@@ -161,8 +161,8 @@ println("lti_sde:")
             (name="Custom Mean", val=CustomMean(x -> 2x)),
         )
 
-        @testset "$(kernel.name), $(m.name), $(storage.name), $(t.name), $(σ².name)" for
-            kernel in kernels,
+        @testset "$(kernel.name), $(m.name), $(storage.name), $(t.name), $(σ².name)" for kernel in
+                                                                                         kernels,
             m in means,
             storage in storages,
             t in ts,
@@ -201,7 +201,13 @@ println("lti_sde:")
             end
 
             test_rule(
-                rng, _logpdf_tester, f_naive, y, storage.val, σ².val, t.val;
+                rng,
+                _logpdf_tester,
+                f_naive,
+                y,
+                storage.val,
+                σ².val,
+                t.val;
                 is_primitive=false,
             )
         end

@@ -6,7 +6,7 @@ abstract type AbstractLGSSM end
 A Linear-Gaussian State-Space model. Represented in terms of a Gauss-Markov model
 `transitions` and collection of emission dynamics `emissions`.
 """
-struct LGSSM{Ttransitions<:GaussMarkovModel, Temissions<:StructArray} <: AbstractLGSSM
+struct LGSSM{Ttransitions<:GaussMarkovModel,Temissions<:StructArray} <: AbstractLGSSM
     transitions::Ttransitions
     emissions::Temissions
 end
@@ -37,15 +37,13 @@ x0(model::LGSSM) = x0(transitions(model))
 
 emission_type(model::LGSSM) = eltype(emissions(model))
 
-
-
 # Functionality for indexing into an LGSSM.
 """
     ElementOfLGSSM
 
 Represents an element of [`LGSSM`](@ref) with a given ordering.
 """
-struct ElementOfLGSSM{Tordering, Ttransition, Temission}
+struct ElementOfLGSSM{Tordering,Ttransition,Temission}
     ordering::Tordering
     transition::Ttransition
     emission::Temission
@@ -114,8 +112,6 @@ function step_marginals(::Reverse, x::Gaussian, model)
     return y, xp
 end
 
-
-
 """
     marginals_diag(model::LGSSM)
 
@@ -140,13 +136,9 @@ function step_marginals_diag(::Reverse, x::Gaussian, model)
     return y, xp
 end
 
-
-
 # Compute the log marginal likelihood of the observations `y`.
 
-function AbstractGPs.logpdf(
-    model::LGSSM, y::AbstractVector{<:Union{AbstractVector, <:Real}},
-)
+function AbstractGPs.logpdf(model::LGSSM, y::AbstractVector{<:Union{AbstractVector,<:Real}})
     return sum(scan_emit(step_logpdf, zip(model, y), x0(model), eachindex(model))[1])
 end
 
@@ -163,8 +155,6 @@ function step_logpdf(::Reverse, x::Gaussian, (model, y))
     xp = predict(xf, transition_dynamics(model))
     return lml, xp
 end
-
-
 
 # Compute the filtering distributions.
 
@@ -185,8 +175,6 @@ function step_filter(::Reverse, x::Gaussian, (model, y))
     xp = predict(xf, transition_dynamics(model))
     return xf, xp
 end
-
-
 
 # Construct the posterior model.
 
@@ -247,6 +235,6 @@ ident_eps(ε::Real) = UniformScaling(ε)
 
 ident_eps(x::ColVecs, ε::Real) = UniformScaling(convert(eltype(x.X), ε))
 
-_collect(U::Adjoint{<:Any, <:Matrix}) = collect(U)
+_collect(U::Adjoint{<:Any,<:Matrix}) = collect(U)
 _collect(U::SMatrix) = U
 _collect(U::BlockDiagonal) = U

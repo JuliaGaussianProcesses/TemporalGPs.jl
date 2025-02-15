@@ -5,11 +5,7 @@ using BlockDiagonals: getblock
 #
 
 function LinearAlgebra.mul!(
-    C::Matrix{T},
-    A::BlockDiagonal{T},
-    B::Matrix{T},
-    α::T,
-    β::T,
+    C::Matrix{T}, A::BlockDiagonal{T}, B::Matrix{T}, α::T, β::T
 ) where {T<:Real}
     @assert size(A, 1) == size(A, 2)
     start_row = 1
@@ -30,13 +26,8 @@ function LinearAlgebra.mul!(
     return C
 end
 
-
 function LinearAlgebra.mul!(
-    C::Matrix{T},
-    A::BlockDiagonal{T},
-    B::Adjoint{T, Matrix{T}},
-    α::T,
-    β::T,
+    C::Matrix{T}, A::BlockDiagonal{T}, B::Adjoint{T,Matrix{T}}, α::T, β::T
 ) where {T<:Real}
     @assert size(A, 1) == size(A, 2)
     start_row = 1
@@ -57,13 +48,8 @@ function LinearAlgebra.mul!(
     return C
 end
 
-
 function LinearAlgebra.mul!(
-    C::Matrix{T},
-    A::Matrix{T},
-    B::BlockDiagonal{T},
-    α::T,
-    β::T,
+    C::Matrix{T}, A::Matrix{T}, B::BlockDiagonal{T}, α::T, β::T
 ) where {T<:Real}
     @assert size(B, 1) == size(B, 2)
     start_col = 1
@@ -85,11 +71,7 @@ function LinearAlgebra.mul!(
 end
 
 function LinearAlgebra.mul!(
-    C::Matrix{T},
-    A::Adjoint{T, Matrix{T}},
-    B::BlockDiagonal{T},
-    α::T,
-    β::T,
+    C::Matrix{T}, A::Adjoint{T,Matrix{T}}, B::BlockDiagonal{T}, α::T, β::T
 ) where {T<:Real}
     @assert size(B, 1) == size(B, 2)
     start_col = 1
@@ -110,17 +92,12 @@ function LinearAlgebra.mul!(
     return C
 end
 
-
 #
 # Matrix-Vector product.
 #
 
 function LinearAlgebra.mul!(
-    c::Vector{T},
-    A::BlockDiagonal{T, Matrix{T}},
-    b::Vector{T},
-    α::T,
-    β::T,
+    c::Vector{T}, A::BlockDiagonal{T,Matrix{T}}, b::Vector{T}, α::T, β::T
 ) where {T<:Real}
     @assert size(A, 1) == size(A, 2)
     start_row = 1

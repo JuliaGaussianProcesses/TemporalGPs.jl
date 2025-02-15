@@ -1,4 +1,4 @@
-struct PosteriorLTISDE{Tprior<:LTISDE, Tdata} <: AbstractGP
+struct PosteriorLTISDE{Tprior<:LTISDE,Tdata} <: AbstractGP
     prior::Tprior
     data::Tdata
 end
@@ -60,9 +60,8 @@ end
 AbstractGPs.rand(fx::FinitePosteriorLTISDE) = rand(Random.GLOBAL_RNG, fx)
 
 function AbstractGPs.logpdf(fx::FinitePosteriorLTISDE, y_pr::AbstractVector{<:Real})
-
     x, Σys, ys, tr_indices, pr_indices = build_inference_data(
-        fx.f, fx.x, fx.Σy, fill(missing, length(y_pr)),
+        fx.f, fx.x, fx.Σy, fill(missing, length(y_pr))
     )
 
     # Get time-form observation vars and observations.
@@ -88,18 +87,18 @@ function build_inference_data(
     f::PosteriorLTISDE,
     x_pred::AbstractVector,
     Σy_pred::AbstractMatrix{<:Real},
-    y_pred::AbstractVector{<:Union{Missing, Real}},
+    y_pred::AbstractVector{<:Union{Missing,Real}},
 )
     d = f.data
     return merge_datasets((d.x, x_pred), (d.Σy, Σy_pred), (d.y, y_pred))
 end
 
 function merge_datasets(
-    (x1, x2)::Tuple{AbstractVector, AbstractVector},
-    (Σy1, Σy2)::Tuple{AbstractMatrix{<:Real}, AbstractMatrix{<:Real}},
-    (y1, y2)::Tuple{
-        AbstractVector{<:Union{Missing, Real}}, AbstractVector{<:Union{Missing, Real}},
-    },
+    (x1, x2)::Tuple{AbstractVector,AbstractVector},
+    (Σy1, Σy2)::Tuple{AbstractMatrix{<:Real},AbstractMatrix{<:Real}},
+    (
+        y1, y2
+    )::Tuple{AbstractVector{<:Union{Missing,Real}},AbstractVector{<:Union{Missing,Real}}},
 )
     # Merge and sort the inputs temporally.
     x_raw = merge_inputs(x1, x2)
@@ -117,7 +116,7 @@ function merge_datasets(
 
     # The last length(x_pred) indices belong to the predictions.
     x1_indices = sortperm(sort_indices)[1:length(ys_1)]
-    x2_indices = sortperm(sort_indices)[end-length(ys_2) + 1:end]
+    x2_indices = sortperm(sort_indices)[(end - length(ys_2) + 1):end]
 
     return x, Σys, ys, x1_indices, x2_indices
 end
@@ -130,13 +129,10 @@ function build_inference_data(f::PosteriorLTISDE, x_pred::AbstractVector)
     return build_inference_data(f, x_pred, Σy_pred, y_pred)
 end
 
-
 # Functions that make predictions at new locations require missings to be placed at the
 # locations of the training data.
 function build_prediction_obs_vars(
-    pr_indices::AbstractVector{<:Integer},
-    x_full::AbstractVector,
-    Σys_pr::AbstractVector,
+    pr_indices::AbstractVector{<:Integer}, x_full::AbstractVector, Σys_pr::AbstractVector
 )
     σ²s_pr_full = get_zeros(x_full)
     σ²s_pr_full[pr_indices] .= Σys_pr
@@ -151,7 +147,7 @@ function build_prediction_obs(
     x_full::AbstractVector,
     y_pr::AbstractVector{T},
 ) where {T}
-    y_pr_full = Vector{Union{Missing, T}}(undef, length(get_times(x_full)))
+    y_pr_full = Vector{Union{Missing,T}}(undef, length(get_times(x_full)))
     y_pr_full[tr_indices] .= missing
     y_pr_full[pr_indices] .= y_pr
     return y_pr_full

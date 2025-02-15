@@ -18,7 +18,6 @@ using TemporalGPs:
 using Test
 
 @testset "pseudo_point" begin
-
     rng = MersenneTwister(123456)
 
     @testset "dtcify" begin
@@ -27,7 +26,7 @@ using Test
         @test dtcify(z, k_sep) isa DTCSeparable
         @test dtcify(z, 0.5 * k_sep) isa ScaledKernel{<:DTCSeparable}
         @test dtcify(z, k_sep ∘ ScaleTransform(0.5)) isa TransformedKernel{<:DTCSeparable}
-        @test dtcify(z, k_sep + k_sep) isa KernelSum{<:Tuple{DTCSeparable, DTCSeparable}}
+        @test dtcify(z, k_sep + k_sep) isa KernelSum{<:Tuple{DTCSeparable,DTCSeparable}}
     end
 
     # A couple of "base" kernels used as components in more complicated kernels below.
@@ -36,16 +35,13 @@ using Test
 
     # The various spatio-temporal kernels to try out.
     kernels = [
-
         (name="separable-1", val=separable_1),
         (name="separable-2", val=separable_2),
-
         (name="scaled-separable", val=0.5 * Separable(Matern52Kernel(), Matern32Kernel())),
         (
             name="stretched-separable",
             val=Separable(SEKernel(), Matern12Kernel() ∘ ScaleTransform(1.3)),
         ),
-
         (name="sum-separable-1", val=separable_1 + separable_2),
         (name="sum-separable-2", val=1.3 * separable_1 + 0.95 * separable_2),
     ]
@@ -58,10 +54,7 @@ using Test
         ),
         (
             name="regular-in-time",
-            val=RegularInTime(
-                RegularSpacing(0.0, 0.1, 11),
-                [randn(rng, 3) for _ in 1:11],
-            ),
+            val=RegularInTime(RegularSpacing(0.0, 0.1, 11), [randn(rng, 3) for _ in 1:11]),
         ),
     ]
 
@@ -97,11 +90,11 @@ using Test
         # The two approaches to DTC computation should be equivalent up to roundoff error.
         dtc_naive = approx_log_evidence(DTC(f_naive(z_naive)), fx_naive, y)
         dtc_sde = dtc(fx, y, z_r)
-        @test dtc_naive ≈ dtc_sde rtol=1e-6
+        @test dtc_naive ≈ dtc_sde rtol = 1e-6
 
         elbo_naive = elbo(VFE(f_naive(z_naive)), fx_naive, y)
         elbo_sde = elbo(fx, y, z_r)
-        @test elbo_naive ≈ elbo_sde rtol=1e-6
+        @test elbo_naive ≈ elbo_sde rtol = 1e-6
         test_rule(rng, elbo, fx, y, z_r; is_primitive=false)
 
         # Compute approximate posterior marginals naively.
@@ -112,8 +105,8 @@ using Test
         # This is a horrible interface, but it's the best that I can do on short notice.
         approx_post_marginals = approx_posterior_marginals(dtc, fx, y, z_r, x_pr_r)
 
-        @test mean.(naive_approx_post_marginals) ≈ mean.(approx_post_marginals) rtol=1e-7
-        @test std.(naive_approx_post_marginals) ≈ std.(approx_post_marginals) rtol=1e-7
+        @test mean.(naive_approx_post_marginals) ≈ mean.(approx_post_marginals) rtol = 1e-7
+        @test std.(naive_approx_post_marginals) ≈ std.(approx_post_marginals) rtol = 1e-7
 
         # Similarly awful interface, make predictions for each point separately.
         approx_post_marginals_individual = map(eachindex(t)) do t
@@ -122,20 +115,22 @@ using Test
 
         approx_post_marginals_vec = reduce(vcat, approx_post_marginals_individual)
 
-        @test mean.(approx_post_marginals) ≈ mean.(approx_post_marginals_vec) rtol=1e-7
-        @test std.(approx_post_marginals) ≈ std.(approx_post_marginals_vec) rtol=1e-7
+        @test mean.(approx_post_marginals) ≈ mean.(approx_post_marginals_vec) rtol = 1e-7
+        @test std.(approx_post_marginals) ≈ std.(approx_post_marginals_vec) rtol = 1e-7
 
         # Do the RegularInTime one and compare it against RectilinearGrid.
-        x_pr_rit = RegularInTime(get_times(x_pr), [get_space(x_pr) for _ in get_times(x.val)])
+        x_pr_rit = RegularInTime(
+            get_times(x_pr), [get_space(x_pr) for _ in get_times(x.val)]
+        )
         approx_post_marginals_rit = approx_posterior_marginals(dtc, fx, y, z_r, x_pr_rit)
 
-        @test mean.(approx_post_marginals) ≈ mean.(approx_post_marginals_rit) rtol=1e-7
-        @test std.(approx_post_marginals) ≈ std.(approx_post_marginals_rit) rtol=1e-7
+        @test mean.(approx_post_marginals) ≈ mean.(approx_post_marginals_rit) rtol = 1e-7
+        @test std.(approx_post_marginals) ≈ std.(approx_post_marginals_rit) rtol = 1e-7
 
         @testset "missings" begin
 
             # Construct missing data.
-            y_missing = Vector{Union{eltype(y), Missing}}(undef, size(y))
+            y_missing = Vector{Union{eltype(y),Missing}}(undef, size(y))
             y_missing .= y
             missing_idx = sort(randperm(rng, length(y))[1:Int(floor(length(y) / 3))])
             missing_idx = eachindex(y)
@@ -148,27 +143,31 @@ using Test
             fx_naive = f_naive(naive_inputs_missings, 0.1)
 
             # Compute DTC using both approaches.
-            dtc_naive = approx_log_evidence(DTC(f_naive(z_naive)), fx_naive, naive_y_missings)
+            dtc_naive = approx_log_evidence(
+                DTC(f_naive(z_naive)), fx_naive, naive_y_missings
+            )
             dtc_sde = dtc(fx, y_missing, z_r)
-            @test dtc_naive ≈ dtc_sde rtol=1e-7 atol=1e-7
+            @test dtc_naive ≈ dtc_sde rtol = 1e-7 atol = 1e-7
 
             elbo_naive = elbo(VFE(f_naive(z_naive)), fx_naive, naive_y_missings)
             elbo_sde = elbo(fx, y_missing, z_r)
-            @test elbo_naive ≈ elbo_sde rtol=1e-7 atol=1e-7
+            @test elbo_naive ≈ elbo_sde rtol = 1e-7 atol = 1e-7
 
             # Compute approximate posterior marginals naively with missings.
             f_approx_post_naive = posterior(
-                VFE(f_naive(z_naive)), fx_naive, naive_y_missings,
+                VFE(f_naive(z_naive)), fx_naive, naive_y_missings
             )
             naive_approx_post_marginals = marginals(f_approx_post_naive(collect(x_pr)))
 
             # Compute approximate posterior marginals using the state-space approximation.
             approx_post_marginals = approx_posterior_marginals(
-                dtc, fx, y_missing, z_r, x_pr_r,
+                dtc, fx, y_missing, z_r, x_pr_r
             )
 
-            @test mean.(naive_approx_post_marginals) ≈ mean.(approx_post_marginals) rtol=1e-7
-            @test std.(naive_approx_post_marginals) ≈ std.(approx_post_marginals) rtol=1e-7
+            @test mean.(naive_approx_post_marginals) ≈ mean.(approx_post_marginals) rtol =
+                1e-7
+            @test std.(naive_approx_post_marginals) ≈ std.(approx_post_marginals) rtol =
+                1e-7
         end
     end
 end

@@ -15,10 +15,7 @@ using Mooncake # Algorithmic Differentiation
 # var_kernel is the variance of the kernel, λ the inverse length scale, and var_noise the
 # variance of the observation noise. Note that they're all constrained to be positive.
 flat_initial_params, unpack = ParameterHandling.value_flatten((
-    mean = 3.0,
-    var_kernel = positive(0.6),
-    λ = positive(0.1),
-    var_noise = positive(2.0),
+    mean=3.0, var_kernel=positive(0.6), λ=positive(0.1), var_noise=positive(2.0)
 ));
 
 # Pull out the raw values.
@@ -58,11 +55,11 @@ training_results = Optim.optimize(
     objective,
     Base.Fix1(objective_grad, Mooncake.build_rrule(objective, flat_initial_params)),
     flat_initial_params .+ randn.(), # Perturb the parameters to make learning non-trivial
-    BFGS(
-        alphaguess = Optim.LineSearches.InitialStatic(scaled=true),
-        linesearch = Optim.LineSearches.BackTracking(),
+    BFGS(;
+        alphaguess=Optim.LineSearches.InitialStatic(; scaled=true),
+        linesearch=Optim.LineSearches.BackTracking(),
     ),
-    Optim.Options(show_trace = true);
+    Optim.Options(; show_trace=true);
     inplace=false,
 );
 
@@ -88,9 +85,9 @@ f_post_samples = [rand(f_post(x_pr)) for _ in 1:5];
 # Visualise the posterior. The if block is just to prevent it running in CI.
 if get(ENV, "TESTING", "FALSE") == "FALSE"
     using Plots
-    plt = plot();
-    scatter!(plt, x, y; label="", markersize=0.1, alpha=0.1);
-    plot!(plt, f_post(x_pr); ribbon_scale=3.0, label="");
-    plot!(plt, x_pr, f_post_samples; color=:red, label="");
-    savefig(plt, "exact_time_learning.png");
+    plt = plot()
+    scatter!(plt, x, y; label="", markersize=0.1, alpha=0.1)
+    plot!(plt, f_post(x_pr); ribbon_scale=3.0, label="")
+    plot!(plt, x_pr, f_post_samples; color=:red, label="")
+    savefig(plt, "exact_time_learning.png")
 end

@@ -25,7 +25,7 @@ Merge two collections of inputs `x1` and `x2` if possible.
 A notable example of inputs which cannot be merged are two rectilinear grids whose
 spatial components differ.
 """
-merge_inputs(x1::AbstractVector{<:Real}, x2::AbstractVector{<:Real}) = vcat(x1, x2) 
+merge_inputs(x1::AbstractVector{<:Real}, x2::AbstractVector{<:Real}) = vcat(x1, x2)
 
 """
     sort_in_time(x::AbstractVector)
@@ -51,7 +51,7 @@ and spatio-temporal problems typically have multiple elements of `y` associated 
 single element of `x`.
 """
 function observations_to_time_form(
-    x::AbstractVector{<:Real}, y::AbstractVector{<:Union{Missing, Real}}
+    x::AbstractVector{<:Real}, y::AbstractVector{<:Union{Missing,Real}}
 )
     return y
 end
@@ -69,7 +69,6 @@ it's typically only necessary to require that the observation variance at each p
 is independent of other times.
 """
 noise_var_to_time_form(x::AbstractVector{<:Real}, S::Diagonal{<:Real}) = diag(S)
-
 
 """
     destructure(x::AbstractVector, ys::AbstractVector)

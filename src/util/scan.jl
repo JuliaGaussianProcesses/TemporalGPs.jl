@@ -36,5 +36,5 @@ _getindex(x, idx::Int) = getindex(x, idx)
 
 # This is a work around for `map` not inferring properly.
 _getindex(x::Base.Iterators.Zip, idx::Int) = __getindex(x.is, idx)
-__getindex(x::Tuple{Any}, idx::Int) = (_getindex(x[1], idx), )
+__getindex(x::Tuple{Any}, idx::Int) = (_getindex(x[1], idx),)
 __getindex(x::Tuple, idx::Int) = (_getindex(x[1], idx), __getindex(Base.tail(x), idx)...)

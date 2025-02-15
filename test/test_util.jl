@@ -20,8 +20,12 @@ using TemporalGPs:
     ε_randn
 
 function test_interface(
-    rng::AbstractRNG, conditional::AbstractLGC, x::Gaussian;
-    check_inferred=true, check_adjoints=true, check_allocs=true,
+    rng::AbstractRNG,
+    conditional::AbstractLGC,
+    x::Gaussian;
+    check_inferred=true,
+    check_adjoints=true,
+    check_allocs=true,
 )
     x_val = rand(rng, x)
     y = conditional_rand(rng, conditional, x_val)
@@ -31,13 +35,13 @@ function test_interface(
     @testset "rand" begin
         @test length(y) == dim_out(conditional)
         args = (TemporalGPs.ε_randn(rng, conditional), conditional, x_val)
-        check_inferred && @test_opt target_modules=[TemporalGPs] conditional_rand(args...)
+        check_inferred && @test_opt target_modules = [TemporalGPs] conditional_rand(args...)
         check_adjoints && test_rule(rng, conditional_rand, args...; perf_flag, is_primitive)
     end
 
     @testset "predict" begin
         @test predict(x, conditional) isa Gaussian
-        check_inferred && @test_opt target_modules=[TemporalGPs] predict(x, conditional)
+        check_inferred && @test_opt target_modules = [TemporalGPs] predict(x, conditional)
         check_adjoints && test_rule(rng, predict, x, conditional; perf_flag, is_primitive)
     end
 
@@ -52,9 +56,11 @@ function test_interface(
 
     @testset "posterior_and_lml" begin
         args = (x, conditional, y)
-        @test posterior_and_lml(args...) isa Tuple{Gaussian, Real}
-        check_inferred && @test_opt target_modules=[TemporalGPs] posterior_and_lml(args...)
-        check_adjoints && test_rule(rng, posterior_and_lml, args...; perf_flag, is_primitive)
+        @test posterior_and_lml(args...) isa Tuple{Gaussian,Real}
+        check_inferred &&
+            @test_opt target_modules = [TemporalGPs] posterior_and_lml(args...)
+        check_adjoints &&
+            test_rule(rng, posterior_and_lml, args...; perf_flag, is_primitive)
     end
 end
 
@@ -69,8 +75,11 @@ is not to ensure correctness of any given implementation, only to ensure that it
 consistent and implements the required interface.
 """
 function test_interface(
-    rng::AbstractRNG, ssm::AbstractLGSSM;
-    check_inferred=true, check_adjoints=true, check_allocs=true,
+    rng::AbstractRNG,
+    ssm::AbstractLGSSM;
+    check_inferred=true,
+    check_adjoints=true,
+    check_allocs=true,
 )
     perf_flag = check_allocs ? :allocs : :none
     y_no_missing = rand(rng, ssm)
@@ -79,7 +88,7 @@ function test_interface(
             @test is_of_storage_type(y_no_missing[1], storage_type(ssm))
             @test y_no_missing isa AbstractVector
             @test length(y_no_missing) == length(ssm)
-            check_inferred && @test_opt target_modules=[TemporalGPs] rand(rng, ssm)
+            check_inferred && @test_opt target_modules = [TemporalGPs] rand(rng, ssm)
             rng = MersenneTwister(123456)
             if check_adjoints
                 test_rule(
@@ -89,7 +98,7 @@ function test_interface(
         end
 
         @testset "basics" begin
-            @test_opt target_modules=[TemporalGPs] storage_type(ssm)
+            @test_opt target_modules = [TemporalGPs] storage_type(ssm)
             @test length(ssm) == length(y_no_missing)
         end
 
@@ -98,18 +107,23 @@ function test_interface(
             @test is_of_storage_type(xs, storage_type(ssm))
             @test xs isa AbstractVector{<:Gaussian}
             @test length(xs) == length(ssm)
-            check_inferred && @test_opt target_modules=[TemporalGPs] marginals(ssm)
+            check_inferred && @test_opt target_modules = [TemporalGPs] marginals(ssm)
             if check_adjoints
                 test_rule(
-                    rng, scan_emit, step_marginals, ssm, x0(ssm), eachindex(ssm);
-                    perf_flag, is_primitive=false, interface_only=true,
+                    rng,
+                    scan_emit,
+                    step_marginals,
+                    ssm,
+                    x0(ssm),
+                    eachindex(ssm);
+                    perf_flag,
+                    is_primitive=false,
+                    interface_only=true,
                 )
             end
         end
 
-        @testset "$(data.name)" for data in [
-            (name="no-missings", y=y_no_missing),
-        ]
+        @testset "$(data.name)" for data in [(name="no-missings", y=y_no_missing)]
             _check_inferred = data.name == "with-missings" ? false : check_inferred
 
             y = data.y
@@ -117,11 +131,18 @@ function test_interface(
                 lml = logpdf(ssm, y)
                 @test lml isa Real
                 @test is_of_storage_type(lml, storage_type(ssm))
-                _check_inferred && @test_opt target_modules=[TemporalGPs] logpdf(ssm, y)
+                _check_inferred && @test_opt target_modules = [TemporalGPs] logpdf(ssm, y)
                 if check_adjoints
                     test_rule(
-                        rng, scan_emit, step_logpdf, zip(ssm, y), x0(ssm), eachindex(ssm);
-                        perf_flag, is_primitive=false, interface_only=true,
+                        rng,
+                        scan_emit,
+                        step_logpdf,
+                        zip(ssm, y),
+                        x0(ssm),
+                        eachindex(ssm);
+                        perf_flag,
+                        is_primitive=false,
+                        interface_only=true,
                     )
                 end
             end
@@ -130,11 +151,18 @@ function test_interface(
                 @test is_of_storage_type(xs, storage_type(ssm))
                 @test xs isa AbstractVector{<:Gaussian}
                 @test length(xs) == length(ssm)
-                _check_inferred && @test_opt target_modules=[TemporalGPs] _filter(ssm, y)
+                _check_inferred && @test_opt target_modules = [TemporalGPs] _filter(ssm, y)
                 if check_adjoints
                     test_rule(
-                        rng, scan_emit, step_filter, zip(ssm, y), x0(ssm), eachindex(ssm);
-                        perf_flag, is_primitive=false, interface_only=true,
+                        rng,
+                        scan_emit,
+                        step_filter,
+                        zip(ssm, y),
+                        x0(ssm),
+                        eachindex(ssm);
+                        perf_flag,
+                        is_primitive=false,
+                        interface_only=true,
                     )
                 end
             end
@@ -142,11 +170,17 @@ function test_interface(
                 posterior_ssm = posterior(ssm, y)
                 @test length(posterior_ssm) == length(ssm)
                 @test ordering(posterior_ssm) != ordering(ssm)
-                _check_inferred && @test_opt target_modules=[TemporalGPs] posterior(ssm, y)
+                _check_inferred &&
+                    @test_opt target_modules = [TemporalGPs] posterior(ssm, y)
                 if check_adjoints
                     test_rule(
-                        rng, posterior, ssm, y;
-                        perf_flag, is_primitive=false, interface_only=true,
+                        rng,
+                        posterior,
+                        ssm,
+                        y;
+                        perf_flag,
+                        is_primitive=false,
+                        interface_only=true,
                     )
                 end
             end

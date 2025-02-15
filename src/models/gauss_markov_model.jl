@@ -3,7 +3,7 @@ struct Forward end
 struct Reverse end
 
 # For some reason, this is necessary for printing. I don't really understand it.
-Base.length(::Union{Forward, Reverse}) = 0
+Base.length(::Union{Forward,Reverse}) = 0
 
 Base.reverse(::Forward) = Reverse()
 Base.reverse(::Reverse) = Forward()
@@ -18,7 +18,7 @@ x[t] = A[t] * x[t-1] + a[t] + ε[t], ε[t] ∼ N(0, Q)
 ```
 """
 struct GaussMarkovModel{
-    Tordering<:Union{Forward, Reverse},
+    Tordering<:Union{Forward,Reverse},
     TAs<:AbstractVector{<:AbstractMatrix{<:Real}},
     Tas<:AbstractVector{<:AbstractVector{<:Real}},
     TQs<:AbstractVector{<:AbstractMatrix{<:Real}},

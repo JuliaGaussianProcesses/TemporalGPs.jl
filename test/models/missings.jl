@@ -1,6 +1,5 @@
 @info "missings"
 @testset "missings" begin
-
     rng = MersenneTwister(123456)
 
     storages = (
@@ -18,14 +17,13 @@
         (tv=:time_invariant, N=5, Dlat=3, Dobs=2, storage=storages.dense),
         (tv=:time_invariant, N=5, Dlat=3, Dobs=2, storage=storages.static),
     ]
-    orderings = [
-        Forward(),
-    ]
+    orderings = [Forward()]
 
     # We can test this stuff by analytically dropping particular elements of the LGSSM
     # and computing the marginalised dynamics.
-    @testset "($tv, $N, $Dlat, $Dobs, $(storage.name), $(emission.name), $order)" for
-        (tv, N, Dlat, Dobs, storage) in settings,
+    @testset "($tv, $N, $Dlat, $Dobs, $(storage.name), $(emission.name), $order)" for (
+            tv, N, Dlat, Dobs, storage
+        ) in settings,
         emission in emission_types,
         order in orderings
 
@@ -38,7 +36,15 @@
         # Build LGSSM.
         model = if emission.val ∈ (SmallOutputLGC, LargeOutputLGC)
             random_lgssm(
-                rng, order, Val(tv), emission.val, Dlat, Dobs, N, Val(:dense), storage.val,
+                rng,
+                order,
+                Val(tv),
+                emission.val,
+                Dlat,
+                Dobs,
+                N,
+                Val(:dense),
+                storage.val,
             )
         elseif emission.val == ScalarOutputLGC
             random_lgssm(rng, order, Val(tv), emission.val, Dlat, Dobs, N, storage.val)
@@ -62,7 +68,7 @@
         missings_idx = [3, 5, 9]
         missings_idx = [2, 4]
         presents_idx = setdiff(eachindex(y), missings_idx)
-        y_missing = Vector{Union{eltype(y), Missing}}(undef, length(y))
+        y_missing = Vector{Union{eltype(y),Missing}}(undef, length(y))
         y_missing[missings_idx] .= missing
         y_missing[presents_idx] .= y[presents_idx]
 
@@ -73,9 +79,9 @@
         Qs = model.transitions.Qs
         transitions_missing = map(eachindex(y_missing)) do n
             if n - 1 ∈ missings_idx
-                A = As[n] * As[n-1]
-                a = As[n] * as[n-1] + as[n]
-                Q = As[n] * Qs[n-1] * As[n]' + Qs[n]
+                A = As[n] * As[n - 1]
+                a = As[n] * as[n - 1] + as[n]
+                Q = As[n] * Qs[n - 1] * As[n]' + Qs[n]
                 return A, a, Q
             else
                 return As[n], as[n], Qs[n]
@@ -111,26 +117,34 @@
             @test mean.(new_post_marginals) ≈ mean.(post_marginals)[presents_idx]
             @test cov.(new_post_marginals) ≈ cov.(post_marginals)[presents_idx]
 
-            @test logpdf(new_posterior, new_y) ≈ logpdf(post, y_missing) rtol=1e-4
+            @test logpdf(new_posterior, new_y) ≈ logpdf(post, y_missing) rtol = 1e-4
         end
 
         # Only test the bits of AD that we haven't tested before.
         @testset "AD: transform_model_and_obs" begin
-            test_rule(rng, fill_in_missings, model.emissions.Q, y_missing; is_primitive=false)
             test_rule(
-                rng, replace_observation_noise_cov, model, model.emissions.Q;
-                is_primitive=false, interface_only=true,
+                rng, fill_in_missings, model.emissions.Q, y_missing; is_primitive=false
             )
             test_rule(
-                rng, transform_model_and_obs, model, y_missing;
-                is_primitive=false, interface_only=true,
+                rng,
+                replace_observation_noise_cov,
+                model,
+                model.emissions.Q;
+                is_primitive=false,
+                interface_only=true,
+            )
+            test_rule(
+                rng,
+                transform_model_and_obs,
+                model,
+                y_missing;
+                is_primitive=false,
+                interface_only=true,
             )
         end
     end
 
-    storages = (
-        dense=(name="dense storage Float64", val=ArrayStorage(Float64)),
-    )
+    storages = (dense=(name="dense storage Float64", val=ArrayStorage(Float64)),)
     emission_types = (
         small_output=(name="small output", val=SmallOutputLGC),
         large_output=(name="large output", val=LargeOutputLGC),
@@ -139,12 +153,11 @@
         (tv=:time_varying, N=5, Dlat=3, Dobs=2, storage=storages.dense),
         (tv=:time_invariant, N=5, Dlat=3, Dobs=2, storage=storages.dense),
     ]
-    orderings = [
-        Forward(),
-    ]
+    orderings = [Forward()]
 
-    @testset "missing-in-obs (tv=$(tv), N=$N, Dlat=$Dlat, emission=$emission" for
-        (tv, N, Dlat, Dobs, storage) in settings,
+    @testset "missing-in-obs (tv=$(tv), N=$N, Dlat=$Dlat, emission=$emission" for (
+            tv, N, Dlat, Dobs, storage
+        ) in settings,
         emission in emission_types,
         order in orderings
 
@@ -152,7 +165,7 @@
 
         # Build LGSSM.
         model = random_lgssm(
-            rng, order, Val(tv), emission.val, Dlat, Dobs, N, Val(:diag), storage.val,
+            rng, order, Val(tv), emission.val, Dlat, Dobs, N, Val(:diag), storage.val
         )
 
         # Verify the correct output types has been obtained.
@@ -167,14 +180,14 @@
         # Generate some missing data.
         y = rand(model)
         y_missing = map(y) do yn
-            yn_missing = Vector{Union{Missing, eltype(yn)}}(undef, length(yn))
+            yn_missing = Vector{Union{Missing,eltype(yn)}}(undef, length(yn))
             yn_missing .= yn
             yn_missing[randperm(length(yn))[1]] = missing
             return yn_missing
         end
 
         # Check logpdf and inference run, infer.
-        @test_opt target_modules=[TemporalGPs] logpdf(model, y_missing)
-        @test_opt target_modules=[TemporalGPs] posterior(model, y_missing)
+        @test_opt target_modules = [TemporalGPs] logpdf(model, y_missing)
+        @test_opt target_modules = [TemporalGPs] posterior(model, y_missing)
     end
 end;

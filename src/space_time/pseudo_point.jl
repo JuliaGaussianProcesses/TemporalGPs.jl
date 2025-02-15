@@ -5,7 +5,7 @@ Specifies a low-rank approximation to a kernel `k` through pseudo-inputs `z`. `z
 locations of the pseudo-inputs in _space_, since they are automatically replicated
 (implicitly) at each point in time.
 """
-struct DTCSeparable{Tz<:AbstractVector, Tk<:Separable} <: Kernel
+struct DTCSeparable{Tz<:AbstractVector,Tk<:Separable} <: Kernel
     z::Tz
     k::Tk
 end
@@ -21,7 +21,7 @@ dtcify(z::AbstractVector, k::Separable) = DTCSeparable(z, k)
 
 dtcify(z::AbstractVector, k::ScaledKernel) = ScaledKernel(dtcify(z, k.kernel), k.σ²)
 
-function dtcify(z::AbstractVector, k::TransformedKernel{<:Kernel, <:ScaleTransform})
+function dtcify(z::AbstractVector, k::TransformedKernel{<:Kernel,<:ScaleTransform})
     return TransformedKernel(dtcify(z, k.kernel), k.transform)
 end
 
@@ -60,7 +60,6 @@ end
 Compute the ELBO (Evidence Lower BOund) in state-space form [insert reference].
 """
 function AbstractGPs.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVector)
-
     fx_dtc = dtcify(z_r, fx)
 
     # Compute diagonals over prior marginals.
@@ -75,8 +74,7 @@ function AbstractGPs.elbo(fx::FiniteLTISDE, y::AbstractVector, z_r::AbstractVect
     y_vecs = restructure(y, lgssm.emissions)
     tmp = map(Σs, Cf_diags, marg_diags, y_vecs) do Σ, Cf_diag, marg_diag, yn
         Σ_, _ = fill_in_missings(Σ, yn)
-        return sum(diag(Σ_ \ (Cf_diag - marg_diag.P))) -
-            count(ismissing, yn) + size(Σ_, 1)
+        return sum(diag(Σ_ \ (Cf_diag - marg_diag.P))) - count(ismissing, yn) + size(Σ_, 1)
     end
     return logpdf(lgssm, y_vecs) - sum(tmp) / 2
 end
@@ -92,7 +90,9 @@ end
 function kernel_diagonals(k::DTCSeparable, x::RegularInTime)
     space_kernel = k.k.l
     time_vars = kernelmatrix_diag(k.k.r, get_times(x))
-    return map((v, tv) -> Diagonal(kernelmatrix_diag(space_kernel, v) * tv), x.vs, time_vars)
+    return map(
+        (v, tv) -> Diagonal(kernelmatrix_diag(space_kernel, v) * tv), x.vs, time_vars
+    )
 end
 
 function kernel_diagonals(k::ScaledKernel, x::AbstractVector)
@@ -118,7 +118,6 @@ function lgssm_components(k_dtc::DTCSeparable, x::SpaceTimeGrid, storage::Storag
     z_space = k_dtc.z
     K_space_z = kernelmatrix(space_kernel, z_space)
     K_space_zx = kernelmatrix(space_kernel, z_space, x_space)
-
 
     # Get some size info.
     M = length(z_space)
@@ -171,14 +170,14 @@ function lgssm_components(k_dtc::DTCSeparable, x::RegularInTime, storage::Storag
     Cs = partition(map(length, x.vs), C)
 
     cs = fill.(hs_t, length.(x.vs)) # This should currently be zero.
-    Hs = map(((I, H_t), ) -> kron(I, H_t), zip(Fill(ident_M, N), Hs_t))
+    Hs = map(((I, H_t),) -> kron(I, H_t), zip(Fill(ident_M, N), Hs_t))
     hs = Fill(Zeros(M), N)
     x0 = Gaussian(repeat(x0_t.m, M), kron(K_space_z, x0_t.P))
 
     return As, as, Qs, (Cs, cs, Hs, hs), x0
 end
 
-_extract_emission_proj((Hs, hs)::Tuple{AbstractVector, AbstractVector}) = Hs, hs
+_extract_emission_proj((Hs, hs)::Tuple{AbstractVector,AbstractVector}) = Hs, hs
 
 _reduce(::typeof(vcat), xs::Vector{<:Vector{<:Real}}) = reduce(vcat, xs)
 
@@ -188,18 +187,20 @@ end
 
 function partition(lengths::AbstractVector{<:Integer}, A::Matrix{<:Real})
     starts = vcat(1, cumsum(lengths) .+ 1)
-    starts = starts[1:end-1]
-    return map((s, d) -> collect(view(A, :, s:s+d-1)), starts, lengths)
+    starts = starts[1:(end - 1)]
+    return map((s, d) -> collect(view(A, :, s:(s + d - 1))), starts, lengths)
 end
 
 function build_emissions(
-    (Cs, cs, Hs, hs)::Tuple{AbstractVector, AbstractVector, AbstractVector, AbstractVector},
+    (Cs, cs, Hs, hs)::Tuple{AbstractVector,AbstractVector,AbstractVector,AbstractVector},
     Σs::AbstractVector,
 )
     Hst = map(adjoint, Hs)
     Cst = map(adjoint, Cs)
-    fan_outs = StructArray{LargeOutputLGC{eltype(Cs), eltype(cs), eltype(Σs)}}((Cst, cs, Σs))
-    return StructArray{BottleneckLGC{eltype(Hst), eltype(hs), eltype(fan_outs)}}((Hst, hs, fan_outs))
+    fan_outs = StructArray{LargeOutputLGC{eltype(Cs),eltype(cs),eltype(Σs)}}((Cst, cs, Σs))
+    return StructArray{BottleneckLGC{eltype(Hst),eltype(hs),eltype(fan_outs)}}((
+        Hst, hs, fan_outs
+    ))
 end
 
 """
@@ -349,7 +350,7 @@ end
 function dtc_post_emissions(k::ScaledKernel, x_new::AbstractVector, storage::StorageType)
     (Cs, cs, Hs, hs), Σs = dtc_post_emissions(k.kernel, x_new, storage)
     σ = sqrt(convert(eltype(storage_type), only(k.σ²)))
-    return (Cs, cs, map(H->σ * H, Hs), map(h->σ * h, hs)), map(Σ->σ^2 * Σ, Σs)
+    return (Cs, cs, map(H -> σ * H, Hs), map(h -> σ * h, hs)), map(Σ -> σ^2 * Σ, Σs)
 end
 
 function dtc_post_emissions(k::KernelSum, x_new::AbstractVector, storage::StorageType)

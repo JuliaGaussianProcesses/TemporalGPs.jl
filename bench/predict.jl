@@ -2,8 +2,16 @@ using Pkg
 Pkg.activate(".")
 Pkg.instantiate()
 
-using BenchmarkTools, BlockDiagonals, DataFrames, DrWatson, FillArrays, Kronecker,
-    LinearAlgebra, PGFPlotsX, Random, TemporalGPs
+using BenchmarkTools,
+    BlockDiagonals,
+    DataFrames,
+    DrWatson,
+    FillArrays,
+    Kronecker,
+    LinearAlgebra,
+    PGFPlotsX,
+    Random,
+    TemporalGPs
 
 using TemporalGPs: predict, predict_pullback, AV, AM
 
@@ -11,8 +19,6 @@ const n_blas_threads = Sys.CPU_THREADS;
 LinearAlgebra.BLAS.set_num_threads(n_blas_threads);
 
 const exp_dir_name = "predict"
-
-
 
 #
 # Saving / loading utilities.
@@ -24,8 +30,6 @@ end
 
 load_results() = collect_results(joinpath(datadir(), exp_dir_name))
 
-
-
 #
 # Basline implementations to compare against.
 #
@@ -36,7 +40,7 @@ function naive_predict_pullback(m::AV, P::AM, A::AM, a::AV, Q::AM)
     mp = A * m + a # 1
     T = A * P # 2
     Pp = T * A' + Q # 3
-    return (mp, Pp), function(Δ)
+    return (mp, Pp), function (Δ)
         Δmp = Δ[1]
         ΔPp = Δ[2]
 
@@ -103,8 +107,6 @@ function block_diagonal_kronecker_dynamics_constructor(rng, dim_lat, n_obs, n_bl
     return Δmp, ΔPp, mf, Pf, A, a, Q
 end
 
-
-
 #
 # Save settings for benchmarking experiments.
 #
@@ -115,30 +117,30 @@ wsave(
         Dict(
 
             # Method to execute `predict` and construct / evaluate its pullback.
-            :implementation =>[
+            :implementation => [
                 (
-                    name = "naive",
-                    predict = naive_predict,
-                    predict_pullback = naive_predict_pullback,
-                    dynamics_constructor = dense_dynamics_constructor,
+                    name="naive",
+                    predict=naive_predict,
+                    predict_pullback=naive_predict_pullback,
+                    dynamics_constructor=dense_dynamics_constructor,
                 ),
                 (
-                    name = "dense",
-                    predict = predict,
-                    predict_pullback = predict_pullback,
-                    dynamics_constructor = dense_dynamics_constructor,
+                    name="dense",
+                    predict=predict,
+                    predict_pullback=predict_pullback,
+                    dynamics_constructor=dense_dynamics_constructor,
                 ),
                 (
-                    name = "block-diagonal",
-                    predict = predict,
-                    predict_pullback = predict_pullback,
-                    dynamics_constructor = block_diagonal_dynamics_constructor,
+                    name="block-diagonal",
+                    predict=predict,
+                    predict_pullback=predict_pullback,
+                    dynamics_constructor=block_diagonal_dynamics_constructor,
                 ),
                 (
-                    name = "block-diagonal-kronecker",
-                    predict = predict,
-                    predict_pullback = predict_pullback,
-                    dynamics_constructor = block_diagonal_kronecker_dynamics_constructor,
+                    name="block-diagonal-kronecker",
+                    predict=predict,
+                    predict_pullback=predict_pullback,
+                    dynamics_constructor=block_diagonal_kronecker_dynamics_constructor,
                 ),
             ],
 
@@ -157,8 +159,6 @@ wsave(
     ),
 )
 
-
-
 #
 # Run benchmarking experiments.
 #
@@ -174,7 +174,7 @@ let
         n_obs = setting[:n_obs]
         n_blocks = setting[:n_blocks]
         println(
-            "$n / $N: name=$(impl.name), dim_lat=$(dim_lat), "*
+            "$n / $N: name=$(impl.name), dim_lat=$(dim_lat), " *
             "n_obs=$(n_obs), n_blocks=$(n_blocks)",
         )
 
@@ -187,8 +187,9 @@ let
 
         # Benchmark evaluation, pullback generation, and pullback evaluation.
         predict_results = @benchmark $(impl.predict)($mf, $Pf, $A, $a, $Q)
-        generate_pullback_results =
-            (@benchmark $(impl.predict_pullback)($mf, $Pf, $A, $a, $Q))
+        generate_pullback_results = (@benchmark $(impl.predict_pullback)(
+            $mf, $Pf, $A, $a, $Q
+        ))
         pullback_results = @benchmark $back(($Δmp, $ΔPp))
 
         # Save results to disk.
@@ -217,8 +218,6 @@ let
         )
     end
 end
-
-
 
 #
 # Process results.
@@ -257,13 +256,13 @@ let
             row = merge(
                 copy(row), # No need to copy in following blocks.
                 (
-                    implementation_name = row.setting[:implementation].name,
-                    dim_lat = row.setting[:dim_lat] * row.setting[:n_obs],
-                    n_blocks = row.setting[:n_blocks],
+                    implementation_name=row.setting[:implementation].name,
+                    dim_lat=row.setting[:dim_lat] * row.setting[:n_obs],
+                    n_blocks=row.setting[:n_blocks],
                 ),
             )
             return row
-        end
+        end,
     )
 
     # Generate plots of timings per n_blocks per implementation.
@@ -272,46 +271,39 @@ let
         # Specify plots to produce.
         plots = [
             (
-                plot = (@pgf Axis(
-                    {
-                        title = "predict",
-                        legend_pos = "north west",
-                        xmode="log",
-                        ymode="log",
-                    }
-                )),
-                result_name = :predict_results,
-                save_name = "predict_n_blocks=$(first(n_blocks_group.n_blocks)).tex",
+                plot=(@pgf Axis({
+                    title = "predict",
+                    legend_pos = "north west",
+                    xmode = "log",
+                    ymode = "log",
+                })),
+                result_name=:predict_results,
+                save_name="predict_n_blocks=$(first(n_blocks_group.n_blocks)).tex",
             ),
             (
-                plot = (@pgf Axis(
-                    {
-                        title = "forwards pass",
-                        legend_pos = "north west",
-                        xmode="log",
-                        ymode="log",
-                    },
-                )),
-                result_name = :generate_pullback_results,
-                save_name = "generate_n_blocks=$(first(n_blocks_group.n_blocks)).tex",
+                plot=(@pgf Axis({
+                    title = "forwards pass",
+                    legend_pos = "north west",
+                    xmode = "log",
+                    ymode = "log",
+                },)),
+                result_name=:generate_pullback_results,
+                save_name="generate_n_blocks=$(first(n_blocks_group.n_blocks)).tex",
             ),
             (
-                plot = (@pgf Axis(
-                    {
-                        title = "reverse pass",
-                        legend_pos = "north west",
-                        xmode="log",
-                        ymode="log",
-                    },
-                )),
-                result_name = :pullback_results,
-                save_name = "pullback_n_blocks=$(first(n_blocks_group.n_blocks)).tex",
+                plot=(@pgf Axis({
+                    title = "reverse pass",
+                    legend_pos = "north west",
+                    xmode = "log",
+                    ymode = "log",
+                },)),
+                result_name=:pullback_results,
+                save_name="pullback_n_blocks=$(first(n_blocks_group.n_blocks)).tex",
             ),
         ]
 
         # Compute dim_lat vs time curves for each implementation, for each benchmarked op.
         by(n_blocks_group, :implementation_name) do impl_group
-
             impl_group = sort(impl_group, :dim_lat)
 
             impl = first(impl_group.implementation_name)
@@ -322,12 +314,11 @@ let
                     (@pgf Plot(
                         {
                             color = colour_map[impl],
-                            mark_options={fill=colour_map[impl]},
-                            mark=marker_map[impl],
+                            mark_options = {fill = colour_map[impl]},
+                            mark = marker_map[impl],
                         },
                         Coordinates(
-                            impl_group.dim_lat,
-                            time.(impl_group[!, plt.result_name]),
+                            impl_group.dim_lat, time.(impl_group[!, plt.result_name])
                         ),
                     )),
                 )
@@ -351,40 +342,24 @@ let
         # Specify plots to produce.
         plots = [
             (
-                plot = (@pgf Axis(
-                    {
-                        title = "predict",
-                        legend_pos = "north west",
-                    }
-                )),
-                result_name = :predict_results,
-                save_name = "predict_dim_lat=$(first(dim_lat_group.dim_lat)).tex",
+                plot=(@pgf Axis({title = "predict", legend_pos = "north west"})),
+                result_name=:predict_results,
+                save_name="predict_dim_lat=$(first(dim_lat_group.dim_lat)).tex",
             ),
             (
-                plot = (@pgf Axis(
-                    {
-                        title = "forwards pass",
-                        legend_pos = "north west",
-                    },
-                )),
-                result_name = :generate_pullback_results,
-                save_name = "generate_pb_dim_lat=$(first(dim_lat_group.dim_lat)).tex",
+                plot=(@pgf Axis({title = "forwards pass", legend_pos = "north west"},)),
+                result_name=:generate_pullback_results,
+                save_name="generate_pb_dim_lat=$(first(dim_lat_group.dim_lat)).tex",
             ),
             (
-                plot = (@pgf Axis(
-                    {
-                        title = "reverse pass",
-                        legend_pos = "north west",
-                    },
-                )),
-                result_name = :pullback_results,
-                save_name = "pullback_dim_lat=$(first(dim_lat_group.dim_lat)).tex",
+                plot=(@pgf Axis({title = "reverse pass", legend_pos = "north west"},)),
+                result_name=:pullback_results,
+                save_name="pullback_dim_lat=$(first(dim_lat_group.dim_lat)).tex",
             ),
         ]
 
         # Compute dim_lat vs time curves for each implementation, for each benchmarked op.
         by(dim_lat_group, :implementation_name) do impl_group
-
             impl_group = sort(impl_group, :n_blocks)
 
             impl = first(impl_group.implementation_name)
@@ -395,12 +370,11 @@ let
                     (@pgf Plot(
                         {
                             color = colour_map[impl],
-                            mark_options={fill=colour_map[impl]},
-                            mark=marker_map[impl],
+                            mark_options = {fill = colour_map[impl]},
+                            mark = marker_map[impl],
                         },
                         Coordinates(
-                            impl_group.n_blocks,
-                            time.(impl_group[!, plt.result_name]),
+                            impl_group.n_blocks, time.(impl_group[!, plt.result_name])
                         ),
                     )),
                 )
@@ -419,23 +393,17 @@ let
     end
 end
 
-
-
-
-
-
 #
 # Rough old benchmarks and profiling. Helpful for debugging performance, less so for
 # producing nice graphs.
 #
 
-
 #
 # Roughly benchmark Kronecker against Dense.
 #
 
-using BenchmarkTools, FillArrays, Kronecker, LinearAlgebra, Random, Stheno,
-    TemporalGPs, Mooncake
+using BenchmarkTools,
+    FillArrays, Kronecker, LinearAlgebra, Random, Stheno, TemporalGPs, Mooncake
 
 using TemporalGPs: predict
 
@@ -457,7 +425,6 @@ Q = randn(rng, Dlat, Dlat);
 # Generate filtering (input) distribution.
 mf = randn(rng, Float64, Dlat);
 Pf = Symmetric(Stheno.kernelmatrix(SEKernel(), range(-10.0, 10.0; length=Dlat)));
-
 
 # Generate corresponding dense dynamics.
 A_dense = collect(A);
@@ -483,7 +450,6 @@ Pp = collect(Pf);
 # using ProfileView
 # @profview [back((mp, Pp)) for _ in 1:10]
 
-
 T = Float64;
 Δmp = copy(mp);
 ΔPp = copy(Pp);
@@ -493,8 +459,7 @@ T = Float64;
 Δa = fill(zero(T), size(a));
 ΔQ = TemporalGPs.get_cotangent_storage(Q, zero(T));
 @benchmark TemporalGPs.predict_pullback_accum!(
-    $Δmp, $ΔPp, $Δmf, $ΔPf, $ΔA, $Δa, $ΔQ,
-    $mf, $Pf, $A, $a, $Q,
+    $Δmp, $ΔPp, $Δmf, $ΔPf, $ΔA, $Δa, $ΔQ, $mf, $Pf, $A, $a, $Q
 )
 
 # @profview [TemporalGPs.predict_pullback_accum!(
@@ -502,25 +467,27 @@ T = Float64;
 #     mf, Pf, A, a, Q,
 # ) for _ in 1:100]
 
-
-
 #
 # Roughly benchmark BlockDiagonal of Kroneckers against Dense.
 #
 
-using BenchmarkTools, BlockDiagonals, FillArrays, Kronecker, LinearAlgebra, Random, Stheno,
-    TemporalGPs, Mooncake
+using BenchmarkTools,
+    BlockDiagonals,
+    FillArrays,
+    Kronecker,
+    LinearAlgebra,
+    Random,
+    Stheno,
+    TemporalGPs,
+    Mooncake
 
 using TemporalGPs: predict
-
-
 
 rng = MersenneTwister(123456);
 D = 3;
 N = 247;
 N_blocks = 3;
 T = Float64;
-
 
 Dlat = N * D * N_blocks;
 
@@ -538,7 +505,6 @@ Q = BlockDiagonal(Qs);
 mf = randn(rng, T, Dlat);
 Pf_ = randn(rng, T, Dlat, Dlat);
 Pf = Symmetric(Pf_'Pf_ + I);
-
 
 # Generate corresponding dense dynamics.
 A_dense = collect(A);
