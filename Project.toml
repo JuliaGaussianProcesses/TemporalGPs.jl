@@ -24,9 +24,13 @@ FillArrays = "0.13.0 - 0.13.7, 1"
 JET = "0.9"
 JuliaFormatter = "1.0.62"
 KernelFunctions = "0.9, 0.10.1"
+LinearAlgebra = "1"
 Mooncake = "0.4.94"
+Pkg = "1"
+Random = "1"
 StaticArrays = "1"
 StructArrays = "0.5, 0.6, 0.7"
+Test = "1"
 julia = "1.6"
 
 [extras]

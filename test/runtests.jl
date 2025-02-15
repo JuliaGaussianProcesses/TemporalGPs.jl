@@ -3,7 +3,7 @@ include("front_matter.jl")
 # Run the tests.
 @testset "TemporalGPs.jl" begin
     if GROUP == "quality"
-        Aqua.test_all(TemporalGPs)
+        Aqua.test_all(TemporalGPs; piracies=false)
         @test JuliaFormatter.format(TemporalGPs; verbose=false, overwrite=false)
     end
 

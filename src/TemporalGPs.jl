@@ -18,14 +18,7 @@ using KernelFunctions:
     SimpleKernel, KernelSum, ScaleTransform, ScaledKernel, TransformedKernel
 
 export to_sde,
-    SArrayStorage,
-    ArrayStorage,
-    RegularSpacing,
-    checkpointed,
-    posterior,
-    logpdf_and_rand,
-    Separable,
-    ApproxPeriodicKernel
+    SArrayStorage, ArrayStorage, RegularSpacing, posterior, Separable, ApproxPeriodicKernel
 
 # Various bits-and-bobs. Often commiting some type piracy.
 include(joinpath("util", "linear_algebra.jl"))
