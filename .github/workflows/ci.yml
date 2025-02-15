@@ -27,6 +27,7 @@ jobs:
         arch:
           - x64
         group:
+          - 'quality'
           - 'test util'
           - 'test models'
           - 'test gp'
