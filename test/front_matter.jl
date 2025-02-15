@@ -1,8 +1,10 @@
 
-using AbstractGPs,
+using Aqua,
+    AbstractGPs,
     BlockDiagonals,
     FillArrays,
     JET,
+    JuliaFormatter,
     KernelFunctions,
     LinearAlgebra,
     Mooncake,
