@@ -4,6 +4,8 @@ on:
     branches:
       - master
   pull_request:
+  schedule:
+    - cron: '0 0 * * *'
 
 concurrency:
   # Skip intermediate builds: always.
