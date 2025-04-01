@@ -7,9 +7,10 @@ using AbstractGPs
 using TemporalGPs
 
 # Load standard packages from the Julia ecosystem
+using ADTypes # Way to specify algorithmic differentiation backend.
 using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
-using Mooncake # Algorithmic Differentiation
+import Mooncake # Algorithmic differentiation.
 
 # Declare model parameters using `ParameterHandling.jl` types.
 # var_kernel is the variance of the kernel, λ the inverse length scale, and var_noise the
@@ -48,15 +49,9 @@ function objective(flat_params)
     return -logpdf(f(x, params.var_noise), y)
 end
 
-# A helper function to get the gradient.
-function objective_grad(rule, flat_params)
-    return Mooncake.value_and_gradient!!(rule, objective, flat_params)[2][2]
-end
-
 # Optimise using Optim. Mooncake takes a little while to compile.
 training_results = Optim.optimize(
     objective,
-    Base.Fix1(objective_grad, Mooncake.build_rrule(objective, flat_initial_params)),
     flat_initial_params .+ randn.(), # Perturb the parameters to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),
@@ -64,6 +59,7 @@ training_results = Optim.optimize(
     ),
     Optim.Options(show_trace = true);
     inplace=false,
+    autodiff=AutoMooncake(; config=nothing),
 );
 
 # Extracting the final values of the parameters. Should be moderately close to truth.
