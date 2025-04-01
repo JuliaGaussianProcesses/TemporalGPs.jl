@@ -14,7 +14,7 @@ using TemporalGPs: Separable, RectilinearGrid
 using ADTypes # Way to specify algorithmic differentiation backend.
 using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
-import Mooncake # Algorithmic Differentiation.
+import Mooncake # Algorithmic differentiation.
 
 # Declare model parameters using `ParameterHandling.jl` types.
 flat_initial_params, unflatten = ParameterHandling.flatten((
