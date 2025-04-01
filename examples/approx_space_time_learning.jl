@@ -11,9 +11,10 @@ using TemporalGPs
 using TemporalGPs: Separable, approx_posterior_marginals, RegularInTime
 
 # Load standard packages from the Julia ecosystem
+using ADTypes # Way to specify algorithmic differentiation backend.
 using Optim # Standard optimisation algorithms.
 using ParameterHandling # Helper functionality for dealing with model parameters.
-using Mooncake # Algorithmic Differentiation
+import Mooncake # Algorithmic differentiation.
 
 using ParameterHandling: flatten
 
@@ -60,17 +61,11 @@ function objective(flat_params)
     return -elbo(f(x, params.var_noise), y, z_r)
 end
 
-# Optimise using Optim.
-function objective_grad(rule, flat_params)
-    return Mooncake.value_and_gradient!!(rule, objective, flat_params)[2][2]
-end
-
 @info "running objective"
 @show objective(flat_initial_params)
 
 training_results = Optim.optimize(
     objective,
-    Base.Fix1(objective_grad, Mooncake.build_rrule(objective, flat_initial_params)),
     flat_initial_params + randn(4), # Add some noise to make learning non-trivial
     BFGS(
         alphaguess = Optim.LineSearches.InitialStatic(scaled=true),
@@ -78,6 +73,7 @@ training_results = Optim.optimize(
     ),
     Optim.Options(show_trace = true);
     inplace=false,
+    autodiff=AutoMooncake(; config=nothing),
 );
 
 
